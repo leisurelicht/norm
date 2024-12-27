@@ -1,5 +1,9 @@
 package clickhouse
 
+import (
+	"context"
+)
+
 var operators = map[string]string{
 	"exact":   "`%s` = ?",
 	"exclude": "`%s` != ?",
@@ -33,4 +37,32 @@ func NewOperator() *Operator {
 
 func (d *Operator) OperatorSQL(operator string) string {
 	return operators[operator]
+}
+
+func (d *Operator) Insert(ctx context.Context, conn any, sql string, args ...any) (id int64, err error) {
+	return id, err
+}
+
+func (d *Operator) BulkInsert(ctx context.Context, conn any, sql string, args ...any) (err error) {
+	return err
+}
+
+func (d *Operator) Remove(ctx context.Context, conn any, sql string, args ...any) (num int64, err error) {
+	return num, err
+}
+
+func (d *Operator) Update(ctx context.Context, conn any, sql string, args ...any) (num int64, err error) {
+	return num, err
+}
+
+func (d *Operator) Count(ctx context.Context, conn any, sql string, args ...any) (num int64, err error) {
+	return num, err
+}
+
+func (d *Operator) FindOne(ctx context.Context, conn any, model any, sql string, args ...any) (err error) {
+	return err
+}
+
+func (d *Operator) FindAll(ctx context.Context, conn any, model any, sql string, args ...any) (err error) {
+	return err
 }

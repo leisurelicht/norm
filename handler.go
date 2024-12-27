@@ -15,11 +15,12 @@ import (
 )
 
 const (
-	SELECTBASESQL   = "SELECT %s FROM %s"
+	SelectBase      = "SELECT %s FROM %s"
+	UpdateBase      = "UPDATE %s SET %s"
+	InsertBase      = "INSERT INTO %s (%s) VALUES (%s)"
+	DeleteBase      = "DELETE FROM %s"
 	DefaultModelTag = "db"
 )
-
-var ErrDuplicateKey = errors.New("duplicate key")
 
 var _ Controller = (*Impl)(nil)
 
@@ -27,7 +28,6 @@ type (
 	Controller interface {
 		ctx() context.Context
 		values(values []string) string
-		Conn() sqlx.SqlConn
 		WithSession(session sqlx.Session) Controller
 		Reset() Controller
 		Filter(filter ...any) Controller
@@ -60,9 +60,10 @@ type (
 
 	Impl struct {
 		context      context.Context
-		conn         sqlx.SqlConn
+		conn         any
 		model        any
 		modelSlice   any
+		operator     Operator
 		tableName    string
 		fieldNameMap map[string]struct{}
 		fieldRows    string
@@ -87,7 +88,7 @@ func shiftName(s string) string {
 	return "`" + res + "`"
 }
 
-func NewController(conn sqlx.SqlConn, op Operator, m any) func(ctx context.Context) Controller {
+func NewController(conn any, op Operator, m any) func(ctx context.Context) Controller {
 	t := reflect.TypeOf(m)
 	if t.Kind() != reflect.Struct {
 		log.Panicf("model [%s] must be a struct", t.Name())
@@ -105,6 +106,7 @@ func NewController(conn sqlx.SqlConn, op Operator, m any) func(ctx context.Conte
 			conn:         conn,
 			model:        mPtr,
 			modelSlice:   mSlicePtr,
+			operator:     op,
 			tableName:    shiftName(t.Name()),
 			fieldNameMap: StrSlice2Map(builder.RawFieldNames(m, true)),
 			fieldRows:    strings.Join(builder.RawFieldNames(m), ","),
@@ -144,10 +146,6 @@ func (m *Impl) querySetError() error {
 		return err
 	}
 	return nil
-}
-
-func (m *Impl) Conn() sqlx.SqlConn {
-	return m.conn
 }
 
 func (m *Impl) WithSession(session sqlx.Session) Controller {
@@ -232,29 +230,6 @@ func (m *Impl) Limit(pageSize, pageNum int64) Controller {
 }
 
 func (m *Impl) Select(columns any) Controller {
-	//var selectSlice []string
-	//v := reflect.ValueOf(columns)
-	//switch v.Kind() {
-	//case reflect.Slice, reflect.Array:
-	//	columnsList, ok := columns.([]string)
-	//	if !ok {
-	//		logc.Error(m.ctx(), "Select columns type should be string slice or string array.")
-	//		return m
-	//	}
-	//	if len(columnsList) == 0 {
-	//		return m
-	//	}
-	//	selectSlice = columnsList
-	//case reflect.String:
-	//	if columns.(string) == "" {
-	//		return m
-	//	}
-	//	selectSlice = strings.Split(columns.(string), ",")
-	//default:
-	//	logc.Error(m.ctx(), "Select type should be string, string slice or string array .")
-	//	return m
-	//}
-
 	m.qs.SelectToSQL(columns)
 	return m
 }
@@ -321,21 +296,7 @@ func (m *Impl) Insert(data map[string]any) (id int64, err error) {
 
 	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", m.tableName, strings.Join(rows, ","), strings.Repeat("?,", len(rows)-1)+"?")
 
-	res, err := m.conn.ExecCtx(m.ctx(), sql, args...)
-	if err != nil {
-		if strings.Contains(err.Error(), "1062") {
-			return 0, ErrDuplicateKey
-		}
-		logc.Errorf(m.ctx(), "Insert querySetError: %s", err)
-		return 0, err
-	}
-
-	id, err = res.LastInsertId()
-	if err != nil {
-		logc.Errorf(m.ctx(), "Get last insert id queryset error: %s", err)
-	}
-
-	return id, err
+	return m.operator.Insert(m.ctx(), m.conn, sql, args...)
 }
 
 func (m *Impl) InsertModel(model any) (id int64, err error) {
@@ -343,39 +304,7 @@ func (m *Impl) InsertModel(model any) (id int64, err error) {
 }
 
 func (m *Impl) BulkInsert(data []map[string]any, handler sqlx.ResultHandler) (err error) {
-	var rows []string
-	for k := range m.fieldNameMap {
-		if _, ok := data[0][k]; !ok {
-			continue
-		}
-		rows = append(rows, fmt.Sprintf("`%s`", k))
-	}
-
-	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", m.tableName, strings.Join(rows, ","), strings.Repeat("?,", len(rows)-1)+"?")
-
-	blk, err := sqlx.NewBulkInserter(m.conn, sql)
-	if err != nil {
-		logc.Errorf(m.ctx(), "Insert BulkInsert handle queryset error: %+v", err)
-		return err
-	}
-	defer blk.Flush()
-
-	for _, v := range data {
-		var args []any
-		for _, k := range rows {
-			args = append(args, v[k])
-		}
-		if err := blk.Insert(args...); err != nil {
-			logc.Errorf(m.ctx(), "BulkInsert queryset error: %+v", err)
-			return err
-		}
-	}
-
-	if handler != nil {
-		blk.SetResultHandler(handler)
-	}
-
-	return nil
+	return m.operator.BulkInsert(m.ctx(), m.conn, m.tableName, data, handler)
 }
 
 func (m *Impl) BulkInsertModel(modelSlice any, handler sqlx.ResultHandler) (err error) {
@@ -392,18 +321,7 @@ func (m *Impl) Remove() (num int64, err error) {
 	filterSQL, filterArgs := m.qs.GetQuerySet()
 	sql += filterSQL
 
-	res, err := m.conn.ExecCtx(m.ctx(), sql, filterArgs...)
-	if err != nil {
-		logc.Errorf(m.ctx(), "Remove queryset error: %+v", err)
-		return 0, err
-	}
-
-	num, err = res.RowsAffected()
-	if err != nil {
-		logc.Errorf(m.ctx(), "Remove rows affected queryset error: %+v", err)
-		return 0, err
-	}
-	return num, nil
+	return m.operator.Remove(m.ctx(), m.conn, sql, filterArgs...)
 }
 
 func (m *Impl) Update(data map[string]any) (num int64, err error) {
@@ -433,18 +351,7 @@ func (m *Impl) Update(data map[string]any) (num int64, err error) {
 	sql += filterSQL
 	args = append(args, filterArgs...)
 
-	res, err := m.conn.Exec(sql, args...)
-	if err != nil {
-		logc.Errorf(m.ctx(), "Update queryset error: %+v", err)
-		return 0, err
-	}
-
-	num, err = res.RowsAffected()
-	if err != nil {
-		logc.Errorf(m.ctx(), "Update rows affected queryset error: %+v", err)
-		return 0, err
-	}
-	return num, nil
+	return m.operator.Update(m.ctx(), m.conn, sql, args...)
 }
 
 func (m *Impl) Count() (num int64, err error) {
@@ -458,20 +365,7 @@ func (m *Impl) Count() (num int64, err error) {
 
 	query += filterSQL
 
-	var resp int64
-	err = m.conn.QueryRowCtx(m.ctx(), &resp, query, filterArgs...)
-
-	switch {
-	case err == nil:
-		return resp, nil
-	case errors.Is(err, sqlx.ErrNotFound):
-		return 0, nil
-	default:
-		logc.Errorf(m.ctx(), "Count queryset error: %+v. ", err)
-		logc.Errorf(m.ctx(), "Count queryset filterSQL: %+v. ", filterSQL)
-		logc.Errorf(m.ctx(), "Count queryset filterArgs: %+v. ", filterArgs)
-		return 0, err
-	}
+	return m.operator.Count(m.ctx(), m.conn, query, filterArgs...)
 }
 
 func (m *Impl) FindOne() (result map[string]any, err error) {
@@ -479,7 +373,7 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 		return result, err
 	}
 
-	query := SELECTBASESQL
+	query := SelectBase
 
 	selectRows := m.qs.GetSelectSQL()
 	if selectRows != "*" {
@@ -497,15 +391,15 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 
 	res, _ := DeepCopy(m.model)
 
-	err = m.conn.QueryRowPartialCtx(m.ctx(), res, query, filterArgs...)
+	err = m.operator.FindOne(m.ctx(), m.conn, res, query, filterArgs...)
 
 	switch {
 	case err == nil:
 		return Struct2Map(res, m.mTag), nil
-	case errors.Is(err, sqlx.ErrNotFound):
+	case errors.Is(err, ErrNotFound):
 		return map[string]any{}, nil
 	default:
-		logc.Errorf(m.ctx(), "FindOne queryset error: %+v", err)
+
 		return map[string]any{}, err
 	}
 }
@@ -515,7 +409,7 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 		return err
 	}
 
-	query := SELECTBASESQL
+	query := SelectBase
 
 	selectRows := m.qs.GetSelectSQL()
 	if selectRows != "*" {
@@ -531,17 +425,7 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 	query += m.qs.GetOrderBySQL()
 	query += " LIMIT 1"
 
-	err = m.conn.QueryRowPartialCtx(m.ctx(), modelPtr, query, filterArgs...)
-
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, sqlx.ErrNotFound):
-		return sqlx.ErrNotFound
-	default:
-		logc.Errorf(m.ctx(), "FindOneModel queryset error: %+v", err)
-		return err
-	}
+	return m.operator.FindOne(m.ctx(), m.conn, modelPtr, query, filterArgs...)
 }
 
 func (m *Impl) FindAll() (result []map[string]any, err error) {
@@ -549,7 +433,7 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 		return result, err
 	}
 
-	query := SELECTBASESQL
+	query := SelectBase
 
 	selectRows := m.qs.GetSelectSQL()
 	if selectRows != "*" {
@@ -567,15 +451,14 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 
 	res, _ := DeepCopy(m.modelSlice)
 
-	err = m.conn.QueryRowsPartialCtx(m.ctx(), res, query, filterArgs...)
+	err = m.operator.FindAll(m.ctx(), m.conn, res, query, filterArgs...)
 
 	switch {
 	case err == nil:
 		return StructSlice2MapSlice(res, m.mTag), nil
-	case errors.Is(err, sqlx.ErrNotFound):
+	case errors.Is(err, ErrNotFound):
 		return []map[string]any{}, nil
 	default:
-		logc.Errorf(m.ctx(), "FindAll queryset error: %+v", err)
 		return []map[string]any{}, err
 	}
 }
@@ -585,7 +468,7 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 		return err
 	}
 
-	query := SELECTBASESQL
+	query := SelectBase
 
 	selectRows := m.qs.GetSelectSQL()
 	if selectRows != "*" {
@@ -601,16 +484,15 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 	query += m.qs.GetOrderBySQL()
 	query += m.qs.GetLimitSQL()
 
-	err = m.conn.QueryRowsPartialCtx(m.ctx(), modelSlicePtr, query, filterArgs...)
+	err = m.operator.FindAll(m.ctx(), m.conn, modelSlicePtr, query, filterArgs...)
 
 	switch {
-	case err != nil:
-		logc.Errorf(m.ctx(), "FindAllModel queryset error: %+v", err)
-		return err
-	case reflect.ValueOf(modelSlicePtr).Elem().Len() == 0:
-		return sqlx.ErrNotFound
-	default:
+	case err == nil:
 		return nil
+	case reflect.ValueOf(modelSlicePtr).Elem().Len() == 0:
+		return ErrNotFound
+	default:
+		return err
 	}
 }
 
@@ -700,7 +582,7 @@ func (m *Impl) GetC2CMap(column1, column2 string) (res map[any]any, err error) {
 
 	result, _ := DeepCopy(m.modelSlice)
 
-	if err = m.conn.QueryRowsPartialCtx(m.ctx(), result, query, filterArgs...); err != nil {
+	if err = m.operator.FindAll(m.ctx(), m.conn, res, query, filterArgs...); err != nil {
 		logc.Errorf(m.ctx(), "GetC2CMap querySetError: %+v", err)
 		return res, err
 	}
