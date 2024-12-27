@@ -16,3 +16,18 @@ format:
 .PHONY: test
 test:
 	go test .
+
+## prepare: Prepare test environment
+.PHONY: prepare
+prepare:
+	echo "prepare test environment"
+	@docker run -d --name norm_test_mysql -e MYSQL_ROOT_PASSWORD=123456 -p 3306:3306 mysql:8.4
+	@sleep 10
+	@mysql -h127.0.0.1 -uroot -p123456 --silent <./test/ddl.sql
+	@goctl model mysql ddl --style go_zero --src ./test/ddl.sql --dir ./test;
+	echo "prepare test environment over"
+
+## clean: Clean test environment
+.PHONY: clean
+clean:
+	@docker stop norm_test_mysql && docker rm norm_test_mysql
