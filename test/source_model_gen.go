@@ -49,14 +49,14 @@ type (
 func newSourceModel(conn sqlx.SqlConn) *defaultSourceModel {
 	return &defaultSourceModel{
 		conn:  conn,
-		table: "`Source`",
+		table: "`source`",
 	}
 }
 
 func (m *defaultSourceModel) withSession(session sqlx.Session) *defaultSourceModel {
 	return &defaultSourceModel{
 		conn:  sqlx.NewSqlConnFromSession(session),
-		table: "`Source`",
+		table: "`source`",
 	}
 }
 

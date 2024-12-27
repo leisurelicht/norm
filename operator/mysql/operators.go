@@ -94,7 +94,7 @@ func (d *Operator) Update(ctx context.Context, conn any, sql string, args ...any
 }
 
 func (d *Operator) Count(ctx context.Context, conn any, sql string, args ...any) (num int64, err error) {
-	err = conn.(sqlx.SqlConn).QueryRowCtx(ctx, &num, sql, args)
+	err = conn.(sqlx.SqlConn).QueryRowCtx(ctx, &num, sql, args...)
 
 	switch {
 	case err == nil:
