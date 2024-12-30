@@ -42,7 +42,7 @@ func (d *Operator) OperatorSQL(operator string) string {
 }
 
 func (d *Operator) Insert(ctx context.Context, conn any, sql string, args ...any) (id int64, err error) {
-	res, err := conn.(sqlx.SqlConn).ExecCtx(ctx, sql, args)
+	res, err := conn.(sqlx.SqlConn).ExecCtx(ctx, sql, args...)
 	if err != nil {
 		if strings.Contains(err.Error(), "1062") {
 			return 0, operator.ErrDuplicateKey
@@ -64,7 +64,7 @@ func (d *Operator) BulkInsert(ctx context.Context, conn any, sql string, args ..
 }
 
 func (d *Operator) Remove(ctx context.Context, conn any, sql string, args ...any) (num int64, err error) {
-	res, err := conn.(sqlx.SqlConn).ExecCtx(ctx, sql, args)
+	res, err := conn.(sqlx.SqlConn).ExecCtx(ctx, sql, args...)
 	if err != nil {
 		logc.Errorf(ctx, "Remove error: %+v", err)
 		return 0, err
@@ -79,7 +79,7 @@ func (d *Operator) Remove(ctx context.Context, conn any, sql string, args ...any
 }
 
 func (d *Operator) Update(ctx context.Context, conn any, sql string, args ...any) (num int64, err error) {
-	res, err := conn.(sqlx.SqlConn).Exec(sql, args)
+	res, err := conn.(sqlx.SqlConn).Exec(sql, args...)
 	if err != nil {
 		logc.Errorf(ctx, "Update error: %+v", err)
 		return 0, err
@@ -108,7 +108,7 @@ func (d *Operator) Count(ctx context.Context, conn any, sql string, args ...any)
 }
 
 func (d *Operator) FindOne(ctx context.Context, conn any, model any, sql string, args ...any) (err error) {
-	err = conn.(sqlx.SqlConn).QueryRowPartialCtx(ctx, model, sql, args)
+	err = conn.(sqlx.SqlConn).QueryRowPartialCtx(ctx, model, sql, args...)
 
 	switch {
 	case err == nil:
@@ -122,7 +122,7 @@ func (d *Operator) FindOne(ctx context.Context, conn any, model any, sql string,
 }
 
 func (d *Operator) FindAll(ctx context.Context, conn any, model any, sql string, args ...any) (err error) {
-	err = conn.(sqlx.SqlConn).QueryRowsPartialCtx(ctx, model, sql, args)
+	err = conn.(sqlx.SqlConn).QueryRowsPartialCtx(ctx, model, sql, args...)
 
 	switch {
 	case err == nil:
