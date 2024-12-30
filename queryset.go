@@ -102,10 +102,10 @@ type QuerySet interface {
 	OrderByToSQL(orderBy any) QuerySet
 	GetLimitSQL() string
 	LimitToSQL(pageSize, pageNum int64) QuerySet
-	SelectToSQL(columns any) QuerySet
 	GetSelectSQL() string
-	GroupByToSQL(groupBy any) QuerySet
+	SelectToSQL(columns any) QuerySet
 	GetGroupBySQL() string
+	GroupByToSQL(groupBy any) QuerySet
 }
 
 type QuerySetImpl struct {
@@ -505,6 +505,10 @@ func (p *QuerySetImpl) LimitToSQL(pageSize, pageNum int64) QuerySet {
 	return p
 }
 
+func (p *QuerySetImpl) GetSelectSQL() string {
+	return p.selectColumn
+}
+
 func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
 	switch columns.(type) {
 	case string:
@@ -524,8 +528,8 @@ func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
 	return p
 }
 
-func (p *QuerySetImpl) GetSelectSQL() string {
-	return p.selectColumn
+func (p *QuerySetImpl) GetGroupBySQL() string {
+	return p.groupSQL
 }
 
 func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
@@ -559,8 +563,4 @@ func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
 	p.groupSQL = b.String()
 
 	return p
-}
-
-func (p *QuerySetImpl) GetGroupBySQL() string {
-	return p.groupSQL
 }
