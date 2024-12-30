@@ -30,6 +30,12 @@ func TestQuery(t *testing.T) {
 		t.Errorf("expect 11 but got %d", res["id"])
 	}
 
+	if res, err := ctl(nil).Filter(Cond{"is_deleted": false}).FindOne(); err != nil {
+		t.Error(err)
+	} else if res["name"].(string) != "Acfun" {
+		t.Errorf("expect Acfun but got %s", res["name"])
+	}
+
 	created, _ := time.ParseInLocation("2006-01-02 15:04:05", "2024-03-19 15:16:23", time.Local)
 	updated, _ := time.ParseInLocation("2006-01-02 15:04:05", "2024-03-19 15:16:23", time.Local)
 	source1 := test.Source{Id: 11, Name: "Acfun", Type: 1, Description: "A 站", IsDeleted: false, CreateTime: created, UpdateTime: updated}
