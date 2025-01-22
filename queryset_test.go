@@ -314,29 +314,30 @@ func TestWhere(t *testing.T) {
 	type want struct {
 		sql  string
 		args []any
+		err  error
 	}
 	tests := []struct {
 		name string
 		args args
 		want want
 	}{
-		{"one", args{"`test` = ?", []any{1}, nil}, want{"`test` = ?", []any{1}}},
-		{"two", args{"`test` = ? AND test2 = ?", []any{1, 2}, nil}, want{"`test` = ? AND test2 = ?", []any{1, 2}}},
-		{"three", args{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}, nil}, want{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}}},
-		{name: "one_with_filter", args: args{"`test` = ?", []any{1}, &filterArgs{0, []any{Cond{"test": 1}}}}, want: want{"`test` = ?", []any{1}}},
+		{"one", args{"`test` = ?", []any{1}, nil}, want{"`test` = ?", []any{1}, nil}},
+		{"two", args{"`test` = ? AND test2 = ?", []any{1, 2}, nil}, want{"`test` = ? AND test2 = ?", []any{1, 2}, nil}},
+		{"three", args{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}, nil}, want{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}, nil}},
+		{name: "one_with_filter", args: args{"`test` = ?", []any{1}, &filterArgs{0, []any{Cond{"test": 1}}}}, want: want{"`test` = ?", []any{1}, fmt.Errorf(filterOrWhereError)}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewQuerySet(mysqlOp.NewOperator())
-			p = p.WhereToSQL(tt.args.cond, tt.args.args...)
+			p.WhereToSQL(tt.args.cond, tt.args.args...)
 			if tt.args.filters != nil {
 				p.FilterToSQL(tt.args.filters.isNot, tt.args.filters.filter...)
 			}
 
 			sql, sqlArgs := p.GetQuerySet()
 
-			if p.Error() != nil {
+			if !errors.Is(p.Error(), tt.want.err) && p.Error().Error() != tt.want.err.Error() {
 				t.Errorf("TestFilter SQL Occur Error -> error:%+v", p.Error())
 			}
 

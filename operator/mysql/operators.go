@@ -3,10 +3,12 @@ package mysql
 import (
 	"context"
 	"errors"
-	"github.com/leisurelicht/norm/operator"
+	"strings"
+
 	"github.com/zeromicro/go-zero/core/logc"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
-	"strings"
+
+	"github.com/leisurelicht/norm/operator"
 )
 
 var operators = map[string]string{

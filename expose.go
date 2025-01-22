@@ -2,9 +2,10 @@ package norm
 
 import (
 	"fmt"
-	"github.com/leisurelicht/norm/operator"
 	"reflect"
 	"strings"
+
+	"github.com/leisurelicht/norm/operator"
 )
 
 var (

@@ -50,6 +50,7 @@ const (
 	isNotValueError             = "isNot value must be 0 or 1"
 	unsupportedFilterTypeError  = "unsupported filter type [%+v], Please use be [Cond | AND | OR]"
 	valueTypeError              = "value type must be string or slice of string"
+	filterOrWhereError          = "filter or where can be called only one"
 )
 
 const (
@@ -67,6 +68,17 @@ type cond struct {
 	SQL  string
 	Args []any
 }
+
+type callFlag int64
+
+const (
+	callFilter callFlag = 1 << iota
+	callWhere
+	callOrderBy
+	callLimit
+	callSelect
+	callGroupBy
+)
 
 func newCond() *cond {
 	return &cond{}
@@ -118,6 +130,7 @@ type QuerySetImpl struct {
 	limitSQL      string
 	groupSQL      string
 	err           error
+	called        callFlag
 }
 
 var _ QuerySet = (*QuerySetImpl)(nil)
@@ -134,6 +147,14 @@ func NewQuerySet(op Operator) QuerySet {
 		groupSQL:      "",
 		err:           nil,
 	}
+}
+
+func (p *QuerySetImpl) setCalled(f callFlag) {
+	p.called = p.called | f
+}
+
+func (p *QuerySetImpl) hasCalled(f callFlag) bool {
+	return p.called&f == f
 }
 
 func (p *QuerySetImpl) setError(format string, a ...any) {
@@ -203,6 +224,13 @@ func (p *QuerySetImpl) GetQuerySet() (sql string, args []any) {
 }
 
 func (p *QuerySetImpl) WhereToSQL(cond string, args ...any) QuerySet {
+	if !p.hasCalled(callFilter) {
+		p.setCalled(callWhere)
+	} else {
+		p.setError(filterOrWhereError)
+		return p
+	}
+
 	num := strings.Count(cond, "?")
 	if num > 0 && len(args) != num {
 		p.setError(argsLenError)
@@ -210,6 +238,7 @@ func (p *QuerySetImpl) WhereToSQL(cond string, args ...any) QuerySet {
 	}
 	p.whereCond.SQL = cond
 	p.whereCond.Args = args
+
 	return p
 }
 
@@ -401,6 +430,13 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 }
 
 func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
+	if !p.hasCalled(callWhere) {
+		p.setCalled(callFilter)
+	} else {
+		p.setError(filterOrWhereError)
+		return p
+	}
+
 	if len(filter) == 0 {
 		return p
 	}
@@ -456,6 +492,8 @@ func (p *QuerySetImpl) GetOrderBySQL() string {
 }
 
 func (p *QuerySetImpl) OrderByToSQL(orderBy any) QuerySet {
+	p.setCalled(callOrderBy)
+
 	var orderByList []string
 
 	switch orderBy.(type) {
@@ -495,6 +533,8 @@ func (p *QuerySetImpl) GetLimitSQL() string {
 }
 
 func (p *QuerySetImpl) LimitToSQL(pageSize, pageNum int64) QuerySet {
+	p.setCalled(callLimit)
+
 	if pageSize > 0 && pageNum > 0 {
 		var offset, limit int64
 		offset = (pageNum - 1) * pageSize
@@ -510,6 +550,8 @@ func (p *QuerySetImpl) GetSelectSQL() string {
 }
 
 func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
+	p.setCalled(callSelect)
+
 	switch columns.(type) {
 	case string:
 		if columns.(string) == "" {
@@ -533,6 +575,8 @@ func (p *QuerySetImpl) GetGroupBySQL() string {
 }
 
 func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
+	p.setCalled(callGroupBy)
+
 	var groupByList []string
 
 	switch groupBy.(type) {

@@ -15,11 +15,29 @@ import (
 )
 
 const (
-	SelectBase      = "SELECT %s FROM %s"
-	UpdateBase      = "UPDATE %s SET %s"
-	InsertBase      = "INSERT INTO %s (%s) VALUES (%s)"
-	DeleteBase      = "DELETE FROM %s"
+	SelectTemp      = "SELECT %s FROM %s"
+	InsertTemp      = "INSERT INTO %s (%s) VALUES (%s)"
+	UpdateTemp      = "UPDATE %s SET %s"
+	DeleteTemp      = "DELETE FROM %s"
 	DefaultModelTag = "db"
+)
+
+const (
+	UnsupportedControllerError = "%s not supported for %s"
+)
+
+type controllerCall struct {
+	Name string
+	Flag callFlag
+}
+
+var (
+	ctlFilter  = controllerCall{Name: "Filter", Flag: callFilter}
+	ctlWhere   = controllerCall{Name: "Where", Flag: callWhere}
+	ctlOrderBy = controllerCall{Name: "OrderBy", Flag: callOrderBy}
+	ctlLimit   = controllerCall{Name: "Limit", Flag: callLimit}
+	ctlSelect  = controllerCall{Name: "Select", Flag: callSelect}
+	ctlGroupBy = controllerCall{Name: "GroupBy", Flag: callGroupBy}
 )
 
 var _ Controller = (*Impl)(nil)
@@ -27,6 +45,8 @@ var _ Controller = (*Impl)(nil)
 type (
 	Controller interface {
 		ctx() context.Context
+		hasCalled(f controllerCall) bool
+		checkCalled(f ...controllerCall) ([]string, bool)
 		values(values []string) string
 		WithSession(session sqlx.Session) Controller
 		Reset() Controller
@@ -69,6 +89,7 @@ type (
 		fieldRows    string
 		mTag         string
 		qs           QuerySet
+		called       callFlag
 	}
 )
 
@@ -112,12 +133,31 @@ func NewController(conn any, op Operator, m any) func(ctx context.Context) Contr
 			fieldRows:    strings.Join(builder.RawFieldNames(m), ","),
 			mTag:         DefaultModelTag,
 			qs:           NewQuerySet(op),
+			called:       0,
 		}
 	}
 }
 
 func (m *Impl) ctx() context.Context {
 	return m.context
+}
+
+func (m *Impl) setCalled(f controllerCall) {
+	m.called = m.called | f.Flag
+}
+
+func (m *Impl) hasCalled(f controllerCall) bool {
+	return m.called&f.Flag == f.Flag
+}
+
+func (m *Impl) checkCalled(f ...controllerCall) ([]string, bool) {
+	var calledMethod []string
+	for _, v := range f {
+		if m.called&v.Flag == v.Flag {
+			calledMethod = append(calledMethod, v.Name)
+		}
+	}
+	return calledMethod, len(calledMethod) != 0
 }
 
 func (m *Impl) values(values []string) string {
@@ -159,10 +199,19 @@ func (m *Impl) Reset() Controller {
 }
 
 func (m *Impl) Filter(filter ...any) Controller {
+	m.setCalled(ctlFilter)
+
 	m.qs.FilterToSQL(0, filter...)
 
 	m.checkQuerySetError()
 
+	return m
+}
+
+func (m *Impl) Where(cond string, args ...any) Controller {
+	m.setCalled(ctlWhere)
+
+	m.qs.WhereToSQL(cond, args)
 	return m
 }
 
@@ -175,6 +224,8 @@ func (m *Impl) Exclude(exclude ...any) Controller {
 }
 
 func (m *Impl) OrderBy(orderBy any) Controller {
+	m.setCalled(ctlOrderBy)
+
 	var (
 		orderBySlice   []string
 		orderByChecked []string
@@ -225,21 +276,22 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 }
 
 func (m *Impl) Limit(pageSize, pageNum int64) Controller {
+	m.setCalled(ctlLimit)
+
 	m.qs.LimitToSQL(pageSize, pageNum)
 	return m
 }
 
 func (m *Impl) Select(columns any) Controller {
+	m.setCalled(ctlSelect)
+
 	m.qs.SelectToSQL(columns)
 	return m
 }
 
-func (m *Impl) Where(cond string, args ...any) Controller {
-	m.qs.WhereToSQL(cond, args)
-	return m
-}
-
 func (m *Impl) GroupBy(groupBy any) Controller {
+	m.setCalled(ctlGroupBy)
+
 	var (
 		groupBySlice        []string
 		groupBySliceChecked []string
@@ -281,6 +333,14 @@ func (m *Impl) GroupBy(groupBy any) Controller {
 }
 
 func (m *Impl) Insert(data map[string]any) (id int64, err error) {
+	if methods, called := m.checkCalled(ctlFilter, ctlWhere, ctlOrderBy, ctlGroupBy, ctlSelect); called {
+		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Insert")
+	}
+
+	if err = m.querySetError(); err != nil {
+		return 0, err
+	}
+
 	var (
 		rows []string
 		args []any
@@ -294,7 +354,7 @@ func (m *Impl) Insert(data map[string]any) (id int64, err error) {
 		args = append(args, data[k])
 	}
 
-	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", m.tableName, strings.Join(rows, ","), strings.Repeat("?,", len(rows)-1)+"?")
+	sql := fmt.Sprintf(InsertTemp, m.tableName, strings.Join(rows, ","), strings.Repeat("?,", len(rows)-1)+"?")
 
 	return m.operator.Insert(m.ctx(), m.conn, sql, args...)
 }
@@ -312,11 +372,15 @@ func (m *Impl) BulkInsertModel(modelSlice any, handler sqlx.ResultHandler) (err 
 }
 
 func (m *Impl) Remove() (num int64, err error) {
+	if methods, called := m.checkCalled(ctlGroupBy, ctlSelect, ctlOrderBy); called {
+		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Delete")
+	}
+
 	if err = m.querySetError(); err != nil {
 		return num, err
 	}
 
-	sql := fmt.Sprintf("DELETE FROM %s", m.tableName)
+	sql := fmt.Sprintf(DeleteTemp, m.tableName)
 
 	filterSQL, filterArgs := m.qs.GetQuerySet()
 	sql += filterSQL
@@ -325,6 +389,10 @@ func (m *Impl) Remove() (num int64, err error) {
 }
 
 func (m *Impl) Update(data map[string]any) (num int64, err error) {
+	if methods, called := m.checkCalled(ctlGroupBy, ctlSelect, ctlOrderBy); called {
+		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Update")
+	}
+
 	if err = m.querySetError(); err != nil {
 		return num, err
 	}
@@ -344,7 +412,7 @@ func (m *Impl) Update(data map[string]any) (num int64, err error) {
 		updateArgs = append(updateArgs, v)
 	}
 
-	sql := fmt.Sprintf("UPDATE %s SET %s", m.tableName, strings.Join(updateRows, "=?,")+"=?")
+	sql := fmt.Sprintf(UpdateTemp, m.tableName, strings.Join(updateRows, "=?,")+"=?")
 	args = append(args, updateArgs...)
 
 	filterSQL, filterArgs := m.qs.GetQuerySet()
@@ -369,23 +437,19 @@ func (m *Impl) Count() (num int64, err error) {
 }
 
 func (m *Impl) FindOne() (result map[string]any, err error) {
+	if methods, called := m.checkCalled(ctlGroupBy, ctlSelect); called {
+		return result, fmt.Errorf(UnsupportedControllerError, methods, "FindOne")
+	}
+
 	if err = m.querySetError(); err != nil {
 		return result, err
 	}
 
-	query := SelectBase
-
-	selectRows := m.qs.GetSelectSQL()
-	if selectRows != "*" {
-		query = fmt.Sprintf(query, selectRows, m.tableName)
-	} else {
-		query = fmt.Sprintf(query, m.fieldRows, m.tableName)
-	}
-
 	filterSQL, filterArgs := m.qs.GetQuerySet()
 
+	query := SelectTemp
+	query = fmt.Sprintf(query, m.fieldRows, m.tableName)
 	query += filterSQL
-	query += m.qs.GetGroupBySQL()
 	query += m.qs.GetOrderBySQL()
 	query += " LIMIT 1"
 
@@ -409,7 +473,7 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 		return err
 	}
 
-	query := SelectBase
+	query := SelectTemp
 
 	selectRows := m.qs.GetSelectSQL()
 	if selectRows != "*" {
@@ -429,23 +493,20 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 }
 
 func (m *Impl) FindAll() (result []map[string]any, err error) {
+	if methods, called := m.checkCalled(ctlGroupBy, ctlSelect); called {
+		return result, fmt.Errorf(UnsupportedControllerError, methods, "FindAll")
+	}
+
 	if err = m.querySetError(); err != nil {
 		return result, err
 	}
 
-	query := SelectBase
-
-	selectRows := m.qs.GetSelectSQL()
-	if selectRows != "*" {
-		query = fmt.Sprintf(query, selectRows, m.tableName)
-	} else {
-		query = fmt.Sprintf(query, m.fieldRows, m.tableName)
-	}
-
 	filterSQL, filterArgs := m.qs.GetQuerySet()
 
+	query := SelectTemp
+	query = fmt.Sprintf(query, m.fieldRows, m.tableName)
 	query += filterSQL
-	query += m.qs.GetGroupBySQL()
+
 	query += m.qs.GetOrderBySQL()
 	query += m.qs.GetLimitSQL()
 
@@ -468,7 +529,7 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 		return err
 	}
 
-	query := SelectBase
+	query := SelectTemp
 
 	selectRows := m.qs.GetSelectSQL()
 	if selectRows != "*" {

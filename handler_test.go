@@ -1,16 +1,18 @@
 package norm
 
 import (
-	mysqlOp "github.com/leisurelicht/norm/operator/mysql"
-	"github.com/leisurelicht/norm/test"
-	"github.com/zeromicro/go-zero/core/stores/sqlx"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/zeromicro/go-zero/core/stores/sqlx"
+
+	mysqlOp "github.com/leisurelicht/norm/operator/mysql"
+	"github.com/leisurelicht/norm/test"
 )
 
 const (
-	mysqlAddress = "root:123456@tcp(127.0.0.1:3306)/test?charset=utf8mb4&loc=Asia%2FShanghai&parseTime=true"
+	mysqlAddress = "root:123456@tcp(127.0.0.1:6033)/test?charset=utf8mb4&loc=Asia%2FShanghai&parseTime=true"
 )
 
 func TestQuery(t *testing.T) {
@@ -83,6 +85,72 @@ func TestQuery(t *testing.T) {
 		t.Errorf("expect 11 but got %d", res[0]["id"])
 	} else if res[len(res)-1]["id"].(int64) != 23 {
 		t.Errorf("expect 4 but got %d", res[2]["id"])
+	}
+
+}
+
+func TestHandlerError(t *testing.T) {
+	ctl := NewController(sqlx.NewMysql(mysqlAddress), mysqlOp.NewOperator(), test.Source{})
+
+	if _, err := ctl(nil).Filter(Cond{}).Where("").FindOne(); err != nil && err.Error() != filterOrWhereError {
+		t.Errorf("expect nil but got %v", err)
+	}
+
+	// FindOne unsupported operations
+	if res, err := ctl(nil).GroupBy("").FindOne(); reflect.DeepEqual(res, map[string]any{}) {
+		t.Errorf("expect map[string]any{} but got %+v", res)
+	} else if err != nil && err.Error() != "[GroupBy] not supported for FindOne" {
+		t.Error(err)
+	}
+
+	if res, err := ctl(nil).GroupBy("").Select("").FindOne(); reflect.DeepEqual(res, map[string]any{}) {
+		t.Errorf("expect map[string]any{} but got %+v", res)
+	} else if err != nil && err.Error() != "[GroupBy Select] not supported for FindOne" {
+		t.Error(err)
+	}
+
+	// FindAll unsupported operations
+	if res, err := ctl(nil).GroupBy("").FindAll(); reflect.DeepEqual(res, map[string]any{}) {
+		t.Errorf("expect map[string]any{} but got %+v", res)
+	} else if err != nil && err.Error() != "[GroupBy] not supported for FindAll" {
+		t.Error(err)
+	}
+
+	if res, err := ctl(nil).GroupBy("").Select("").FindAll(); reflect.DeepEqual(res, map[string]any{}) {
+		t.Errorf("expect map[string]any{} but got %+v", res)
+	} else if err != nil && err.Error() != "[GroupBy Select] not supported for FindAll" {
+		t.Error(err)
+	}
+
+	// Insert unsupported operations
+	if id, err := ctl(nil).Filter(Cond{}).Insert(map[string]any{}); id != 0 {
+		t.Errorf("expect 0 but got %d", id)
+	} else if err != nil && err.Error() != "[Filter] not supported for Insert" {
+		t.Error(err)
+	}
+
+	if id, err := ctl(nil).Filter(Cond{}).Where("").Insert(map[string]any{}); id != 0 {
+		t.Errorf("expect 0 but got %d", id)
+	} else if err != nil && err.Error() != "[Filter Where] not supported for Insert" {
+		t.Error(err)
+	}
+
+	if id, err := ctl(nil).Filter(Cond{}).Where("").OrderBy("").Insert(map[string]any{}); id != 0 {
+		t.Errorf("expect 0 but got %d", id)
+	} else if err != nil && err.Error() != "[Filter Where OrderBy] not supported for Insert" {
+		t.Error(err)
+	}
+
+	if id, err := ctl(nil).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Insert(map[string]any{}); id != 0 {
+		t.Errorf("expect 0 but got %d", id)
+	} else if err != nil && err.Error() != "[Filter Where OrderBy GroupBy] not supported for Insert" {
+		t.Error(err)
+	}
+
+	if id, err := ctl(nil).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Select("").Insert(map[string]any{}); id != 0 {
+		t.Errorf("expect 0 but got %d", id)
+	} else if err != nil && err.Error() != "[Filter Where OrderBy GroupBy Select] not supported for Insert" {
+		t.Error(err)
 	}
 
 }
