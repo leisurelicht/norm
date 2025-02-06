@@ -627,7 +627,7 @@ func TestSelect(t *testing.T) {
 		{"three slice", args{[]string{"test", "test2", "test3"}}, want{sql: "`test`, `test2`, `test3`", err: nil}},
 		{"four slice", args{[]string{"test", "test2", "test3", "test4"}}, want{sql: "`test`, `test2`, `test3`, `test4`", err: nil}},
 		{"as in slice", args{[]string{"test as test1"}}, want{sql: "`test` as `test1`", err: nil}},
-		{"array", args{[1]string{"test"}}, want{sql: "`test`", err: fmt.Errorf(ParamTypeError)}},
+		{"array", args{[1]string{"test"}}, want{sql: "`test`", err: fmt.Errorf(paramTypeError)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

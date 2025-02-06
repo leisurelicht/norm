@@ -41,7 +41,7 @@ const (
 	orderKeyTypeError  = "order key value must be a list of string"
 	orderKeyLenError   = "order key length must be equal to filter key length"
 	isNotValueError    = "isNot value must be 0 or 1"
-	ParamTypeError     = "param type must be string or slice of string"
+	paramTypeError     = "param type must be string or slice of string"
 	filterOrWhereError = "filter or where can not be called at the same time"
 
 	fieldLookupError            = "field lookups [%s] is invalid"
@@ -523,7 +523,7 @@ func (p *QuerySetImpl) OrderByToSQL(orderBy any) QuerySet {
 
 		orderByStr = p.orderBySQL[:len(p.orderBySQL)-2]
 	default:
-		p.setError(ParamTypeError)
+		p.setError(paramTypeError)
 		return p
 	}
 	p.orderBySQL = " ORDER BY " + orderByStr
@@ -568,7 +568,7 @@ func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
 
 		p.selectColumn = processSQL(columns.([]string), p.IsSelectKey)
 	default:
-		p.setError(ParamTypeError)
+		p.setError(paramTypeError)
 	}
 
 	return p
@@ -605,7 +605,7 @@ func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
 		b.WriteString("`")
 		groupByStr = b.String()
 	default:
-		p.setError(ParamTypeError)
+		p.setError(paramTypeError)
 		return p
 	}
 
