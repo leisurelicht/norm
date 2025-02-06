@@ -226,12 +226,15 @@ func (m *Impl) Exclude(exclude ...any) Controller {
 func (m *Impl) OrderBy(orderBy any) Controller {
 	m.setCalled(ctlOrderBy)
 
-	var (
-		orderBySlice   []string
-		orderByChecked []string
-	)
+	var orderByChecked []string
+
 	v := reflect.ValueOf(orderBy)
 	switch v.Kind() {
+	case reflect.String:
+		if orderBy.(string) == "" {
+			return m
+		}
+		m.qs.OrderByToSQL(orderBy)
 	case reflect.Slice, reflect.Array:
 		orderByList, ok := orderBy.([]string)
 		if !ok {
@@ -241,37 +244,31 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 		if len(orderByList) == 0 {
 			return m
 		}
-		orderBySlice = orderByList
-	case reflect.String:
-		if orderBy.(string) == "" {
-			return m
+
+		for _, by := range orderByList {
+			by = strings.TrimSpace(by)
+			if strings.HasPrefix(by, "-") {
+				if _, ok := m.fieldNameMap[by[1:]]; ok {
+					orderByChecked = append(orderByChecked, by)
+				} else {
+					logc.Errorf(m.ctx(), "Order by key [%s] not exist.", by[1:])
+					continue
+				}
+			} else {
+				if _, ok := m.fieldNameMap[by]; ok {
+					orderByChecked = append(orderByChecked, by)
+				} else {
+					logc.Errorf(m.ctx(), "Order by key [%s] not exist.", by)
+					continue
+				}
+			}
 		}
-		orderBySlice = strings.Split(orderBy.(string), ",")
+		m.qs.OrderByToSQL(orderByChecked)
 	default:
 		logc.Error(m.ctx(), "Order by type should be string, string slice or string array .")
 		return m
 	}
 
-	for _, by := range orderBySlice {
-		by = strings.TrimSpace(by)
-		if strings.HasPrefix(by, "-") {
-			if _, ok := m.fieldNameMap[by[1:]]; ok {
-				orderByChecked = append(orderByChecked, by)
-			} else {
-				logc.Errorf(m.ctx(), "Order by key [%s] not exist.", by[1:])
-				continue
-			}
-		} else {
-			if _, ok := m.fieldNameMap[by]; ok {
-				orderByChecked = append(orderByChecked, by)
-			} else {
-				logc.Errorf(m.ctx(), "Order by key [%s] not exist.", by)
-				continue
-			}
-		}
-	}
-
-	m.qs = m.qs.OrderByToSQL(orderByChecked)
 	return m
 }
 
@@ -373,7 +370,7 @@ func (m *Impl) BulkInsertModel(modelSlice any, handler sqlx.ResultHandler) (err 
 
 func (m *Impl) Remove() (num int64, err error) {
 	if methods, called := m.checkCalled(ctlGroupBy, ctlSelect, ctlOrderBy); called {
-		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Delete")
+		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Remove")
 	}
 
 	if err = m.querySetError(); err != nil {
@@ -558,6 +555,10 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 }
 
 func (m *Impl) Delete() (int64, error) {
+	if methods, called := m.checkCalled(ctlGroupBy, ctlSelect, ctlOrderBy); called {
+		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Delete")
+	}
+
 	data := map[string]any{"is_deleted": true}
 
 	return m.Update(data)

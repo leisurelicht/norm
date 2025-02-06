@@ -153,4 +153,60 @@ func TestHandlerError(t *testing.T) {
 		t.Error(err)
 	}
 
+	// Update unsupported operations
+	if num, err := ctl(nil).GroupBy("").Update(map[string]any{}); num != 0 {
+		t.Errorf("expect 0 but got %d", num)
+	} else if err != nil && err.Error() != "[GroupBy] not supported for Update" {
+		t.Error(err)
+	}
+
+	if num, err := ctl(nil).GroupBy("").Select("").Update(map[string]any{}); num != 0 {
+		t.Errorf("expect 0 but got %d", num)
+	} else if err != nil && err.Error() != "[GroupBy Select] not supported for Update" {
+		t.Error(err)
+	}
+
+	if num, err := ctl(nil).GroupBy("").Select("").OrderBy("").Update(map[string]any{}); num != 0 {
+		t.Errorf("expect 0 but got %d", num)
+	} else if err != nil && err.Error() != "[GroupBy Select OrderBy] not supported for Update" {
+		t.Error(err)
+	}
+
+	// Remove unsupported operations
+	if num, err := ctl(nil).GroupBy("").Remove(); num != 0 {
+		t.Errorf("expect 0 but got %d", num)
+	} else if err != nil && err.Error() != "[GroupBy] not supported for Remove" {
+		t.Error(err)
+	}
+
+	if num, err := ctl(nil).GroupBy("").Select("").Remove(); num != 0 {
+		t.Errorf("expect 0 but got %d", num)
+	} else if err != nil && err.Error() != "[GroupBy Select] not supported for Remove" {
+		t.Error(err)
+	}
+
+	if num, err := ctl(nil).GroupBy("").Select("").OrderBy("").Remove(); num != 0 {
+		t.Errorf("expect 0 but got %d", num)
+	} else if err != nil && err.Error() != "[GroupBy Select OrderBy] not supported for Remove" {
+		t.Error(err)
+	}
+
+	// Delete unsupported operations
+	if num, err := ctl(nil).GroupBy("").Delete(); num != 0 {
+		t.Errorf("expect 0 but got %d", num)
+	} else if err != nil && err.Error() != "[GroupBy] not supported for Delete" {
+		t.Error(err)
+	}
+
+	if num, err := ctl(nil).GroupBy("").Select("").Delete(); num != 0 {
+		t.Errorf("expect 0 but got %d", num)
+	} else if err != nil && err.Error() != "[GroupBy Select] not supported for Delete" {
+		t.Error(err)
+	}
+
+	if num, err := ctl(nil).GroupBy("").Select("").OrderBy("").Delete(); num != 0 {
+		t.Errorf("expect 0 but got %d", num)
+	} else if err != nil && err.Error() != "[GroupBy Select OrderBy] not supported for Delete" {
+		t.Error(err)
+	}
 }
