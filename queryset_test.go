@@ -581,12 +581,12 @@ func TestGroupBy(t *testing.T) {
 		args args
 		want want
 	}{
+		{"blank string", args{""}, want{""}},
+		{"string", args{"test, test2"}, want{" GROUP BY test, test2"}},
 		{"zero slice", args{[]string{}}, want{""}},
 		{"one slice", args{[]string{"test"}}, want{" GROUP BY `test`"}},
 		{"two slice", args{[]string{"test", "test2"}}, want{" GROUP BY `test`, `test2`"}},
 		{"three slice", args{[]string{"test", "test2", "test3"}}, want{" GROUP BY `test`, `test2`, `test3`"}},
-		{"blank string", args{""}, want{""}},
-		{"string", args{"test, test2"}, want{" GROUP BY test, test2"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -627,6 +627,11 @@ func TestSelect(t *testing.T) {
 		{"three slice", args{[]string{"test", "test2", "test3"}}, want{sql: "`test`, `test2`, `test3`", err: nil}},
 		{"four slice", args{[]string{"test", "test2", "test3", "test4"}}, want{sql: "`test`, `test2`, `test3`, `test4`", err: nil}},
 		{"as in slice", args{[]string{"test as test1"}}, want{sql: "`test` as `test1`", err: nil}},
+		{"two as in slice", args{[]string{"test as test1", "testa as test2"}}, want{sql: "`test` as `test1`, `testa` as `test2`", err: nil}},
+		{"mix in slice", args{[]string{"test as test1", "test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
+		{"excess space in slice", args{[]string{"test as test1", " test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
+		{"excess space in slice 2", args{[]string{"test as  test1", " test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
+		//{"DISTINCT in slice 2", args{[]string{"DISTINCT test1", " test2"}}, want{sql: "DISTINCT `test1`, `test2`", err: nil}},
 		{"array", args{[1]string{"test"}}, want{sql: "`test`", err: fmt.Errorf(paramTypeError)}},
 	}
 	for _, tt := range tests {

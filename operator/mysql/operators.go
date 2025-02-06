@@ -34,8 +34,8 @@ var operators = map[string]string{
 }
 
 var selectKeys = map[string]struct{}{
-	"DISTINCT": {},
-	"AS":       {},
+	"AS": {},
+	//"DISTINCT": {},
 }
 
 type Operator struct{}

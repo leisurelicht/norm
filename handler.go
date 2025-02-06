@@ -289,12 +289,15 @@ func (m *Impl) Select(columns any) Controller {
 func (m *Impl) GroupBy(groupBy any) Controller {
 	m.setCalled(ctlGroupBy)
 
-	var (
-		groupBySlice        []string
-		groupBySliceChecked []string
-	)
+	var groupBySliceChecked []string
+
 	v := reflect.ValueOf(groupBy)
 	switch v.Kind() {
+	case reflect.String:
+		if groupBy.(string) == "" {
+			return m
+		}
+		m.qs.GroupByToSQL(groupBy)
 	case reflect.Slice, reflect.Array:
 		groupByList, ok := groupBy.([]string)
 		if !ok {
@@ -304,28 +307,22 @@ func (m *Impl) GroupBy(groupBy any) Controller {
 		if len(groupByList) == 0 {
 			return m
 		}
-		groupBySlice = groupByList
-	case reflect.String:
-		if groupBy.(string) == "" {
-			return m
+
+		for _, by := range groupByList {
+			by = strings.TrimSpace(by)
+			if _, ok := m.fieldNameMap[by]; ok {
+				groupBySliceChecked = append(groupBySliceChecked, by)
+			} else {
+				logc.Errorf(m.ctx(), "Group by key [%s] not exist.", by)
+				continue
+			}
 		}
-		groupBySlice = strings.Split(groupBy.(string), ",")
+		m.qs.GroupByToSQL(groupBy)
 	default:
 		logc.Error(m.ctx(), "Group by type should be string, string slice or string array .")
 		return m
 	}
 
-	for _, by := range groupBySlice {
-		by = strings.TrimSpace(by)
-		if _, ok := m.fieldNameMap[by]; ok {
-			groupBySliceChecked = append(groupBySliceChecked, by)
-		} else {
-			logc.Errorf(m.ctx(), "Group by key [%s] not exist.", by)
-			continue
-		}
-	}
-
-	m.qs.GroupByToSQL(groupBy)
 	return m
 }
 
