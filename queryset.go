@@ -499,9 +499,6 @@ func (p *QuerySetImpl) OrderByToSQL(orderBy any) QuerySet {
 
 	switch orderBy.(type) {
 	case string:
-		if orderBy.(string) == "" {
-			return p
-		}
 		orderByStr = orderBy.(string)
 	case []string:
 		orderByList := orderBy.([]string)
@@ -557,9 +554,6 @@ func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
 
 	switch columns.(type) {
 	case string:
-		if columns.(string) == "" {
-			return p
-		}
 		p.selectColumn = columns.(string)
 	case []string:
 		if len(columns.([]string)) == 0 {
@@ -585,9 +579,6 @@ func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
 
 	switch groupBy.(type) {
 	case string:
-		if groupBy.(string) == "" {
-			return p
-		}
 		groupByStr = groupBy.(string)
 	case []string:
 		if len(groupBy.([]string)) == 0 {

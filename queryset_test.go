@@ -581,7 +581,7 @@ func TestGroupBy(t *testing.T) {
 		args args
 		want want
 	}{
-		{"blank string", args{""}, want{""}},
+		{"blank string", args{""}, want{" GROUP BY "}},
 		{"string", args{"test, test2"}, want{" GROUP BY test, test2"}},
 		{"zero slice", args{[]string{}}, want{""}},
 		{"one slice", args{[]string{"test"}}, want{" GROUP BY `test`"}},
@@ -619,7 +619,7 @@ func TestSelect(t *testing.T) {
 		args args
 		want want
 	}{
-		{"blank string", args{""}, want{sql: "*", err: nil}},
+		{"blank string", args{""}, want{sql: "", err: nil}},
 		{"string", args{"test, test2 as test3"}, want{sql: "test, test2 as test3", err: nil}},
 		{"zero slice", args{[]string{}}, want{sql: "*", err: nil}},
 		{"one slice", args{[]string{"test"}}, want{sql: "`test`", err: nil}},
