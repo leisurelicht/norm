@@ -226,19 +226,18 @@ func (m *Impl) Exclude(exclude ...any) Controller {
 func (m *Impl) OrderBy(orderBy any) Controller {
 	m.setCalled(ctlOrderBy)
 
-	var orderByChecked []string
+	var CheckedOrderBy []string
 
-	v := reflect.ValueOf(orderBy)
-	switch v.Kind() {
-	case reflect.String:
+	switch orderBy.(type) {
+	case string:
 		if orderBy.(string) == "" {
 			return m
 		}
-		m.qs.OrderByToSQL(orderBy)
-	case reflect.Slice, reflect.Array:
+		m.qs.StrOrderByToSQL(orderBy.(string))
+	case []string:
 		orderByList, ok := orderBy.([]string)
 		if !ok {
-			logc.Error(m.ctx(), "Order by slice type should be string slice or string array")
+			logc.Error(m.ctx(), "Order by slice type should be string slice")
 			return m
 		}
 		if len(orderByList) == 0 {
@@ -249,23 +248,28 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 			by = strings.TrimSpace(by)
 			if strings.HasPrefix(by, "-") {
 				if _, ok := m.fieldNameMap[by[1:]]; ok {
-					orderByChecked = append(orderByChecked, by)
+					CheckedOrderBy = append(CheckedOrderBy, by)
 				} else {
 					logc.Errorf(m.ctx(), "Order by key [%s] not exist.", by[1:])
 					continue
 				}
 			} else {
 				if _, ok := m.fieldNameMap[by]; ok {
-					orderByChecked = append(orderByChecked, by)
+					CheckedOrderBy = append(CheckedOrderBy, by)
 				} else {
 					logc.Errorf(m.ctx(), "Order by key [%s] not exist.", by)
 					continue
 				}
 			}
 		}
-		m.qs.OrderByToSQL(orderByChecked)
+
+		if len(CheckedOrderBy) == 0 {
+			return m
+		}
+
+		m.qs.OrderByToSQL(CheckedOrderBy)
 	default:
-		logc.Error(m.ctx(), "Order by type should be string, string slice or string array .")
+		logc.Error(m.ctx(), "Order by type should be string or string slice")
 		return m
 	}
 
@@ -279,29 +283,65 @@ func (m *Impl) Limit(pageSize, pageNum int64) Controller {
 	return m
 }
 
-func (m *Impl) Select(columns any) Controller {
+func (m *Impl) Select(selects any) Controller {
 	m.setCalled(ctlSelect)
 
-	m.qs.SelectToSQL(columns)
+	var CheckedSelect []string
+
+	switch selects.(type) {
+	case string:
+		if selects.(string) == "" {
+			return m
+		}
+		m.qs.StrSelectToSQL(selects.(string))
+	case []string:
+		selectList, ok := selects.([]string)
+		if !ok {
+			logc.Error(m.ctx(), "Select type should be string slice")
+			return m
+		}
+		if len(selectList) == 0 {
+			return m
+		}
+
+		for _, by := range selectList {
+			by = strings.TrimSpace(by)
+			if _, ok := m.fieldNameMap[by]; ok {
+				CheckedSelect = append(CheckedSelect, by)
+			} else {
+				logc.Errorf(m.ctx(), "Select key [%s] not exist.", by)
+				continue
+			}
+		}
+
+		if len(CheckedSelect) == 0 {
+			return m
+		}
+
+		m.qs.SliceSelectToSQL(CheckedSelect)
+	default:
+		logc.Error(m.ctx(), "Select type should be string or string slice")
+		return m
+	}
+
 	return m
 }
 
 func (m *Impl) GroupBy(groupBy any) Controller {
 	m.setCalled(ctlGroupBy)
 
-	var groupBySliceChecked []string
-
-	v := reflect.ValueOf(groupBy)
-	switch v.Kind() {
-	case reflect.String:
+	switch groupBy.(type) {
+	case string:
 		if groupBy.(string) == "" {
 			return m
 		}
-		m.qs.GroupByToSQL(groupBy)
-	case reflect.Slice, reflect.Array:
+		m.qs.StrGroupByToSQL(groupBy.(string))
+	case []string:
+		var CheckedGroupBy []string
+
 		groupByList, ok := groupBy.([]string)
 		if !ok {
-			logc.Error(m.ctx(), "Group by type should be string slice or string array")
+			logc.Error(m.ctx(), "Group by type should be string slice")
 			return m
 		}
 		if len(groupByList) == 0 {
@@ -311,15 +351,20 @@ func (m *Impl) GroupBy(groupBy any) Controller {
 		for _, by := range groupByList {
 			by = strings.TrimSpace(by)
 			if _, ok := m.fieldNameMap[by]; ok {
-				groupBySliceChecked = append(groupBySliceChecked, by)
+				CheckedGroupBy = append(CheckedGroupBy, by)
 			} else {
 				logc.Errorf(m.ctx(), "Group by key [%s] not exist.", by)
 				continue
 			}
 		}
-		m.qs.GroupByToSQL(groupBy)
+
+		if len(CheckedGroupBy) == 0 {
+			return m
+		}
+
+		m.qs.SliceGroupByToSQL(CheckedGroupBy)
 	default:
-		logc.Error(m.ctx(), "Group by type should be string, string slice or string array .")
+		logc.Error(m.ctx(), "Group by type should be string or string slice")
 		return m
 	}
 
@@ -457,7 +502,7 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 	case errors.Is(err, ErrNotFound):
 		return map[string]any{}, nil
 	default:
-
+		fmt.Println("query:", query)
 		return map[string]any{}, err
 	}
 }

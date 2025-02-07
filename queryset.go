@@ -111,14 +111,20 @@ type QuerySet interface {
 	GetQuerySet() (string, []any)
 	WhereToSQL(cond string, args ...any) QuerySet
 	FilterToSQL(notTag int, filter ...any) QuerySet
-	GetOrderBySQL() string
-	OrderByToSQL(orderBy any) QuerySet
-	GetLimitSQL() string
-	LimitToSQL(pageSize, pageNum int64) QuerySet
 	GetSelectSQL() string
 	SelectToSQL(columns any) QuerySet
+	StrSelectToSQL(columns string) QuerySet
+	SliceSelectToSQL(columns []string) QuerySet
+	GetLimitSQL() string
+	LimitToSQL(pageSize, pageNum int64) QuerySet
+	GetOrderBySQL() string
+	OrderByToSQL(orderBy any) QuerySet
+	StrOrderByToSQL(orderBy string) QuerySet
+	SliceOrderByToSQL(orderBy []string) QuerySet
 	GetGroupBySQL() string
 	GroupByToSQL(groupBy any) QuerySet
+	StrGroupByToSQL(groupBy string) QuerySet
+	SliceGroupByToSQL(groupBy []string) QuerySet
 }
 
 type QuerySetImpl struct {
@@ -488,42 +494,95 @@ func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
 	return p
 }
 
+func (p *QuerySetImpl) GetSelectSQL() string {
+	return p.selectColumn
+}
+
+func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
+	p.setCalled(callSelect)
+
+	switch columns.(type) {
+	case string:
+		p.StrSelectToSQL(columns.(string))
+	case []string:
+		p.SliceSelectToSQL(columns.([]string))
+	default:
+		p.setError(paramTypeError)
+	}
+
+	return p
+}
+
+func (p *QuerySetImpl) StrSelectToSQL(columns string) QuerySet {
+	p.setCalled(callSelect)
+
+	p.selectColumn = columns
+	return p
+}
+
+func (p *QuerySetImpl) SliceSelectToSQL(columns []string) QuerySet {
+	p.setCalled(callSelect)
+
+	if len(columns) == 0 {
+		return p
+	}
+
+	p.selectColumn = processSQL(columns, p.IsSelectKey)
+	return p
+}
+
 func (p *QuerySetImpl) GetOrderBySQL() string {
-	return p.orderBySQL
+	if p.orderBySQL == "" {
+		return ""
+	}
+	return " ORDER BY " + p.orderBySQL
 }
 
 func (p *QuerySetImpl) OrderByToSQL(orderBy any) QuerySet {
 	p.setCalled(callOrderBy)
 
-	var orderByStr string
-
 	switch orderBy.(type) {
 	case string:
-		orderByStr = orderBy.(string)
+		p.StrOrderByToSQL(orderBy.(string))
 	case []string:
-		orderByList := orderBy.([]string)
-
-		if len(orderByList) == 0 {
-			return p
-		}
-
-		for _, by := range orderByList {
-			by = strings.TrimSpace(by)
-			switch strings.HasPrefix(by, descPrefix) {
-			case true:
-				p.orderBySQL += "`" + by[1:] + "` DESC"
-			case false:
-				p.orderBySQL += "`" + by + "` ASC"
-			}
-			p.orderBySQL += ", "
-		}
-
-		orderByStr = p.orderBySQL[:len(p.orderBySQL)-2]
+		p.SliceOrderByToSQL(orderBy.([]string))
 	default:
 		p.setError(paramTypeError)
 		return p
 	}
-	p.orderBySQL = " ORDER BY " + orderByStr
+
+	return p
+}
+
+func (p *QuerySetImpl) StrOrderByToSQL(orderBy string) QuerySet {
+	p.setCalled(callOrderBy)
+
+	p.orderBySQL = orderBy
+
+	return p
+}
+
+func (p *QuerySetImpl) SliceOrderByToSQL(orderBy []string) QuerySet {
+	p.setCalled(callOrderBy)
+
+	orderByList := orderBy
+
+	if len(orderByList) == 0 {
+		return p
+	}
+
+	for _, by := range orderByList {
+		by = strings.TrimSpace(by)
+		switch strings.HasPrefix(by, descPrefix) {
+		case true:
+			p.orderBySQL += "`" + by[1:] + "` DESC"
+		case false:
+			p.orderBySQL += "`" + by + "` ASC"
+		}
+		p.orderBySQL += ", "
+	}
+
+	p.orderBySQL = p.orderBySQL[:len(p.orderBySQL)-2]
 
 	return p
 }
@@ -545,62 +604,51 @@ func (p *QuerySetImpl) LimitToSQL(pageSize, pageNum int64) QuerySet {
 	return p
 }
 
-func (p *QuerySetImpl) GetSelectSQL() string {
-	return p.selectColumn
+func (p *QuerySetImpl) GetGroupBySQL() string {
+	if p.groupSQL == "" {
+		return ""
+	}
+
+	return " GROUP BY " + p.groupSQL
 }
 
-func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
-	p.setCalled(callSelect)
-
-	switch columns.(type) {
+func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
+	switch groupBy.(type) {
 	case string:
-		p.selectColumn = columns.(string)
+		p.StrGroupByToSQL(groupBy.(string))
 	case []string:
-		if len(columns.([]string)) == 0 {
-			return p
-		}
-
-		p.selectColumn = processSQL(columns.([]string), p.IsSelectKey)
+		p.SliceGroupByToSQL(groupBy.([]string))
 	default:
 		p.setError(paramTypeError)
 	}
+	return p
+}
+
+func (p *QuerySetImpl) StrGroupByToSQL(groupBy string) QuerySet {
+	p.setCalled(callGroupBy)
+
+	p.groupSQL = groupBy
 
 	return p
 }
 
-func (p *QuerySetImpl) GetGroupBySQL() string {
-	return p.groupSQL
-}
-
-func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
+func (p *QuerySetImpl) SliceGroupByToSQL(groupBy []string) QuerySet {
 	p.setCalled(callGroupBy)
 
-	var groupByStr string
-
-	switch groupBy.(type) {
-	case string:
-		groupByStr = groupBy.(string)
-	case []string:
-		if len(groupBy.([]string)) == 0 {
-			return p
-		}
-		groupByList := groupBy.([]string)
-
-		var b strings.Builder
-		b.WriteString("`")
-		b.WriteString(strings.TrimSpace(groupByList[0]))
-		for _, by := range groupByList[1:] {
-			b.WriteString("`, `")
-			b.WriteString(strings.TrimSpace(by))
-		}
-		b.WriteString("`")
-		groupByStr = b.String()
-	default:
-		p.setError(paramTypeError)
+	if len(groupBy) == 0 {
 		return p
 	}
 
-	p.groupSQL = " GROUP BY " + groupByStr
+	var b strings.Builder
+	b.WriteString("`")
+	b.WriteString(strings.TrimSpace(groupBy[0]))
+	for _, by := range groupBy[1:] {
+		b.WriteString("`, `")
+		b.WriteString(strings.TrimSpace(by))
+	}
+	b.WriteString("`")
+
+	p.groupSQL = b.String()
 
 	return p
 }
