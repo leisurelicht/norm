@@ -88,9 +88,9 @@ func TestFilter(t *testing.T) {
 
 		{"two_default_column", args{0, []any{Cond{SortKey: []string{"test1", "test2"}, "test1": 1, "test2": 2}}}, want{" WHERE (`test1` = ? AND `test2` = ?)", []any{1, 2}}},
 		{"reverse_default_column", args{0, []any{Cond{SortKey: []string{"test2", "test1"}, "test1": 1, "test2": 2}}}, want{" WHERE (`test2` = ? AND `test1` = ?)", []any{2, 1}}},
-		{"three_default_column", args{0, []any{Cond{SortKey: []string{"test1", "test2", "test3"}, "test1": 1, "test2": 2, "test3": 3}}}, want{" WHERE (`test1` = ? AND `test2` = ? AND `test3` = ?)", []any{1, 2, 3}}},
-		{"reverse_three_default_column", args{0, []any{Cond{SortKey: []string{"test3", "test2", "test1"}, "test1": 1, "test2": 2, "test3": 3}}}, want{" WHERE (`test3` = ? AND `test2` = ? AND `test1` = ?)", []any{3, 2, 1}}},
-		{"out_order_three_default_column", args{0, []any{Cond{SortKey: []string{"test1", "test3", "test2"}, "test3": 1, "test2": 2, "test1": 3}}}, want{" WHERE (`test1` = ? AND `test3` = ? AND `test2` = ?)", []any{3, 1, 2}}},
+		{"three_default_column", args{0, []any{Cond{SortKey: []string{"test1", "test2", "test3"}, "test1__gt": 1, "test2": 2, "test3": 3}}}, want{" WHERE (`test1` > ? AND `test2` = ? AND `test3` = ?)", []any{1, 2, 3}}},
+		{"reverse_three_default_column", args{0, []any{Cond{SortKey: []string{"test3", "test2", "test1"}, "test1__lt": 1, "test2": 2, "test3": 3}}}, want{" WHERE (`test3` = ? AND `test2` = ? AND `test1` < ?)", []any{3, 2, 1}}},
+		{"out_order_three_default_column", args{0, []any{Cond{SortKey: []string{"test1", "test3", "test2"}, "test3__in": []int{1, 4, 6}, "test2": 2, "test1": 3}}}, want{" WHERE (`test1` = ? AND `test3` IN (?,?,?) AND `test2` = ?)", []any{3, 1, 4, 6, 2}}},
 
 		{"default_conj", args{0, []any{Cond{"test": 1}, Cond{"test2": 2}}}, want{" WHERE ((`test` = ?) AND (`test2` = ?))", []any{1, 2}}},
 		{"and_conj", args{0, []any{Cond{"test": 1}, AND{"test2": 2}}}, want{" WHERE ((`test` = ?) AND (`test2` = ?))", []any{1, 2}}},
