@@ -15,11 +15,11 @@ import (
 )
 
 const (
+	DefaultModelTag = "db"
 	SelectTemp      = "SELECT %s FROM %s"
 	InsertTemp      = "INSERT INTO %s (%s) VALUES (%s)"
 	UpdateTemp      = "UPDATE %s SET %s"
 	DeleteTemp      = "DELETE FROM %s"
-	DefaultModelTag = "db"
 )
 
 const (
@@ -33,10 +33,11 @@ type controllerCall struct {
 
 var (
 	ctlFilter  = controllerCall{Name: "Filter", Flag: callFilter}
+	ctlExclude = controllerCall{Name: "Exclude", Flag: callExclude}
 	ctlWhere   = controllerCall{Name: "Where", Flag: callWhere}
-	ctlOrderBy = controllerCall{Name: "OrderBy", Flag: callOrderBy}
-	ctlLimit   = controllerCall{Name: "Limit", Flag: callLimit}
 	ctlSelect  = controllerCall{Name: "Select", Flag: callSelect}
+	ctlLimit   = controllerCall{Name: "Limit", Flag: callLimit}
+	ctlOrderBy = controllerCall{Name: "OrderBy", Flag: callOrderBy}
 	ctlGroupBy = controllerCall{Name: "GroupBy", Flag: callGroupBy}
 )
 
@@ -52,10 +53,10 @@ type (
 		Reset() Controller
 		Filter(filter ...any) Controller
 		Exclude(exclude ...any) Controller
-		OrderBy(orderBy any) Controller
-		Limit(pageSize, pageNum int64) Controller
-		Select(columns any) Controller
 		Where(cond string, args ...any) Controller
+		Select(columns any) Controller
+		Limit(pageSize, pageNum int64) Controller
+		OrderBy(orderBy any) Controller
 		GroupBy(groupBy any) Controller
 		Insert(data map[string]any) (id int64, err error)
 		InsertModel(model any) (id int64, err error)
@@ -208,6 +209,16 @@ func (m *Impl) Filter(filter ...any) Controller {
 	return m
 }
 
+func (m *Impl) Exclude(exclude ...any) Controller {
+	m.setCalled(ctlExclude)
+
+	m.qs.FilterToSQL(1, exclude...)
+
+	m.checkQuerySetError()
+
+	return m
+}
+
 func (m *Impl) Where(cond string, args ...any) Controller {
 	m.setCalled(ctlWhere)
 
@@ -215,11 +226,54 @@ func (m *Impl) Where(cond string, args ...any) Controller {
 	return m
 }
 
-func (m *Impl) Exclude(exclude ...any) Controller {
-	m.qs.FilterToSQL(1, exclude...)
+func (m *Impl) Select(selects any) Controller {
+	m.setCalled(ctlSelect)
 
-	m.checkQuerySetError()
+	var CheckedSelect []string
 
+	switch selects.(type) {
+	case string:
+		if selects.(string) == "" {
+			return m
+		}
+		m.qs.StrSelectToSQL(selects.(string))
+	case []string:
+		selectList, ok := selects.([]string)
+		if !ok {
+			logc.Error(m.ctx(), "Select type should be string slice")
+			return m
+		}
+		if len(selectList) == 0 {
+			return m
+		}
+
+		for _, by := range selectList {
+			by = strings.TrimSpace(by)
+			if _, ok := m.fieldNameMap[by]; ok {
+				CheckedSelect = append(CheckedSelect, by)
+			} else {
+				logc.Errorf(m.ctx(), "Select key [%s] not exist.", by)
+				continue
+			}
+		}
+
+		if len(CheckedSelect) == 0 {
+			return m
+		}
+
+		m.qs.SliceSelectToSQL(CheckedSelect)
+	default:
+		logc.Error(m.ctx(), "Select type should be string or string slice")
+		return m
+	}
+
+	return m
+}
+
+func (m *Impl) Limit(pageSize, pageNum int64) Controller {
+	m.setCalled(ctlLimit)
+
+	m.qs.LimitToSQL(pageSize, pageNum)
 	return m
 }
 
@@ -276,57 +330,6 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 	return m
 }
 
-func (m *Impl) Limit(pageSize, pageNum int64) Controller {
-	m.setCalled(ctlLimit)
-
-	m.qs.LimitToSQL(pageSize, pageNum)
-	return m
-}
-
-func (m *Impl) Select(selects any) Controller {
-	m.setCalled(ctlSelect)
-
-	var CheckedSelect []string
-
-	switch selects.(type) {
-	case string:
-		if selects.(string) == "" {
-			return m
-		}
-		m.qs.StrSelectToSQL(selects.(string))
-	case []string:
-		selectList, ok := selects.([]string)
-		if !ok {
-			logc.Error(m.ctx(), "Select type should be string slice")
-			return m
-		}
-		if len(selectList) == 0 {
-			return m
-		}
-
-		for _, by := range selectList {
-			by = strings.TrimSpace(by)
-			if _, ok := m.fieldNameMap[by]; ok {
-				CheckedSelect = append(CheckedSelect, by)
-			} else {
-				logc.Errorf(m.ctx(), "Select key [%s] not exist.", by)
-				continue
-			}
-		}
-
-		if len(CheckedSelect) == 0 {
-			return m
-		}
-
-		m.qs.SliceSelectToSQL(CheckedSelect)
-	default:
-		logc.Error(m.ctx(), "Select type should be string or string slice")
-		return m
-	}
-
-	return m
-}
-
 func (m *Impl) GroupBy(groupBy any) Controller {
 	m.setCalled(ctlGroupBy)
 
@@ -372,7 +375,7 @@ func (m *Impl) GroupBy(groupBy any) Controller {
 }
 
 func (m *Impl) Insert(data map[string]any) (id int64, err error) {
-	if methods, called := m.checkCalled(ctlFilter, ctlWhere, ctlOrderBy, ctlGroupBy, ctlSelect); called {
+	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlOrderBy, ctlGroupBy, ctlSelect); called {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Insert")
 	}
 

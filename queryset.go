@@ -74,6 +74,7 @@ type callFlag int64
 
 const (
 	callFilter callFlag = 1 << iota
+	callExclude
 	callWhere
 	callOrderBy
 	callLimit
