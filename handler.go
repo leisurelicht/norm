@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/zeromicro/go-zero/core/logc"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/builder"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
@@ -48,7 +47,6 @@ type (
 		ctx() context.Context
 		hasCalled(f controllerCall) bool
 		checkCalled(f ...controllerCall) ([]string, bool)
-		values(values []string) string
 		WithSession(session sqlx.Session) Controller
 		Reset() Controller
 		Filter(filter ...any) Controller
@@ -161,19 +159,35 @@ func (m *Impl) checkCalled(f ...controllerCall) ([]string, bool) {
 	return calledMethod, len(calledMethod) != 0
 }
 
-func (m *Impl) values(values []string) string {
-	valueRows := ""
-
-	for _, v := range values {
+func (m *Impl) validateColumns(columns []string) (validatedColumns []string, err error) {
+	unknownColumns := []string{}
+	for _, v := range columns {
 		if _, ok := m.fieldNameMap[v]; !ok {
-			logc.Errorf(m.ctx(), "Key [%s] not exist.", v)
+			unknownColumns = append(unknownColumns, v)
 			continue
 		}
-		valueRows += fmt.Sprintf("`%s`,", v)
+		validatedColumns = append(validatedColumns, v)
 	}
-	valueRows = strings.TrimRight(valueRows, ",")
 
-	return valueRows
+	if len(unknownColumns) > 0 {
+		return nil, errors.New("[" + strings.Join(unknownColumns, "; ") + "] not exist")
+	}
+
+	return
+}
+
+func (m *Impl) validateColumns2Str(columns []string) string {
+	columnsRows := ""
+
+	for _, v := range columns {
+		if _, ok := m.fieldNameMap[v]; !ok {
+			continue
+		}
+		columnsRows += "`" + v + "`,"
+	}
+	columnsRows = columnsRows[:len(columnsRows)-1]
+
+	return columnsRows
 }
 
 func (m *Impl) checkQuerySetError() {
@@ -182,7 +196,11 @@ func (m *Impl) checkQuerySetError() {
 	}
 }
 
-func (m *Impl) querySetError() error {
+func (m *Impl) setError(format string, a ...any) {
+	m.qs.setError(format, a...)
+}
+
+func (m *Impl) HaveError() error {
 	if err := m.qs.Error(); err != nil {
 		return err
 	}
@@ -229,8 +247,6 @@ func (m *Impl) Where(cond string, args ...any) Controller {
 func (m *Impl) Select(selects any) Controller {
 	m.setCalled(ctlSelect)
 
-	var CheckedSelect []string
-
 	switch selects.(type) {
 	case string:
 		if selects.(string) == "" {
@@ -244,24 +260,16 @@ func (m *Impl) Select(selects any) Controller {
 			return m
 		}
 
-		for _, by := range selectList {
-			by = strings.TrimSpace(by)
-			if _, ok := m.fieldNameMap[by]; ok {
-				CheckedSelect = append(CheckedSelect, by)
-			} else {
-				logc.Errorf(m.ctx(), "Select column [%s] not exist.", by)
-				continue
-			}
-		}
+		validatedColumns, err := m.validateColumns(selectList)
 
-		if len(CheckedSelect) == 0 {
+		if err != nil {
+			m.setError("Select columns validate error: %s", err)
 			return m
 		}
 
-		m.qs.SliceSelectToSQL(CheckedSelect)
+		m.qs.SliceSelectToSQL(validatedColumns)
 	default:
-		logc.Error(m.ctx(), "Select type should be string or string slice")
-		return m
+		m.setError("Select type should be string or string slice")
 	}
 
 	return m
@@ -277,7 +285,7 @@ func (m *Impl) Limit(pageSize, pageNum int64) Controller {
 func (m *Impl) OrderBy(orderBy any) Controller {
 	m.setCalled(ctlOrderBy)
 
-	var CheckedOrderBy []string
+	var validatedOrderBy []string
 
 	switch orderBy.(type) {
 	case string:
@@ -292,33 +300,28 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 			return m
 		}
 
+		unknownColumns := []string{}
 		for _, by := range orderByList {
-			by = strings.TrimSpace(by)
+			needValidate := by
 			if strings.HasPrefix(by, "-") {
-				if _, ok := m.fieldNameMap[by[1:]]; ok {
-					CheckedOrderBy = append(CheckedOrderBy, by)
-				} else {
-					logc.Errorf(m.ctx(), "Order by column [%s] not exist.", by[1:])
-					continue
-				}
+				needValidate = by[1:]
+			}
+			if _, ok := m.fieldNameMap[needValidate]; ok {
+				validatedOrderBy = append(validatedOrderBy, by)
 			} else {
-				if _, ok := m.fieldNameMap[by]; ok {
-					CheckedOrderBy = append(CheckedOrderBy, by)
-				} else {
-					logc.Errorf(m.ctx(), "Order by column [%s] not exist.", by)
-					continue
-				}
+				unknownColumns = append(unknownColumns, by)
+				continue
 			}
 		}
 
-		if len(CheckedOrderBy) == 0 {
+		if len(unknownColumns) > 0 {
+			m.setError("OrderBy columns validate error: [%s] not exist", strings.Join(unknownColumns, "; "))
 			return m
 		}
 
-		m.qs.OrderByToSQL(CheckedOrderBy)
+		m.qs.OrderByToSQL(validatedOrderBy)
 	default:
-		logc.Error(m.ctx(), "Order by type should be string or string slice")
-		return m
+		m.setError("OrderBy type should be string or string slice")
 	}
 
 	return m
@@ -334,31 +337,22 @@ func (m *Impl) GroupBy(groupBy any) Controller {
 		}
 		m.qs.StrGroupByToSQL(groupBy.(string))
 	case []string:
-		var CheckedGroupBy []string
-
 		groupByList, _ := groupBy.([]string)
 
 		if len(groupByList) == 0 {
 			return m
 		}
 
-		for _, by := range groupByList {
-			by = strings.TrimSpace(by)
-			if _, ok := m.fieldNameMap[by]; ok {
-				CheckedGroupBy = append(CheckedGroupBy, by)
-			} else {
-				logc.Errorf(m.ctx(), "Group by column [%s] not exist.", by)
-				continue
-			}
-		}
+		validatedColumns, err := m.validateColumns(groupByList)
 
-		if len(CheckedGroupBy) == 0 {
+		if err != nil {
+			m.setError("GroupBy columns validate error: %s", err)
 			return m
 		}
 
-		m.qs.SliceGroupByToSQL(CheckedGroupBy)
+		m.qs.SliceGroupByToSQL(validatedColumns)
 	default:
-		logc.Error(m.ctx(), "Group by type should be string or string slice")
+		m.setError("GroupBy type should be string or string slice")
 		return m
 	}
 
@@ -370,7 +364,7 @@ func (m *Impl) Insert(data map[string]any) (id int64, err error) {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Insert")
 	}
 
-	if err = m.querySetError(); err != nil {
+	if err = m.HaveError(); err != nil {
 		return 0, err
 	}
 
@@ -409,7 +403,7 @@ func (m *Impl) Remove() (num int64, err error) {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Remove")
 	}
 
-	if err = m.querySetError(); err != nil {
+	if err = m.HaveError(); err != nil {
 		return num, err
 	}
 
@@ -426,7 +420,7 @@ func (m *Impl) Update(data map[string]any) (num int64, err error) {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Update")
 	}
 
-	if err = m.querySetError(); err != nil {
+	if err = m.HaveError(); err != nil {
 		return num, err
 	}
 
@@ -438,10 +432,9 @@ func (m *Impl) Update(data map[string]any) (num int64, err error) {
 
 	for k, v := range data {
 		if _, ok := m.fieldNameMap[k]; !ok {
-			logc.Errorf(m.ctx(), "Update column [%s] not exist.", k)
-			continue
+			return 0, errors.New("update column [" + k + "] not exist")
 		}
-		updateRows = append(updateRows, fmt.Sprintf("`%s`", k))
+		updateRows = append(updateRows, "`"+k+"`")
 		updateArgs = append(updateArgs, v)
 	}
 
@@ -456,7 +449,7 @@ func (m *Impl) Update(data map[string]any) (num int64, err error) {
 }
 
 func (m *Impl) Count() (num int64, err error) {
-	if err = m.querySetError(); err != nil {
+	if err = m.HaveError(); err != nil {
 		return num, err
 	}
 
@@ -474,7 +467,7 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 		return result, fmt.Errorf(UnsupportedControllerError, methods, "FindOne")
 	}
 
-	if err = m.querySetError(); err != nil {
+	if err = m.HaveError(); err != nil {
 		return result, err
 	}
 
@@ -501,7 +494,7 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 }
 
 func (m *Impl) FindOneModel(modelPtr any) (err error) {
-	if err = m.querySetError(); err != nil {
+	if err = m.HaveError(); err != nil {
 		return err
 	}
 
@@ -529,7 +522,7 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 		return result, fmt.Errorf(UnsupportedControllerError, methods, "FindAll")
 	}
 
-	if err = m.querySetError(); err != nil {
+	if err = m.HaveError(); err != nil {
 		return result, err
 	}
 
@@ -557,7 +550,7 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 }
 
 func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
-	if err = m.querySetError(); err != nil {
+	if err = m.HaveError(); err != nil {
 		return err
 	}
 
@@ -654,7 +647,7 @@ func (m *Impl) CreateOrUpdate(data map[string]any, filter ...any) (bool, int64, 
 }
 
 func (m *Impl) GetC2CMap(column1, column2 string) (res map[any]any, err error) {
-	if err = m.querySetError(); err != nil {
+	if err = m.HaveError(); err != nil {
 		return res, err
 	}
 
