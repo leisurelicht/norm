@@ -505,7 +505,6 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 	case errors.Is(err, ErrNotFound):
 		return map[string]any{}, nil
 	default:
-		fmt.Println("query:", query)
 		return map[string]any{}, err
 	}
 }
