@@ -282,4 +282,22 @@ func TestHandlerError(t *testing.T) {
 		}
 	}
 
+	if err := ctl(nil).OrderBy([]string{"age"}).GroupBy([]string{"test"}).FindOneModel(&test.Source{}); err != nil {
+		if err.Error() != "GroupBy columns validate error: [test] not exist" {
+			t.Error(err)
+		}
+	}
+
+	if err := ctl(nil).OrderBy([]string{"age", "happy"}).GroupBy([]string{"test, test2"}).FindOneModel(&test.Source{}); err != nil {
+		if err.Error() != "GroupBy columns validate error: [test; test2] not exist" {
+			t.Error(err)
+		}
+	}
+
+	if err := ctl(nil).OrderBy([]string{"age", "happy", "damnit"}).GroupBy([]string{"test, test3"}).FindOneModel(&test.Source{}); err != nil {
+		if err.Error() != "GroupBy columns validate error: [test; test; test3] not exist" {
+			t.Error(err)
+		}
+	}
+
 }
