@@ -238,11 +238,8 @@ func (m *Impl) Select(selects any) Controller {
 		}
 		m.qs.StrSelectToSQL(selects.(string))
 	case []string:
-		selectList, ok := selects.([]string)
-		if !ok {
-			logc.Error(m.ctx(), "Select type should be string slice")
-			return m
-		}
+		selectList, _ := selects.([]string)
+
 		if len(selectList) == 0 {
 			return m
 		}
@@ -252,7 +249,7 @@ func (m *Impl) Select(selects any) Controller {
 			if _, ok := m.fieldNameMap[by]; ok {
 				CheckedSelect = append(CheckedSelect, by)
 			} else {
-				logc.Errorf(m.ctx(), "Select key [%s] not exist.", by)
+				logc.Errorf(m.ctx(), "Select column [%s] not exist.", by)
 				continue
 			}
 		}
@@ -289,11 +286,8 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 		}
 		m.qs.StrOrderByToSQL(orderBy.(string))
 	case []string:
-		orderByList, ok := orderBy.([]string)
-		if !ok {
-			logc.Error(m.ctx(), "Order by slice type should be string slice")
-			return m
-		}
+		orderByList, _ := orderBy.([]string)
+
 		if len(orderByList) == 0 {
 			return m
 		}
@@ -304,14 +298,14 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 				if _, ok := m.fieldNameMap[by[1:]]; ok {
 					CheckedOrderBy = append(CheckedOrderBy, by)
 				} else {
-					logc.Errorf(m.ctx(), "Order by key [%s] not exist.", by[1:])
+					logc.Errorf(m.ctx(), "Order by column [%s] not exist.", by[1:])
 					continue
 				}
 			} else {
 				if _, ok := m.fieldNameMap[by]; ok {
 					CheckedOrderBy = append(CheckedOrderBy, by)
 				} else {
-					logc.Errorf(m.ctx(), "Order by key [%s] not exist.", by)
+					logc.Errorf(m.ctx(), "Order by column [%s] not exist.", by)
 					continue
 				}
 			}
@@ -342,11 +336,8 @@ func (m *Impl) GroupBy(groupBy any) Controller {
 	case []string:
 		var CheckedGroupBy []string
 
-		groupByList, ok := groupBy.([]string)
-		if !ok {
-			logc.Error(m.ctx(), "Group by type should be string slice")
-			return m
-		}
+		groupByList, _ := groupBy.([]string)
+
 		if len(groupByList) == 0 {
 			return m
 		}
@@ -356,7 +347,7 @@ func (m *Impl) GroupBy(groupBy any) Controller {
 			if _, ok := m.fieldNameMap[by]; ok {
 				CheckedGroupBy = append(CheckedGroupBy, by)
 			} else {
-				logc.Errorf(m.ctx(), "Group by key [%s] not exist.", by)
+				logc.Errorf(m.ctx(), "Group by column [%s] not exist.", by)
 				continue
 			}
 		}
@@ -447,7 +438,7 @@ func (m *Impl) Update(data map[string]any) (num int64, err error) {
 
 	for k, v := range data {
 		if _, ok := m.fieldNameMap[k]; !ok {
-			logc.Errorf(m.ctx(), "Key [%s] not exist.", k)
+			logc.Errorf(m.ctx(), "Update column [%s] not exist.", k)
 			continue
 		}
 		updateRows = append(updateRows, fmt.Sprintf("`%s`", k))
@@ -668,14 +659,10 @@ func (m *Impl) GetC2CMap(column1, column2 string) (res map[any]any, err error) {
 	}
 
 	if _, ok := m.fieldNameMap[column1]; !ok {
-		err = fmt.Errorf("column [%s] not exist", column1)
-		logc.Errorf(m.ctx(), err.Error())
-		return res, err
+		return res, fmt.Errorf("column [%s] not exist", column1)
 	}
 	if _, ok := m.fieldNameMap[column2]; !ok {
-		err = fmt.Errorf("column [%s] not exist", column2)
-		logc.Errorf(m.ctx(), err.Error())
-		return res, err
+		return res, fmt.Errorf("column [%s] not exist", column2)
 	}
 
 	query := fmt.Sprintf("SELECT `%s`,`%s` FROM %s ", column1, column2, m.tableName)
@@ -689,7 +676,6 @@ func (m *Impl) GetC2CMap(column1, column2 string) (res map[any]any, err error) {
 	result, _ := DeepCopy(m.modelSlice)
 
 	if err = m.operator.FindAll(m.ctx(), m.conn, res, query, filterArgs...); err != nil {
-		logc.Errorf(m.ctx(), "GetC2CMap querySetError: %+v", err)
 		return res, err
 	}
 
