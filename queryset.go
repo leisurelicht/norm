@@ -110,8 +110,8 @@ type QuerySet interface {
 	Error() error
 	Reset()
 	GetQuerySet() (string, []any)
-	WhereToSQL(cond string, args ...any) QuerySet
 	FilterToSQL(notTag int, filter ...any) QuerySet
+	WhereToSQL(cond string, args ...any) QuerySet
 	GetSelectSQL() string
 	SelectToSQL(columns any) QuerySet
 	StrSelectToSQL(columns string) QuerySet
@@ -229,25 +229,6 @@ func (p *QuerySetImpl) GetQuerySet() (sql string, args []any) {
 	}
 
 	return where + sql, args
-}
-
-func (p *QuerySetImpl) WhereToSQL(cond string, args ...any) QuerySet {
-	if !p.hasCalled(callFilter) {
-		p.setCalled(callWhere)
-	} else {
-		p.setError(filterOrWhereError)
-		return p
-	}
-
-	num := strings.Count(cond, "?")
-	if num > 0 && len(args) != num {
-		p.setError(argsLenError)
-		return p
-	}
-	p.whereCond.SQL = cond
-	p.whereCond.Args = args
-
-	return p
 }
 
 func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, filterArgs []any) {
@@ -491,6 +472,25 @@ func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
 	if len(filterConds) > 0 {
 		p.filterConds = append(p.filterConds, filterConds)
 	}
+
+	return p
+}
+
+func (p *QuerySetImpl) WhereToSQL(cond string, args ...any) QuerySet {
+	if !p.hasCalled(callFilter) {
+		p.setCalled(callWhere)
+	} else {
+		p.setError(filterOrWhereError)
+		return p
+	}
+
+	num := strings.Count(cond, "?")
+	if num > 0 && len(args) != num {
+		p.setError(argsLenError)
+		return p
+	}
+	p.whereCond.SQL = cond
+	p.whereCond.Args = args
 
 	return p
 }

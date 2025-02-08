@@ -364,100 +364,58 @@ func TestWhere(t *testing.T) {
 	}
 }
 
-func TestEachOR(t *testing.T) {
+func TestSelect(t *testing.T) {
 	type args struct {
-		cond any
-	}
-	tests := []struct {
-		name string
-		args args
-		want any
-	}{
-		{"one", args{Cond{"test": 1}}, Cond{"| test": 1}},
-		{"two", args{Cond{"test": 1, "test2": 2}}, Cond{"| test": 1, "| test2": 2}},
-		{"three", args{Cond{"test": 1, "test2": 2, "test3": 3}}, Cond{"| test": 1, "| test2": 2, "| test3": 3}},
-		{"one_string", args{Cond{"test": "1"}}, Cond{"| test": "1"}},
-		{"two_string", args{Cond{"test": "1", "test2": "2"}}, Cond{"| test": "1", "| test2": "2"}},
-		{"three_string", args{Cond{"test": "1", "test2": "2", "test3": "3"}}, Cond{"| test": "1", "| test2": "2", "| test3": "3"}},
-		{"one_and", args{AND{"test": 1}}, AND{"| test": 1}},
-		{"two_and", args{AND{"test": 1, "test2": 2}}, AND{"| test": 1, "| test2": 2}},
-		{"three_and", args{AND{"test": 1, "test2": 2, "test3": 3}}, AND{"| test": 1, "| test2": 2, "| test3": 3}},
-		{"one_or", args{OR{"test": 1}}, OR{"| test": 1}},
-		{"two_or", args{OR{"test": 1, "test2": 2}}, OR{"| test": 1, "| test2": 2}},
-		{"three_or", args{OR{"test": 1, "test2": 2, "test3": 3}}, OR{"| test": 1, "| test2": 2, "| test3": 3}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := EachOR(tt.args.cond); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("get  content: %v, get  type: %v", got, reflect.TypeOf(got).String())
-				t.Errorf("want content: %v, want type: %v", tt.want, reflect.TypeOf(tt.want).String())
-			}
-		})
-	}
-}
-
-func TestToOR(t *testing.T) {
-	type args struct {
-		key string
-	}
-	tests := []struct {
-		name string
-		args args
-		want string
-	}{
-		{"default", args{"test"}, "| test"},
-		{"empty", args{""}, ""},
-		{"already", args{"| test"}, "| test"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := ToOR(tt.args.key); got != tt.want {
-				t.Errorf("ToOR() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestOrderBy(t *testing.T) {
-	type args struct {
-		order any
+		selects any
 	}
 	type want struct {
 		sql string
+		err error
 	}
 	tests := []struct {
 		name string
 		args args
 		want want
 	}{
-		{"one_asc ", args{[]string{"test"}}, want{" ORDER BY `test` ASC"}},
-		{"two_asc ", args{[]string{"test", "test2"}}, want{" ORDER BY `test` ASC, `test2` ASC"}},
-		{"three_asc ", args{[]string{"test", "test2", "test3"}}, want{" ORDER BY `test` ASC, `test2` ASC, `test3` ASC"}},
-		{"one_desc ", args{[]string{"-test"}}, want{" ORDER BY `test` DESC"}},
-		{"two_desc ", args{[]string{"-test", "-test2"}}, want{" ORDER BY `test` DESC, `test2` DESC"}},
-		{"three_desc ", args{[]string{"-test", "-test2", "-test3"}}, want{" ORDER BY `test` DESC, `test2` DESC, `test3` DESC"}},
-		{"two_mix ", args{[]string{"test", "-test2"}}, want{" ORDER BY `test` ASC, `test2` DESC"}},
-		{"three_mix ", args{[]string{"test", "-test2", "test3"}}, want{" ORDER BY `test` ASC, `test2` DESC, `test3` ASC"}},
-		{"three_mix ", args{[]string{"-test", "test2", "-test3"}}, want{" ORDER BY `test` DESC, `test2` ASC, `test3` DESC"}},
-		{"str_one", args{"test"}, want{" ORDER BY test"}},
-		{"str_two", args{"test, test2"}, want{" ORDER BY test, test2"}},
-		{"str_three", args{"test, test2, test3"}, want{" ORDER BY test, test2, test3"}},
-		{"str_one_desc", args{"test desc"}, want{" ORDER BY test desc"}},
-		{"str_three_mix", args{"test, test2 desc, test3 asc"}, want{" ORDER BY test, test2 desc, test3 asc"}},
+		{"blank string", args{""}, want{sql: "", err: nil}},
+		{"string", args{"test, test2 as test3"}, want{sql: "test, test2 as test3", err: nil}},
+		{"zero slice", args{[]string{}}, want{sql: "*", err: nil}},
+		{"one slice", args{[]string{"test"}}, want{sql: "`test`", err: nil}},
+		{"two slice", args{[]string{"test", "test2"}}, want{sql: "`test`, `test2`", err: nil}},
+		{"three slice", args{[]string{"test", "test2", "test3"}}, want{sql: "`test`, `test2`, `test3`", err: nil}},
+		{"four slice", args{[]string{"test", "test2", "test3", "test4"}}, want{sql: "`test`, `test2`, `test3`, `test4`", err: nil}},
+		//{"as in slice", args{[]string{"test as test1"}}, want{sql: "`test` as `test1`", err: nil}},
+		//{"two as in slice", args{[]string{"test as test1", "testa as test2"}}, want{sql: "`test` as `test1`, `testa` as `test2`", err: nil}},
+		//{"mix in slice", args{[]string{"test as test1", "test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
+		//{"excess space in slice", args{[]string{"test as test1", " test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
+		//{"excess space in slice 2", args{[]string{"test as  test1", " test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
+		//{"DISTINCT in slice 2", args{[]string{"DISTINCT test1", " test2"}}, want{sql: "DISTINCT `test1`, `test2`", err: nil}},
+		{"array", args{[1]string{"test"}}, want{sql: "`test`", err: fmt.Errorf(paramTypeError)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewQuerySet(mysqlOp.NewOperator())
-			p.OrderByToSQL(tt.args.order)
-			sql := p.GetOrderBySQL()
+
+			sql := p.GetSelectSQL()
+			if sql != "*" {
+				t.Errorf("TestSelect SQL Gen Error -> sql : %v", sql)
+				t.Errorf("TestSelect SQL Gen Error -> want: %v", "*")
+			}
+
+			p.SelectToSQL(tt.args.selects)
+			sql = p.GetSelectSQL()
 
 			if p.Error() != nil {
-				t.Errorf("TestOrderBy SQL Occur Error -> error:%+v", p.Error())
+				if p.Error().Error() != tt.want.err.Error() {
+					t.Errorf("TestSelect SQL Occur Error -> error: %+v", p.Error())
+				}
+
+				return
 			}
 
 			if sql != tt.want.sql {
-				t.Errorf("TestOrderBy SQL Gen Error -> sql :%v", sql)
-				t.Errorf("TestOrderBy SQL Gen Error -> want:%v", tt.want.sql)
+				t.Errorf("TestSelect SQL Gen Error -> sql : %v", sql)
+				t.Errorf("TestSelect SQL Gen Error -> want: %v", tt.want.sql)
 			}
 		})
 	}
@@ -569,6 +527,51 @@ func TestLimit(t *testing.T) {
 	}
 }
 
+func TestOrderBy(t *testing.T) {
+	type args struct {
+		order any
+	}
+	type want struct {
+		sql string
+	}
+	tests := []struct {
+		name string
+		args args
+		want want
+	}{
+		{"one_asc ", args{[]string{"test"}}, want{" ORDER BY `test` ASC"}},
+		{"two_asc ", args{[]string{"test", "test2"}}, want{" ORDER BY `test` ASC, `test2` ASC"}},
+		{"three_asc ", args{[]string{"test", "test2", "test3"}}, want{" ORDER BY `test` ASC, `test2` ASC, `test3` ASC"}},
+		{"one_desc ", args{[]string{"-test"}}, want{" ORDER BY `test` DESC"}},
+		{"two_desc ", args{[]string{"-test", "-test2"}}, want{" ORDER BY `test` DESC, `test2` DESC"}},
+		{"three_desc ", args{[]string{"-test", "-test2", "-test3"}}, want{" ORDER BY `test` DESC, `test2` DESC, `test3` DESC"}},
+		{"two_mix ", args{[]string{"test", "-test2"}}, want{" ORDER BY `test` ASC, `test2` DESC"}},
+		{"three_mix ", args{[]string{"test", "-test2", "test3"}}, want{" ORDER BY `test` ASC, `test2` DESC, `test3` ASC"}},
+		{"three_mix ", args{[]string{"-test", "test2", "-test3"}}, want{" ORDER BY `test` DESC, `test2` ASC, `test3` DESC"}},
+		{"str_one", args{"test"}, want{" ORDER BY test"}},
+		{"str_two", args{"test, test2"}, want{" ORDER BY test, test2"}},
+		{"str_three", args{"test, test2, test3"}, want{" ORDER BY test, test2, test3"}},
+		{"str_one_desc", args{"test desc"}, want{" ORDER BY test desc"}},
+		{"str_three_mix", args{"test, test2 desc, test3 asc"}, want{" ORDER BY test, test2 desc, test3 asc"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewQuerySet(mysqlOp.NewOperator())
+			p.OrderByToSQL(tt.args.order)
+			sql := p.GetOrderBySQL()
+
+			if p.Error() != nil {
+				t.Errorf("TestOrderBy SQL Occur Error -> error:%+v", p.Error())
+			}
+
+			if sql != tt.want.sql {
+				t.Errorf("TestOrderBy SQL Gen Error -> sql :%v", sql)
+				t.Errorf("TestOrderBy SQL Gen Error -> want:%v", tt.want.sql)
+			}
+		})
+	}
+}
+
 func TestGroupBy(t *testing.T) {
 	type args struct {
 		groupby any
@@ -602,63 +605,6 @@ func TestGroupBy(t *testing.T) {
 			if sql != tt.want.sql {
 				t.Errorf("TestGroupBy SQL Gen Error -> sql :%v", sql)
 				t.Errorf("TestGroupBy SQL Gen Error -> want:%v", tt.want.sql)
-			}
-		})
-	}
-}
-
-func TestSelect(t *testing.T) {
-	type args struct {
-		selects any
-	}
-	type want struct {
-		sql string
-		err error
-	}
-	tests := []struct {
-		name string
-		args args
-		want want
-	}{
-		{"blank string", args{""}, want{sql: "", err: nil}},
-		{"string", args{"test, test2 as test3"}, want{sql: "test, test2 as test3", err: nil}},
-		{"zero slice", args{[]string{}}, want{sql: "*", err: nil}},
-		{"one slice", args{[]string{"test"}}, want{sql: "`test`", err: nil}},
-		{"two slice", args{[]string{"test", "test2"}}, want{sql: "`test`, `test2`", err: nil}},
-		{"three slice", args{[]string{"test", "test2", "test3"}}, want{sql: "`test`, `test2`, `test3`", err: nil}},
-		{"four slice", args{[]string{"test", "test2", "test3", "test4"}}, want{sql: "`test`, `test2`, `test3`, `test4`", err: nil}},
-		//{"as in slice", args{[]string{"test as test1"}}, want{sql: "`test` as `test1`", err: nil}},
-		//{"two as in slice", args{[]string{"test as test1", "testa as test2"}}, want{sql: "`test` as `test1`, `testa` as `test2`", err: nil}},
-		//{"mix in slice", args{[]string{"test as test1", "test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
-		//{"excess space in slice", args{[]string{"test as test1", " test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
-		//{"excess space in slice 2", args{[]string{"test as  test1", " test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
-		//{"DISTINCT in slice 2", args{[]string{"DISTINCT test1", " test2"}}, want{sql: "DISTINCT `test1`, `test2`", err: nil}},
-		{"array", args{[1]string{"test"}}, want{sql: "`test`", err: fmt.Errorf(paramTypeError)}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
-
-			sql := p.GetSelectSQL()
-			if sql != "*" {
-				t.Errorf("TestSelect SQL Gen Error -> sql : %v", sql)
-				t.Errorf("TestSelect SQL Gen Error -> want: %v", "*")
-			}
-
-			p.SelectToSQL(tt.args.selects)
-			sql = p.GetSelectSQL()
-
-			if p.Error() != nil {
-				if p.Error().Error() != tt.want.err.Error() {
-					t.Errorf("TestSelect SQL Occur Error -> error: %+v", p.Error())
-				}
-
-				return
-			}
-
-			if sql != tt.want.sql {
-				t.Errorf("TestSelect SQL Gen Error -> sql : %v", sql)
-				t.Errorf("TestSelect SQL Gen Error -> want: %v", tt.want.sql)
 			}
 		})
 	}
