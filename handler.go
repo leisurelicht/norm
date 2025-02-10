@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/builder"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
@@ -45,8 +44,12 @@ var _ Controller = (*Impl)(nil)
 type (
 	Controller interface {
 		ctx() context.Context
+		setCalled(f controllerCall)
 		hasCalled(f controllerCall) bool
 		checkCalled(f ...controllerCall) ([]string, bool)
+		validateColumns(columns []string) (validatedColumns []string, err error)
+		setError(format string, a ...any)
+		haveError() error
 		WithSession(session sqlx.Session) Controller
 		Reset() Controller
 		Filter(filter ...any) Controller
@@ -160,7 +163,7 @@ func (m *Impl) checkCalled(f ...controllerCall) ([]string, bool) {
 }
 
 func (m *Impl) validateColumns(columns []string) (validatedColumns []string, err error) {
-	unknownColumns := []string{}
+	var unknownColumns []string
 	for _, v := range columns {
 		if _, ok := m.fieldNameMap[v]; !ok {
 			unknownColumns = append(unknownColumns, v)
@@ -176,31 +179,11 @@ func (m *Impl) validateColumns(columns []string) (validatedColumns []string, err
 	return
 }
 
-func (m *Impl) validateColumns2Str(columns []string) string {
-	columnsRows := ""
-
-	for _, v := range columns {
-		if _, ok := m.fieldNameMap[v]; !ok {
-			continue
-		}
-		columnsRows += "`" + v + "`,"
-	}
-	columnsRows = columnsRows[:len(columnsRows)-1]
-
-	return columnsRows
-}
-
-func (m *Impl) checkQuerySetError() {
-	if m.qs.Error() != nil {
-		logx.WithCallerSkip(3).WithContext(m.ctx()).Errorf("sql conditions error: %s", m.qs.Error())
-	}
-}
-
 func (m *Impl) setError(format string, a ...any) {
 	m.qs.setError(format, a...)
 }
 
-func (m *Impl) HaveError() error {
+func (m *Impl) haveError() error {
 	if err := m.qs.Error(); err != nil {
 		return err
 	}
@@ -222,8 +205,6 @@ func (m *Impl) Filter(filter ...any) Controller {
 
 	m.qs.FilterToSQL(0, filter...)
 
-	m.checkQuerySetError()
-
 	return m
 }
 
@@ -232,8 +213,6 @@ func (m *Impl) Exclude(exclude ...any) Controller {
 
 	m.qs.FilterToSQL(1, exclude...)
 
-	m.checkQuerySetError()
-
 	return m
 }
 
@@ -241,6 +220,7 @@ func (m *Impl) Where(cond string, args ...any) Controller {
 	m.setCalled(ctlWhere)
 
 	m.qs.WhereToSQL(cond, args)
+
 	return m
 }
 
@@ -364,7 +344,7 @@ func (m *Impl) Insert(data map[string]any) (id int64, err error) {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Insert")
 	}
 
-	if err = m.HaveError(); err != nil {
+	if err = m.haveError(); err != nil {
 		return 0, err
 	}
 
@@ -403,7 +383,7 @@ func (m *Impl) Remove() (num int64, err error) {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Remove")
 	}
 
-	if err = m.HaveError(); err != nil {
+	if err = m.haveError(); err != nil {
 		return num, err
 	}
 
@@ -420,7 +400,7 @@ func (m *Impl) Update(data map[string]any) (num int64, err error) {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Update")
 	}
 
-	if err = m.HaveError(); err != nil {
+	if err = m.haveError(); err != nil {
 		return num, err
 	}
 
@@ -449,7 +429,7 @@ func (m *Impl) Update(data map[string]any) (num int64, err error) {
 }
 
 func (m *Impl) Count() (num int64, err error) {
-	if err = m.HaveError(); err != nil {
+	if err = m.haveError(); err != nil {
 		return num, err
 	}
 
@@ -467,7 +447,7 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 		return result, fmt.Errorf(UnsupportedControllerError, methods, "FindOne")
 	}
 
-	if err = m.HaveError(); err != nil {
+	if err = m.haveError(); err != nil {
 		return result, err
 	}
 
@@ -476,6 +456,7 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 	query := SelectTemp
 	query = fmt.Sprintf(query, m.fieldRows, m.tableName)
 	query += filterSQL
+	query += m.qs.GetGroupBySQL()
 	query += m.qs.GetOrderBySQL()
 	query += " LIMIT 1"
 
@@ -494,7 +475,7 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 }
 
 func (m *Impl) FindOneModel(modelPtr any) (err error) {
-	if err = m.HaveError(); err != nil {
+	if err = m.haveError(); err != nil {
 		return err
 	}
 
@@ -522,7 +503,7 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 		return result, fmt.Errorf(UnsupportedControllerError, methods, "FindAll")
 	}
 
-	if err = m.HaveError(); err != nil {
+	if err = m.haveError(); err != nil {
 		return result, err
 	}
 
@@ -532,6 +513,7 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 	query = fmt.Sprintf(query, m.fieldRows, m.tableName)
 	query += filterSQL
 
+	query += m.qs.GetGroupBySQL()
 	query += m.qs.GetOrderBySQL()
 	query += m.qs.GetLimitSQL()
 
@@ -550,7 +532,7 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 }
 
 func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
-	if err = m.HaveError(); err != nil {
+	if err = m.haveError(); err != nil {
 		return err
 	}
 
@@ -647,7 +629,7 @@ func (m *Impl) CreateOrUpdate(data map[string]any, filter ...any) (bool, int64, 
 }
 
 func (m *Impl) GetC2CMap(column1, column2 string) (res map[any]any, err error) {
-	if err = m.HaveError(); err != nil {
+	if err = m.haveError(); err != nil {
 		return res, err
 	}
 
@@ -663,6 +645,7 @@ func (m *Impl) GetC2CMap(column1, column2 string) (res map[any]any, err error) {
 	filterSQL, filterArgs := m.qs.GetQuerySet()
 
 	query += filterSQL
+	query += m.qs.GetGroupBySQL()
 	query += m.qs.GetOrderBySQL()
 	query += m.qs.GetLimitSQL()
 
