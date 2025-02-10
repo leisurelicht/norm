@@ -37,13 +37,13 @@ const (
 )
 
 const (
-	argsLenError       = "args length must be equal to ? number"
-	orderKeyTypeError  = "order key value must be a list of string"
-	orderKeyLenError   = "order key length must be equal to filter key length"
-	isNotValueError    = "isNot value must be 0 or 1"
-	paramTypeError     = "param type must be string or slice of string"
-	filterOrWhereError = "filter or where can not be called at the same time"
+	argsLenError      = "args length must be equal to ? number"
+	orderKeyTypeError = "order key value must be a list of string"
+	orderKeyLenError  = "order key length must be equal to filter key length"
+	isNotValueError   = "isNot value must be 0 or 1"
+	paramTypeError    = "param type must be string or slice of string"
 
+	filterOrWhereError          = "[%s] or [Where] can not be called at the same time"
 	fieldLookupError            = "field lookups [%s] is invalid"
 	unknownOperatorError        = "unknown operator [%s]"
 	notImplementedOperatorError = "not implemented operator [%s]"
@@ -60,8 +60,9 @@ const (
 )
 
 var (
-	not          = [2]string{"", " NOT"}
-	conjunctions = [4]string{"AND", "OR", "AND NOT", "OR NOT"}
+	not              = [2]string{"", " NOT"}
+	conjunctions     = [4]string{"AND", "OR", "AND NOT", "OR NOT"}
+	filterAndExclude = []string{"Filter", "Exclude"}
 )
 
 type cond struct {
@@ -420,9 +421,13 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 
 func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
 	if !p.hasCalled(callWhere) {
-		p.setCalled(callFilter)
+		if isNot == 0 {
+			p.setCalled(callFilter)
+		} else if isNot == 1 {
+			p.setCalled(callExclude)
+		}
 	} else {
-		p.setError(filterOrWhereError)
+		p.setError(filterOrWhereError, filterAndExclude[isNot])
 		return p
 	}
 
@@ -477,10 +482,13 @@ func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
 }
 
 func (p *QuerySetImpl) WhereToSQL(cond string, args ...any) QuerySet {
-	if !p.hasCalled(callFilter) {
+	if !p.hasCalled(callFilter) || !p.hasCalled(callExclude) {
 		p.setCalled(callWhere)
-	} else {
-		p.setError(filterOrWhereError)
+	} else if p.hasCalled(callFilter) {
+		p.setError(filterOrWhereError, filterAndExclude[0])
+		return p
+	} else if p.hasCalled(callExclude) {
+		p.setError(filterOrWhereError, filterAndExclude[1])
 		return p
 	}
 

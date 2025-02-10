@@ -324,7 +324,8 @@ func TestWhere(t *testing.T) {
 		{"one", args{"`test` = ?", []any{1}, nil}, want{"`test` = ?", []any{1}, nil}},
 		{"two", args{"`test` = ? AND test2 = ?", []any{1, 2}, nil}, want{"`test` = ? AND test2 = ?", []any{1, 2}, nil}},
 		{"three", args{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}, nil}, want{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}, nil}},
-		{name: "one_with_filter", args: args{"`test` = ?", []any{1}, &filterArgs{0, []any{Cond{"test": 1}}}}, want: want{"`test` = ?", []any{1}, fmt.Errorf(filterOrWhereError)}},
+		{"one_with_filter", args{"`test` = ?", []any{1}, &filterArgs{0, []any{Cond{"test": 1}}}}, want{"`test` = ?", []any{1}, fmt.Errorf(filterOrWhereError, "Filter")}},
+		{"one_with_exclude", args{"`test` = ?", []any{1}, &filterArgs{1, []any{Cond{"test": 1}}}}, want{"`test` = ?", []any{1}, fmt.Errorf(filterOrWhereError, "Exclude")}},
 	}
 
 	for _, tt := range tests {

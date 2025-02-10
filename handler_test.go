@@ -1,6 +1,7 @@
 package norm
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -92,7 +93,11 @@ func TestQuery(t *testing.T) {
 func TestHandlerError(t *testing.T) {
 	ctl := NewController(sqlx.NewMysql(mysqlAddress), mysqlOp.NewOperator(), test.Source{})
 
-	if _, err := ctl(nil).Filter(Cond{}).Where("").FindOne(); err != nil && err.Error() != filterOrWhereError {
+	if _, err := ctl(nil).Filter(Cond{}).Where("").FindOne(); err != nil && err.Error() != fmt.Sprintf(filterOrWhereError, "Filter") {
+		t.Errorf("expect nil but got %v", err)
+	}
+
+	if _, err := ctl(nil).Exclude(Cond{}).Where("").FindOne(); err != nil && err.Error() != fmt.Sprintf(filterOrWhereError, "Exclude") {
 		t.Errorf("expect nil but got %v", err)
 	}
 
@@ -210,6 +215,7 @@ func TestHandlerError(t *testing.T) {
 		t.Error(err)
 	}
 
+	// send not exist columns to Select
 	if err := ctl(nil).Select([]string{"age"}).FindOneModel(&test.Source{}); err != nil {
 		if err.Error() != "Select columns validate error: [age] not exist" {
 			t.Error(err)
@@ -228,6 +234,7 @@ func TestHandlerError(t *testing.T) {
 		}
 	}
 
+	// send not exist columns to OrderBy
 	if err := ctl(nil).OrderBy([]string{"age"}).FindOneModel(&test.Source{}); err != nil {
 		if err.Error() != "OrderBy columns validate error: [age] not exist" {
 			t.Error(err)
@@ -246,6 +253,7 @@ func TestHandlerError(t *testing.T) {
 		}
 	}
 
+	// send not exist columns to GroupBy
 	if err := ctl(nil).GroupBy([]string{"age"}).FindOneModel(&test.Source{}); err != nil {
 		if err.Error() != "GroupBy columns validate error: [age] not exist" {
 			t.Error(err)
@@ -264,6 +272,7 @@ func TestHandlerError(t *testing.T) {
 		}
 	}
 
+	// send not exist columns and display last error
 	if err := ctl(nil).GroupBy([]string{"test"}).OrderBy([]string{"age"}).FindOneModel(&test.Source{}); err != nil {
 		if err.Error() != "OrderBy columns validate error: [age] not exist" {
 			t.Error(err)
@@ -288,14 +297,14 @@ func TestHandlerError(t *testing.T) {
 		}
 	}
 
-	if err := ctl(nil).OrderBy([]string{"age", "happy"}).GroupBy([]string{"test, test2"}).FindOneModel(&test.Source{}); err != nil {
+	if err := ctl(nil).OrderBy([]string{"age", "happy"}).GroupBy([]string{"test", "test2"}).FindOneModel(&test.Source{}); err != nil {
 		if err.Error() != "GroupBy columns validate error: [test; test2] not exist" {
 			t.Error(err)
 		}
 	}
 
-	if err := ctl(nil).OrderBy([]string{"age", "happy", "damnit"}).GroupBy([]string{"test, test3"}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "GroupBy columns validate error: [test; test; test3] not exist" {
+	if err := ctl(nil).OrderBy([]string{"age", "happy", "damnit"}).GroupBy([]string{"test", "test2", "test3"}).FindOneModel(&test.Source{}); err != nil {
+		if err.Error() != "GroupBy columns validate error: [test; test2; test3] not exist" {
 			t.Error(err)
 		}
 	}

@@ -192,7 +192,7 @@ func (m *Impl) validateColumns2Str(columns []string) string {
 
 func (m *Impl) checkQuerySetError() {
 	if m.qs.Error() != nil {
-		logx.WithCallerSkip(3).WithContext(m.ctx()).Errorf("sql conditions queryset error: %s", m.qs.Error())
+		logx.WithCallerSkip(3).WithContext(m.ctx()).Errorf("sql conditions error: %s", m.qs.Error())
 	}
 }
 
