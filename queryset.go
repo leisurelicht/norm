@@ -37,9 +37,13 @@ const (
 )
 
 const (
-	argsLenError                = "args length must be equal to ? number"
-	orderKeyTypeError           = "order key value must be a list of string"
-	orderKeyLenError            = "order key length must be equal to filter key length"
+	argsLenError      = "args length must be equal to ? number"
+	orderKeyTypeError = "order key value must be a list of string"
+	orderKeyLenError  = "order key length must be equal to filter key length"
+	isNotValueError   = "isNot value must be 0 or 1"
+	paramTypeError    = "param type must be string or slice of string"
+
+	filterOrWhereError          = "[%s] or [Where] can not be called at the same time"
 	fieldLookupError            = "field lookups [%s] is invalid"
 	unknownOperatorError        = "unknown operator [%s]"
 	notImplementedOperatorError = "not implemented operator [%s]"
@@ -47,9 +51,7 @@ const (
 	operatorValueLenError       = "operator [%s] value length must be [%d]"
 	operatorValueLenLessError   = "operator [%s] value length must greater than [%d]"
 	operatorValueTypeError      = "operator [%s] value must be string list"
-	isNotValueError             = "isNot value must be 0 or 1"
-	unsupportedFilterTypeError  = "unsupported filter type [%+v], Please use be [Cond | AND | OR]"
-	valueTypeError              = "value type must be string or slice of string"
+	unsupportedFilterTypeError  = "unsupported filter type [%s], Please use be [Cond | AND | OR]"
 )
 
 const (
@@ -58,8 +60,9 @@ const (
 )
 
 var (
-	not          = [2]string{"", " NOT"}
-	conjunctions = [4]string{"AND", "OR", "AND NOT", "OR NOT"}
+	not              = [2]string{"", " NOT"}
+	conjunctions     = [4]string{"AND", "OR", "AND NOT", "OR NOT"}
+	filterAndExclude = []string{"Filter", "Exclude"}
 )
 
 type cond struct {
@@ -67,6 +70,18 @@ type cond struct {
 	SQL  string
 	Args []any
 }
+
+type callFlag int64
+
+const (
+	callFilter callFlag = 1 << iota
+	callExclude
+	callWhere
+	callOrderBy
+	callLimit
+	callSelect
+	callGroupBy
+)
 
 func newCond() *cond {
 	return &cond{}
@@ -96,16 +111,22 @@ type QuerySet interface {
 	Error() error
 	Reset()
 	GetQuerySet() (string, []any)
-	WhereToSQL(cond string, args ...any) QuerySet
 	FilterToSQL(notTag int, filter ...any) QuerySet
-	GetOrderBySQL() string
-	OrderByToSQL(orderBy any) QuerySet
+	WhereToSQL(cond string, args ...any) QuerySet
+	GetSelectSQL() string
+	SelectToSQL(columns any) QuerySet
+	StrSelectToSQL(columns string) QuerySet
+	SliceSelectToSQL(columns []string) QuerySet
 	GetLimitSQL() string
 	LimitToSQL(pageSize, pageNum int64) QuerySet
-	SelectToSQL(columns any) QuerySet
-	GetSelectSQL() string
-	GroupByToSQL(groupBy any) QuerySet
+	GetOrderBySQL() string
+	OrderByToSQL(orderBy any) QuerySet
+	StrOrderByToSQL(orderBy string) QuerySet
+	SliceOrderByToSQL(orderBy []string) QuerySet
 	GetGroupBySQL() string
+	GroupByToSQL(groupBy any) QuerySet
+	StrGroupByToSQL(groupBy string) QuerySet
+	SliceGroupByToSQL(groupBy []string) QuerySet
 }
 
 type QuerySetImpl struct {
@@ -118,6 +139,7 @@ type QuerySetImpl struct {
 	limitSQL      string
 	groupSQL      string
 	err           error
+	called        callFlag
 }
 
 var _ QuerySet = (*QuerySetImpl)(nil)
@@ -134,6 +156,14 @@ func NewQuerySet(op Operator) QuerySet {
 		groupSQL:      "",
 		err:           nil,
 	}
+}
+
+func (p *QuerySetImpl) setCalled(f callFlag) {
+	p.called = p.called | f
+}
+
+func (p *QuerySetImpl) hasCalled(f callFlag) bool {
+	return p.called&f == f
 }
 
 func (p *QuerySetImpl) setError(format string, a ...any) {
@@ -202,17 +232,6 @@ func (p *QuerySetImpl) GetQuerySet() (sql string, args []any) {
 	return where + sql, args
 }
 
-func (p *QuerySetImpl) WhereToSQL(cond string, args ...any) QuerySet {
-	num := strings.Count(cond, "?")
-	if num > 0 && len(args) != num {
-		p.setError(argsLenError)
-		return p
-	}
-	p.whereCond.SQL = cond
-	p.whereCond.Args = args
-	return p
-}
-
 func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, filterArgs []any) {
 	if len(filter) == 0 {
 		return
@@ -220,7 +239,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 
 	var (
 		filterConds = make(map[string]*cond)
-		orderList   []string
+		skList      []string
 		isOrder     = false
 		fieldName   string
 		operator    string
@@ -228,14 +247,14 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 		notFlag     = emptyTag
 	)
 
-	if order, ok := filter[OrderKey]; ok {
-		delete(filter, OrderKey)
-		orderList, ok = order.([]string)
+	if sk, ok := filter[SortKey]; ok {
+		delete(filter, SortKey)
+		skList, ok = sk.([]string)
 		if !ok {
 			p.setError(orderKeyTypeError)
 			return
 		}
-		if len(orderList) != len(filter) {
+		if len(skList) != len(filter) {
 			p.setError(orderKeyLenError)
 			return
 		}
@@ -384,7 +403,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 	}
 
 	if isOrder {
-		for index, key := range orderList {
+		for index, key := range skList {
 			if condition, ok := filterConds[key]; ok {
 				joinSQL(&filterSql, &filterArgs, index, condition)
 			}
@@ -401,6 +420,17 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 }
 
 func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
+	if !p.hasCalled(callWhere) {
+		if isNot == 0 {
+			p.setCalled(callFilter)
+		} else if isNot == 1 {
+			p.setCalled(callExclude)
+		}
+	} else {
+		p.setError(filterOrWhereError, filterAndExclude[isNot])
+		return p
+	}
+
 	if len(filter) == 0 {
 		return p
 	}
@@ -451,26 +481,102 @@ func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
 	return p
 }
 
+func (p *QuerySetImpl) WhereToSQL(cond string, args ...any) QuerySet {
+	if !p.hasCalled(callFilter) || !p.hasCalled(callExclude) {
+		p.setCalled(callWhere)
+	} else if p.hasCalled(callFilter) {
+		p.setError(filterOrWhereError, filterAndExclude[0])
+		return p
+	} else if p.hasCalled(callExclude) {
+		p.setError(filterOrWhereError, filterAndExclude[1])
+		return p
+	}
+
+	num := strings.Count(cond, "?")
+	if num > 0 && len(args) != num {
+		p.setError(argsLenError)
+		return p
+	}
+	p.whereCond.SQL = cond
+	p.whereCond.Args = args
+
+	return p
+}
+
+func (p *QuerySetImpl) GetSelectSQL() string {
+	return p.selectColumn
+}
+
+func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
+	p.setCalled(callSelect)
+
+	switch columns.(type) {
+	case string:
+		p.StrSelectToSQL(columns.(string))
+	case []string:
+		p.SliceSelectToSQL(columns.([]string))
+	default:
+		p.setError(paramTypeError)
+	}
+
+	return p
+}
+
+func (p *QuerySetImpl) StrSelectToSQL(columns string) QuerySet {
+	p.setCalled(callSelect)
+
+	p.selectColumn = columns
+	return p
+}
+
+func (p *QuerySetImpl) SliceSelectToSQL(columns []string) QuerySet {
+	p.setCalled(callSelect)
+
+	if len(columns) == 0 {
+		return p
+	}
+
+	p.selectColumn = processSQL(columns, p.IsSelectKey)
+	return p
+}
+
 func (p *QuerySetImpl) GetOrderBySQL() string {
-	return p.orderBySQL
+	if p.orderBySQL == "" {
+		return ""
+	}
+	return " ORDER BY " + p.orderBySQL
 }
 
 func (p *QuerySetImpl) OrderByToSQL(orderBy any) QuerySet {
-	var orderByList []string
+	p.setCalled(callOrderBy)
 
 	switch orderBy.(type) {
 	case string:
-		if orderBy.(string) == "" {
-			return p
-		}
-		orderByList = strings.Split(orderBy.(string), ",")
+		p.StrOrderByToSQL(orderBy.(string))
 	case []string:
-		if len(orderBy.([]string)) == 0 {
-			return p
-		}
-		orderByList = orderBy.([]string)
+		p.SliceOrderByToSQL(orderBy.([]string))
 	default:
-		p.setError(valueTypeError)
+		p.setError(paramTypeError)
+		return p
+	}
+
+	return p
+}
+
+func (p *QuerySetImpl) StrOrderByToSQL(orderBy string) QuerySet {
+	p.setCalled(callOrderBy)
+
+	p.orderBySQL = orderBy
+
+	return p
+}
+
+func (p *QuerySetImpl) SliceOrderByToSQL(orderBy []string) QuerySet {
+	p.setCalled(callOrderBy)
+
+	orderByList := orderBy
+
+	if len(orderByList) == 0 {
 		return p
 	}
 
@@ -485,7 +591,7 @@ func (p *QuerySetImpl) OrderByToSQL(orderBy any) QuerySet {
 		p.orderBySQL += ", "
 	}
 
-	p.orderBySQL = " ORDER BY " + p.orderBySQL[:len(p.orderBySQL)-2]
+	p.orderBySQL = p.orderBySQL[:len(p.orderBySQL)-2]
 
 	return p
 }
@@ -495,6 +601,8 @@ func (p *QuerySetImpl) GetLimitSQL() string {
 }
 
 func (p *QuerySetImpl) LimitToSQL(pageSize, pageNum int64) QuerySet {
+	p.setCalled(callLimit)
+
 	if pageSize > 0 && pageNum > 0 {
 		var offset, limit int64
 		offset = (pageNum - 1) * pageSize
@@ -505,52 +613,45 @@ func (p *QuerySetImpl) LimitToSQL(pageSize, pageNum int64) QuerySet {
 	return p
 }
 
-func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
-	switch columns.(type) {
-	case string:
-		if columns.(string) == "" {
-			return p
-		}
-		p.selectColumn = columns.(string)
-	case []string:
-		if len(columns.([]string)) == 0 {
-			return p
-		}
-		p.selectColumn = "`" + strings.Join(columns.([]string), "`, `") + "`"
-	default:
-		p.setError(valueTypeError)
+func (p *QuerySetImpl) GetGroupBySQL() string {
+	if p.groupSQL == "" {
+		return ""
 	}
+
+	return " GROUP BY " + p.groupSQL
+}
+
+func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
+	switch groupBy.(type) {
+	case string:
+		p.StrGroupByToSQL(groupBy.(string))
+	case []string:
+		p.SliceGroupByToSQL(groupBy.([]string))
+	default:
+		p.setError(paramTypeError)
+	}
+	return p
+}
+
+func (p *QuerySetImpl) StrGroupByToSQL(groupBy string) QuerySet {
+	p.setCalled(callGroupBy)
+
+	p.groupSQL = groupBy
 
 	return p
 }
 
-func (p *QuerySetImpl) GetSelectSQL() string {
-	return p.selectColumn
-}
+func (p *QuerySetImpl) SliceGroupByToSQL(groupBy []string) QuerySet {
+	p.setCalled(callGroupBy)
 
-func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
-	var groupByList []string
-
-	switch groupBy.(type) {
-	case string:
-		if groupBy.(string) == "" {
-			return p
-		}
-		groupByList = strings.Split(groupBy.(string), ",")
-	case []string:
-		if len(groupBy.([]string)) == 0 {
-			return p
-		}
-		groupByList = groupBy.([]string)
-	default:
-		p.setError(valueTypeError)
+	if len(groupBy) == 0 {
 		return p
 	}
 
 	var b strings.Builder
-	b.WriteString(" GROUP BY `")
-	b.WriteString(strings.TrimSpace(groupByList[0]))
-	for _, by := range groupByList[1:] {
+	b.WriteString("`")
+	b.WriteString(strings.TrimSpace(groupBy[0]))
+	for _, by := range groupBy[1:] {
 		b.WriteString("`, `")
 		b.WriteString(strings.TrimSpace(by))
 	}
@@ -559,8 +660,4 @@ func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
 	p.groupSQL = b.String()
 
 	return p
-}
-
-func (p *QuerySetImpl) GetGroupBySQL() string {
-	return p.groupSQL
 }

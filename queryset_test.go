@@ -86,11 +86,11 @@ func TestFilter(t *testing.T) {
 		{"not_not_iendswith_cond", args{1, []any{Cond{"test__iendswith": "sT"}}}, want{" WHERE NOT (`test` LIKE ?)", []any{"%sT"}}},
 		{"not_not_iendswith_cond", args{1, []any{Cond{"test__not_iendswith": "sT"}}}, want{" WHERE NOT (`test` NOT LIKE ?)", []any{"%sT"}}},
 
-		{"two_default_column", args{0, []any{Cond{OrderKey: []string{"test1", "test2"}, "test1": 1, "test2": 2}}}, want{" WHERE (`test1` = ? AND `test2` = ?)", []any{1, 2}}},
-		{"reverse_default_column", args{0, []any{Cond{OrderKey: []string{"test2", "test1"}, "test1": 1, "test2": 2}}}, want{" WHERE (`test2` = ? AND `test1` = ?)", []any{2, 1}}},
-		{"three_default_column", args{0, []any{Cond{OrderKey: []string{"test1", "test2", "test3"}, "test1": 1, "test2": 2, "test3": 3}}}, want{" WHERE (`test1` = ? AND `test2` = ? AND `test3` = ?)", []any{1, 2, 3}}},
-		{"reverse_three_default_column", args{0, []any{Cond{OrderKey: []string{"test3", "test2", "test1"}, "test1": 1, "test2": 2, "test3": 3}}}, want{" WHERE (`test3` = ? AND `test2` = ? AND `test1` = ?)", []any{3, 2, 1}}},
-		{"out_order_three_default_column", args{0, []any{Cond{OrderKey: []string{"test1", "test3", "test2"}, "test3": 1, "test2": 2, "test1": 3}}}, want{" WHERE (`test1` = ? AND `test3` = ? AND `test2` = ?)", []any{3, 1, 2}}},
+		{"two_default_column", args{0, []any{Cond{SortKey: []string{"test1", "test2"}, "test1": 1, "test2": 2}}}, want{" WHERE (`test1` = ? AND `test2` = ?)", []any{1, 2}}},
+		{"reverse_default_column", args{0, []any{Cond{SortKey: []string{"test2", "test1"}, "test1": 1, "test2": 2}}}, want{" WHERE (`test2` = ? AND `test1` = ?)", []any{2, 1}}},
+		{"three_default_column", args{0, []any{Cond{SortKey: []string{"test1", "test2", "test3"}, "test1__gt": 1, "test2": 2, "test3": 3}}}, want{" WHERE (`test1` > ? AND `test2` = ? AND `test3` = ?)", []any{1, 2, 3}}},
+		{"reverse_three_default_column", args{0, []any{Cond{SortKey: []string{"test3", "test2", "test1"}, "test1__lt": 1, "test2": 2, "test3": 3}}}, want{" WHERE (`test3` = ? AND `test2` = ? AND `test1` < ?)", []any{3, 2, 1}}},
+		{"out_order_three_default_column", args{0, []any{Cond{SortKey: []string{"test1", "test3", "test2"}, "test3__in": []int{1, 4, 6}, "test2": 2, "test1": 3}}}, want{" WHERE (`test1` = ? AND `test3` IN (?,?,?) AND `test2` = ?)", []any{3, 1, 4, 6, 2}}},
 
 		{"default_conj", args{0, []any{Cond{"test": 1}, Cond{"test2": 2}}}, want{" WHERE ((`test` = ?) AND (`test2` = ?))", []any{1, 2}}},
 		{"and_conj", args{0, []any{Cond{"test": 1}, AND{"test2": 2}}}, want{" WHERE ((`test` = ?) AND (`test2` = ?))", []any{1, 2}}},
@@ -114,20 +114,20 @@ func TestFilter(t *testing.T) {
 
 		{"default_mix_contains_conj", args{0, []any{Cond{"test": 1}, Cond{"test2__contains": []string{"e", "s"}}}}, want{" WHERE ((`test` = ?) AND (`test2` LIKE BINARY ? AND `test2` LIKE BINARY ?))", []any{1, "%e%", "%s%"}}},
 
-		{"exact_one_and_one_cond", args{0, []any{Cond{OrderKey: []string{"test", "test2"}, "test": 1, "test2": 2}}}, want{" WHERE (`test` = ? AND `test2` = ?)", []any{1, 2}}},
-		{"exact_one_and_list_and_cond", args{0, []any{Cond{OrderKey: []string{"test", "test2"}, "test": 1, "test2": []any{3, 4}}}}, want{" WHERE (`test` = ? AND (`test2` = ? AND `test2` = ?))", []any{1, 3, 4}}},
-		{"exact_list_and_list_cond", args{0, []any{Cond{OrderKey: []string{"test", "test2"}, "test": []any{1, 2}, "test2": []any{3, 4}}}}, want{" WHERE ((`test` = ? AND `test` = ?) AND (`test2` = ? AND `test2` = ?))", []any{1, 2, 3, 4}}},
+		{"exact_one_and_one_cond", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, "test2": 2}}}, want{" WHERE (`test` = ? AND `test2` = ?)", []any{1, 2}}},
+		{"exact_one_and_list_and_cond", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, "test2": []any{3, 4}}}}, want{" WHERE (`test` = ? AND (`test2` = ? AND `test2` = ?))", []any{1, 3, 4}}},
+		{"exact_list_and_list_cond", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": []any{1, 2}, "test2": []any{3, 4}}}}, want{" WHERE ((`test` = ? AND `test` = ?) AND (`test2` = ? AND `test2` = ?))", []any{1, 2, 3, 4}}},
 
 		// ToOR
-		{"exact_one_or_one_cond", args{0, []any{Cond{OrderKey: []string{"test", "test2"}, "test": 1, ToOR("test2"): 2}}}, want{" WHERE (`test` = ? OR `test2` = ?)", []any{1, 2}}},
-		{"exact_one_or_list_and_cond", args{0, []any{Cond{OrderKey: []string{"test", "test2"}, "test": 1, ToOR("test2"): []any{3, 4}}}}, want{" WHERE (`test` = ? OR (`test2` = ? AND `test2` = ?))", []any{1, 3, 4}}},
-		{"exact_list_or_list_cond", args{0, []any{Cond{OrderKey: []string{"test", "test2"}, "test": []any{1, 2}, ToOR("test2"): []any{3, 4}}}}, want{" WHERE ((`test` = ? AND `test` = ?) OR (`test2` = ? AND `test2` = ?))", []any{1, 2, 3, 4}}},
+		{"exact_one_or_one_cond", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, ToOR("test2"): 2}}}, want{" WHERE (`test` = ? OR `test2` = ?)", []any{1, 2}}},
+		{"exact_one_or_list_and_cond", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, ToOR("test2"): []any{3, 4}}}}, want{" WHERE (`test` = ? OR (`test2` = ? AND `test2` = ?))", []any{1, 3, 4}}},
+		{"exact_list_or_list_cond", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": []any{1, 2}, ToOR("test2"): []any{3, 4}}}}, want{" WHERE ((`test` = ? AND `test` = ?) OR (`test2` = ? AND `test2` = ?))", []any{1, 2, 3, 4}}},
 
 		// EachOR
 		{"each_or", args{0, []any{EachOR(Cond{"test": 1})}}, want{" WHERE (`test` = ?)", []any{1}}},
 		{"each_or_list", args{0, []any{EachOR(Cond{"test": []any{1, 2}})}}, want{" WHERE (`test` = ? AND `test` = ?)", []any{1, 2}}},
-		{"each_or_and", args{0, []any{Cond{"test": 1}, EachOR(AND{OrderKey: []string{"test1", "test2"}, "test1": 1, "test2": 2})}}, want{" WHERE ((`test` = ?) AND (`test1` = ? OR `test2` = ?))", []any{1, 1, 2}}},
-		{"each_or_or", args{0, []any{Cond{"test": 1}, EachOR(OR{OrderKey: []string{"test1", "test2"}, "test1": 1, "test2": 2})}}, want{" WHERE ((`test` = ?) OR (`test1` = ? OR `test2` = ?))", []any{1, 1, 2}}},
+		{"each_or_and", args{0, []any{Cond{"test": 1}, EachOR(AND{SortKey: []string{"test1", "test2"}, "test1": 1, "test2": 2})}}, want{" WHERE ((`test` = ?) AND (`test1` = ? OR `test2` = ?))", []any{1, 1, 2}}},
+		{"each_or_or", args{0, []any{Cond{"test": 1}, EachOR(OR{SortKey: []string{"test1", "test2"}, "test1": 1, "test2": 2})}}, want{" WHERE ((`test` = ?) OR (`test1` = ? OR `test2` = ?))", []any{1, 1, 2}}},
 
 		// meet by accident
 	}
@@ -182,7 +182,7 @@ func TestMultipleCallFilter(t *testing.T) {
 		{"double call", []args{{0, []any{Cond{"test1": 1}}}, {0, []any{Cond{"test2": 1}}}}, want{" WHERE (`test1` = ?) AND (`test2` = ?)", []any{1, 1}}},
 
 		// meet by accident
-		{"meet1", []args{{0, []any{Cond{OrderKey: []string{"delete_flag", "devise_sn"}, "delete_flag": 0, "devise_sn__len": 22}}}, {0, []any{Cond{OrderKey: []string{"device_name", "devise_sn", "belong_to_company"}, "device_name__icontains": "test", "devise_sn__icontains": "test", "belong_to_company__icontains": "test"}}}}, want{" WHERE (`delete_flag` = ? AND LENGTH(`devise_sn`) = ?) AND (`device_name` LIKE ? AND `devise_sn` LIKE ? AND `belong_to_company` LIKE ?)", []any{0, 22, "%test%", "%test%", "%test%"}}},
+		{"meet1", []args{{0, []any{Cond{SortKey: []string{"delete_flag", "devise_sn"}, "delete_flag": 0, "devise_sn__len": 22}}}, {0, []any{Cond{SortKey: []string{"device_name", "devise_sn", "belong_to_company"}, "device_name__icontains": "test", "devise_sn__icontains": "test", "belong_to_company__icontains": "test"}}}}, want{" WHERE (`delete_flag` = ? AND LENGTH(`devise_sn`) = ?) AND (`device_name` LIKE ? AND `devise_sn` LIKE ? AND `belong_to_company` LIKE ?)", []any{0, 22, "%test%", "%test%", "%test%"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -233,8 +233,8 @@ func TestFilterError(t *testing.T) {
 		want want
 	}{
 		{"empty", args{0, []any{}}, want{nil}},
-		{"order_key_type", args{0, []any{Cond{OrderKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{fmt.Errorf(orderKeyTypeError)}},
-		{"order_key_type", args{0, []any{Cond{OrderKey: []string{"1"}, "1": "b", "2": "b"}}}, want{fmt.Errorf(orderKeyLenError)}},
+		{"order_key_type", args{0, []any{Cond{SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{fmt.Errorf(orderKeyTypeError)}},
+		{"order_key_type", args{0, []any{Cond{SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{fmt.Errorf(orderKeyLenError)}},
 		{"order_key_type", args{0, []any{Cond{"1__not__contains": "b"}}}, want{fmt.Errorf(fieldLookupError, "1__not__contains")}},
 		{"order_key_type", args{0, []any{Cond{"1__contain": "b"}}}, want{fmt.Errorf(unknownOperatorError, "contain")}},
 		{"order_key_type", args{0, []any{Cond{"test": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "exact", 0)}},
@@ -314,30 +314,33 @@ func TestWhere(t *testing.T) {
 	type want struct {
 		sql  string
 		args []any
+		err  error
 	}
 	tests := []struct {
 		name string
 		args args
 		want want
 	}{
-		{"one", args{"`test` = ?", []any{1}, nil}, want{"`test` = ?", []any{1}}},
-		{"two", args{"`test` = ? AND test2 = ?", []any{1, 2}, nil}, want{"`test` = ? AND test2 = ?", []any{1, 2}}},
-		{"three", args{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}, nil}, want{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}}},
-		{name: "one_with_filter", args: args{"`test` = ?", []any{1}, &filterArgs{0, []any{Cond{"test": 1}}}}, want: want{"`test` = ?", []any{1}}},
+		{"one", args{"`test` = ?", []any{1}, nil}, want{"`test` = ?", []any{1}, nil}},
+		{"two", args{"`test` = ? AND test2 = ?", []any{1, 2}, nil}, want{"`test` = ? AND test2 = ?", []any{1, 2}, nil}},
+		{"three", args{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}, nil}, want{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}, nil}},
+		{"one_with_filter", args{"`test` = ?", []any{1}, &filterArgs{0, []any{Cond{"test": 1}}}}, want{"`test` = ?", []any{1}, fmt.Errorf(filterOrWhereError, "Filter")}},
+		{"one_with_exclude", args{"`test` = ?", []any{1}, &filterArgs{1, []any{Cond{"test": 1}}}}, want{"`test` = ?", []any{1}, fmt.Errorf(filterOrWhereError, "Exclude")}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewQuerySet(mysqlOp.NewOperator())
-			p = p.WhereToSQL(tt.args.cond, tt.args.args...)
+			p.WhereToSQL(tt.args.cond, tt.args.args...)
 			if tt.args.filters != nil {
 				p.FilterToSQL(tt.args.filters.isNot, tt.args.filters.filter...)
 			}
 
 			sql, sqlArgs := p.GetQuerySet()
 
-			if p.Error() != nil {
+			if !errors.Is(p.Error(), tt.want.err) && p.Error().Error() != tt.want.err.Error() {
 				t.Errorf("TestFilter SQL Occur Error -> error:%+v", p.Error())
+				return
 			}
 
 			wantSQL := " WHERE " + tt.want.sql
@@ -362,95 +365,58 @@ func TestWhere(t *testing.T) {
 	}
 }
 
-func TestEachOR(t *testing.T) {
+func TestSelect(t *testing.T) {
 	type args struct {
-		cond any
-	}
-	tests := []struct {
-		name string
-		args args
-		want any
-	}{
-		{"one", args{Cond{"test": 1}}, Cond{"| test": 1}},
-		{"two", args{Cond{"test": 1, "test2": 2}}, Cond{"| test": 1, "| test2": 2}},
-		{"three", args{Cond{"test": 1, "test2": 2, "test3": 3}}, Cond{"| test": 1, "| test2": 2, "| test3": 3}},
-		{"one_string", args{Cond{"test": "1"}}, Cond{"| test": "1"}},
-		{"two_string", args{Cond{"test": "1", "test2": "2"}}, Cond{"| test": "1", "| test2": "2"}},
-		{"three_string", args{Cond{"test": "1", "test2": "2", "test3": "3"}}, Cond{"| test": "1", "| test2": "2", "| test3": "3"}},
-		{"one_and", args{AND{"test": 1}}, AND{"| test": 1}},
-		{"two_and", args{AND{"test": 1, "test2": 2}}, AND{"| test": 1, "| test2": 2}},
-		{"three_and", args{AND{"test": 1, "test2": 2, "test3": 3}}, AND{"| test": 1, "| test2": 2, "| test3": 3}},
-		{"one_or", args{OR{"test": 1}}, OR{"| test": 1}},
-		{"two_or", args{OR{"test": 1, "test2": 2}}, OR{"| test": 1, "| test2": 2}},
-		{"three_or", args{OR{"test": 1, "test2": 2, "test3": 3}}, OR{"| test": 1, "| test2": 2, "| test3": 3}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := EachOR(tt.args.cond); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("get  content: %v, get  type: %v", got, reflect.TypeOf(got).String())
-				t.Errorf("want content: %v, want type: %v", tt.want, reflect.TypeOf(tt.want).String())
-			}
-		})
-	}
-}
-
-func TestToOR(t *testing.T) {
-	type args struct {
-		key string
-	}
-	tests := []struct {
-		name string
-		args args
-		want string
-	}{
-		{"default", args{"test"}, "| test"},
-		{"empty", args{""}, ""},
-		{"already", args{"| test"}, "| test"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := ToOR(tt.args.key); got != tt.want {
-				t.Errorf("ToOR() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestOrderBy(t *testing.T) {
-	type args struct {
-		order []string
+		selects any
 	}
 	type want struct {
 		sql string
+		err error
 	}
 	tests := []struct {
 		name string
 		args args
 		want want
 	}{
-		{"one_asc ", args{[]string{"test"}}, want{" ORDER BY `test` ASC"}},
-		{"two_asc ", args{[]string{"test", "test2"}}, want{" ORDER BY `test` ASC, `test2` ASC"}},
-		{"three_asc ", args{[]string{"test", "test2", "test3"}}, want{" ORDER BY `test` ASC, `test2` ASC, `test3` ASC"}},
-		{"one_desc ", args{[]string{"-test"}}, want{" ORDER BY `test` DESC"}},
-		{"two_desc ", args{[]string{"-test", "-test2"}}, want{" ORDER BY `test` DESC, `test2` DESC"}},
-		{"three_desc ", args{[]string{"-test", "-test2", "-test3"}}, want{" ORDER BY `test` DESC, `test2` DESC, `test3` DESC"}},
-		{"two_mix ", args{[]string{"test", "-test2"}}, want{" ORDER BY `test` ASC, `test2` DESC"}},
-		{"three_mix ", args{[]string{"test", "-test2", "test3"}}, want{" ORDER BY `test` ASC, `test2` DESC, `test3` ASC"}},
-		{"three_mix ", args{[]string{"-test", "test2", "-test3"}}, want{" ORDER BY `test` DESC, `test2` ASC, `test3` DESC"}},
+		{"blank string", args{""}, want{sql: "", err: nil}},
+		{"string", args{"test, test2 as test3"}, want{sql: "test, test2 as test3", err: nil}},
+		{"zero slice", args{[]string{}}, want{sql: "*", err: nil}},
+		{"one slice", args{[]string{"test"}}, want{sql: "`test`", err: nil}},
+		{"two slice", args{[]string{"test", "test2"}}, want{sql: "`test`, `test2`", err: nil}},
+		{"three slice", args{[]string{"test", "test2", "test3"}}, want{sql: "`test`, `test2`, `test3`", err: nil}},
+		{"four slice", args{[]string{"test", "test2", "test3", "test4"}}, want{sql: "`test`, `test2`, `test3`, `test4`", err: nil}},
+		//{"as in slice", args{[]string{"test as test1"}}, want{sql: "`test` as `test1`", err: nil}},
+		//{"two as in slice", args{[]string{"test as test1", "testa as test2"}}, want{sql: "`test` as `test1`, `testa` as `test2`", err: nil}},
+		//{"mix in slice", args{[]string{"test as test1", "test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
+		//{"excess space in slice", args{[]string{"test as test1", " test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
+		//{"excess space in slice 2", args{[]string{"test as  test1", " test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
+		//{"DISTINCT in slice 2", args{[]string{"DISTINCT test1", " test2"}}, want{sql: "DISTINCT `test1`, `test2`", err: nil}},
+		{"array", args{[1]string{"test"}}, want{sql: "`test`", err: fmt.Errorf(paramTypeError)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewQuerySet(mysqlOp.NewOperator())
-			p.OrderByToSQL(tt.args.order)
-			sql := p.GetOrderBySQL()
+
+			sql := p.GetSelectSQL()
+			if sql != "*" {
+				t.Errorf("TestSelect SQL Gen Error -> sql : %v", sql)
+				t.Errorf("TestSelect SQL Gen Error -> want: %v", "*")
+			}
+
+			p.SelectToSQL(tt.args.selects)
+			sql = p.GetSelectSQL()
 
 			if p.Error() != nil {
-				t.Errorf("TestOrderBy SQL Occur Error -> error:%+v", p.Error())
+				if p.Error().Error() != tt.want.err.Error() {
+					t.Errorf("TestSelect SQL Occur Error -> error: %+v", p.Error())
+				}
+
+				return
 			}
 
 			if sql != tt.want.sql {
-				t.Errorf("TestOrderBy SQL Gen Error -> sql :%v", sql)
-				t.Errorf("TestOrderBy SQL Gen Error -> want:%v", tt.want.sql)
+				t.Errorf("TestSelect SQL Gen Error -> sql : %v", sql)
+				t.Errorf("TestSelect SQL Gen Error -> want: %v", tt.want.sql)
 			}
 		})
 	}
@@ -562,9 +528,54 @@ func TestLimit(t *testing.T) {
 	}
 }
 
+func TestOrderBy(t *testing.T) {
+	type args struct {
+		order any
+	}
+	type want struct {
+		sql string
+	}
+	tests := []struct {
+		name string
+		args args
+		want want
+	}{
+		{"one_asc ", args{[]string{"test"}}, want{" ORDER BY `test` ASC"}},
+		{"two_asc ", args{[]string{"test", "test2"}}, want{" ORDER BY `test` ASC, `test2` ASC"}},
+		{"three_asc ", args{[]string{"test", "test2", "test3"}}, want{" ORDER BY `test` ASC, `test2` ASC, `test3` ASC"}},
+		{"one_desc ", args{[]string{"-test"}}, want{" ORDER BY `test` DESC"}},
+		{"two_desc ", args{[]string{"-test", "-test2"}}, want{" ORDER BY `test` DESC, `test2` DESC"}},
+		{"three_desc ", args{[]string{"-test", "-test2", "-test3"}}, want{" ORDER BY `test` DESC, `test2` DESC, `test3` DESC"}},
+		{"two_mix ", args{[]string{"test", "-test2"}}, want{" ORDER BY `test` ASC, `test2` DESC"}},
+		{"three_mix ", args{[]string{"test", "-test2", "test3"}}, want{" ORDER BY `test` ASC, `test2` DESC, `test3` ASC"}},
+		{"three_mix ", args{[]string{"-test", "test2", "-test3"}}, want{" ORDER BY `test` DESC, `test2` ASC, `test3` DESC"}},
+		{"str_one", args{"test"}, want{" ORDER BY test"}},
+		{"str_two", args{"test, test2"}, want{" ORDER BY test, test2"}},
+		{"str_three", args{"test, test2, test3"}, want{" ORDER BY test, test2, test3"}},
+		{"str_one_desc", args{"test desc"}, want{" ORDER BY test desc"}},
+		{"str_three_mix", args{"test, test2 desc, test3 asc"}, want{" ORDER BY test, test2 desc, test3 asc"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewQuerySet(mysqlOp.NewOperator())
+			p.OrderByToSQL(tt.args.order)
+			sql := p.GetOrderBySQL()
+
+			if p.Error() != nil {
+				t.Errorf("TestOrderBy SQL Occur Error -> error:%+v", p.Error())
+			}
+
+			if sql != tt.want.sql {
+				t.Errorf("TestOrderBy SQL Gen Error -> sql :%v", sql)
+				t.Errorf("TestOrderBy SQL Gen Error -> want:%v", tt.want.sql)
+			}
+		})
+	}
+}
+
 func TestGroupBy(t *testing.T) {
 	type args struct {
-		group any
+		groupby any
 	}
 	type want struct {
 		sql string
@@ -575,7 +586,8 @@ func TestGroupBy(t *testing.T) {
 		want want
 	}{
 		{"blank string", args{""}, want{""}},
-		{"string", args{"test, test2"}, want{" GROUP BY `test`, `test2`"}},
+		{"string", args{"test, test2"}, want{" GROUP BY test, test2"}},
+		{"zero slice", args{[]string{}}, want{""}},
 		{"one slice", args{[]string{"test"}}, want{" GROUP BY `test`"}},
 		{"two slice", args{[]string{"test", "test2"}}, want{" GROUP BY `test`, `test2`"}},
 		{"three slice", args{[]string{"test", "test2", "test3"}}, want{" GROUP BY `test`, `test2`, `test3`"}},
@@ -583,7 +595,8 @@ func TestGroupBy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewQuerySet(mysqlOp.NewOperator())
-			p.GroupByToSQL(tt.args.group)
+			p.GroupByToSQL(tt.args.groupby)
+
 			sql := p.GetGroupBySQL()
 
 			if p.Error() != nil {
@@ -593,56 +606,6 @@ func TestGroupBy(t *testing.T) {
 			if sql != tt.want.sql {
 				t.Errorf("TestGroupBy SQL Gen Error -> sql :%v", sql)
 				t.Errorf("TestGroupBy SQL Gen Error -> want:%v", tt.want.sql)
-			}
-		})
-	}
-}
-
-func TestSelect(t *testing.T) {
-	type args struct {
-		selects any
-	}
-	type want struct {
-		sql string
-	}
-	tests := []struct {
-		name string
-		args args
-		want want
-	}{
-		{"blank string", args{""}, want{"*"}},
-		{"string", args{"test, test2 as test3"}, want{"test, test2 as test3"}},
-		{"zero slice", args{[]string{}}, want{"*"}},
-		{"one slice", args{[]string{"test"}}, want{"`test`"}},
-		{"two slice", args{[]string{"test", "test2"}}, want{"`test`, `test2`"}},
-		{"three slice", args{[]string{"test", "test2", "test3"}}, want{"`test`, `test2`, `test3`"}},
-		{"four slice", args{[]string{"test", "test2", "test3", "test4"}}, want{"`test`, `test2`, `test3`, `test4`"}},
-		//{"zero array", args{[0]string{}}, want{"*"}},
-		//{"one array", args{[1]string{"test"}}, want{"`test`"}},
-		//{"two array", args{[2]string{"test", "test2"}}, want{"`test`, `test2`"}},
-		//{"three array", args{[3]string{"test", "test2", "test3"}}, want{"`test`, `test2`, `test3`"}},
-		//{"four array", args{[4]string{"test", "test2", "test3", "test4"}}, want{"`test`, `test2`, `test3`, `test4`"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
-
-			sql := p.GetSelectSQL()
-			if sql != "*" {
-				t.Errorf("TestSelect SQL Gen Error -> sql :%v", sql)
-				t.Errorf("TestSelect SQL Gen Error -> want:%v", "*")
-			}
-
-			p.SelectToSQL(tt.args.selects)
-			sql = p.GetSelectSQL()
-
-			if p.Error() != nil {
-				t.Errorf("TestSelect SQL Occur Error -> error:%+v", p.Error())
-			}
-
-			if sql != tt.want.sql {
-				t.Errorf("TestSelect SQL Gen Error -> sql :%v", sql)
-				t.Errorf("TestSelect SQL Gen Error -> want:%v", tt.want.sql)
 			}
 		})
 	}

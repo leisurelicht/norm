@@ -4,10 +4,19 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/leisurelicht/norm/operator"
 )
 
+var (
+	ErrDuplicateKey = operator.ErrDuplicateKey
+	ErrNotFound     = operator.ErrDuplicateKey
+)
+
+type Operator operator.Operator
+
 const (
-	OrderKey = "~order~"
+	SortKey = "~sort~"
 )
 
 type (
@@ -17,7 +26,7 @@ type (
 )
 
 func ToOR(key string) string {
-	if key != "" && key != OrderKey && !strings.HasPrefix(key, orPrefix) {
+	if key != "" && key != SortKey && !strings.HasPrefix(key, orPrefix) {
 		return orPrefix + strings.TrimSpace(key)
 	}
 	return key
@@ -28,7 +37,7 @@ func EachOR(conds any) any {
 	case Cond:
 		conditions := conds.(Cond)
 		for k, v := range conditions {
-			if k == OrderKey {
+			if k == SortKey {
 				continue
 			}
 			if !strings.HasPrefix(k, orPrefix) {
@@ -40,7 +49,7 @@ func EachOR(conds any) any {
 	case AND:
 		conditions := conds.(AND)
 		for k, v := range conditions {
-			if k == OrderKey {
+			if k == SortKey {
 				continue
 			}
 			if !strings.HasPrefix(k, orPrefix) {
@@ -52,7 +61,7 @@ func EachOR(conds any) any {
 	case OR:
 		conditions := conds.(OR)
 		for k, v := range conditions {
-			if k == OrderKey {
+			if k == SortKey {
 				continue
 			}
 			if !strings.HasPrefix(k, orPrefix) {
@@ -65,8 +74,4 @@ func EachOR(conds any) any {
 		fmt.Println(reflect.TypeOf(conds).String())
 	}
 	return conds
-}
-
-type Operator interface {
-	OperatorSQL(operator string) string
 }
