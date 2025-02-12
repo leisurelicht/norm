@@ -199,6 +199,7 @@ func (m *Impl) WithSession(session sqlx.Session) Controller {
 
 func (m *Impl) Reset() Controller {
 	m.qs.Reset()
+	m.called = 0
 	return m
 }
 
@@ -354,6 +355,10 @@ func (m *Impl) Insert(data map[string]any) (id int64, err error) {
 
 	if err = m.haveError(); err != nil {
 		return 0, err
+	}
+
+	if len(data) == 0 {
+		return 0, errors.New("insert data is empty")
 	}
 
 	var (

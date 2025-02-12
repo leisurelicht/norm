@@ -10,7 +10,7 @@ import (
 
 var (
 	ErrDuplicateKey = operator.ErrDuplicateKey
-	ErrNotFound     = operator.ErrDuplicateKey
+	ErrNotFound     = operator.ErrNotFound
 )
 
 type Operator operator.Operator
