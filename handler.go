@@ -383,7 +383,7 @@ func (m *Impl) InsertModel(model any) (id int64, err error) {
 }
 
 func (m *Impl) BulkInsert(data []map[string]any, handler sqlx.ResultHandler) (err error) {
-	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
+	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlGroupBy, ctlHaving, ctlOrderBy); called {
 		return fmt.Errorf(UnsupportedControllerError, methods, "BulkInsert")
 	}
 
@@ -395,7 +395,7 @@ func (m *Impl) BulkInsertModel(modelSlice any, handler sqlx.ResultHandler) (err 
 }
 
 func (m *Impl) Remove() (num int64, err error) {
-	if methods, called := m.checkCalled(ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
+	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving, ctlOrderBy); called {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Remove")
 	}
 
@@ -412,7 +412,7 @@ func (m *Impl) Remove() (num int64, err error) {
 }
 
 func (m *Impl) Update(data map[string]any) (num int64, err error) {
-	if methods, called := m.checkCalled(ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
+	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving, ctlOrderBy); called {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Update")
 	}
 
@@ -459,7 +459,7 @@ func (m *Impl) Count() (num int64, err error) {
 }
 
 func (m *Impl) FindOne() (result map[string]any, err error) {
-	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
+	if methods, called := m.checkCalled(ctlSelect, ctlHaving); called {
 		return result, fmt.Errorf(UnsupportedControllerError, methods, "FindOne")
 	}
 
@@ -473,6 +473,9 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 	query = fmt.Sprintf(query, m.fieldRows, m.tableName)
 	query += filterSQL
 	query += m.qs.GetGroupBySQL()
+	havingSQL, havingArgs := m.qs.GetHavingSQL()
+	query += havingSQL
+	filterArgs = append(filterArgs, havingArgs...)
 	query += m.qs.GetOrderBySQL()
 	query += " LIMIT 1"
 
@@ -508,17 +511,17 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 
 	query += filterSQL
 	query += m.qs.GetGroupBySQL()
-	query += m.qs.GetOrderBySQL()
 	havingSQL, havingArgs := m.qs.GetHavingSQL()
 	query += havingSQL
 	filterArgs = append(filterArgs, havingArgs...)
+	query += m.qs.GetOrderBySQL()
 	query += " LIMIT 1"
 
 	return m.operator.FindOne(m.ctx(), m.conn, modelPtr, query, filterArgs...)
 }
 
 func (m *Impl) FindAll() (result []map[string]any, err error) {
-	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
+	if methods, called := m.checkCalled(ctlSelect, ctlHaving); called {
 		return result, fmt.Errorf(UnsupportedControllerError, methods, "FindAll")
 	}
 
@@ -568,10 +571,10 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 
 	query += filterSQL
 	query += m.qs.GetGroupBySQL()
-	query += m.qs.GetOrderBySQL()
 	havingSQL, havingArgs := m.qs.GetHavingSQL()
 	query += havingSQL
 	filterArgs = append(filterArgs, havingArgs...)
+	query += m.qs.GetOrderBySQL()
 	query += m.qs.GetLimitSQL()
 
 	err = m.operator.FindAll(m.ctx(), m.conn, modelSlicePtr, query, filterArgs...)

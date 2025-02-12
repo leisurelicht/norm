@@ -110,7 +110,7 @@ func TestHandlerError(t *testing.T) {
 
 	if res, err := ctl(nil).GroupBy("").Select("").FindOne(); reflect.DeepEqual(res, map[string]any{}) {
 		t.Errorf("expect map[string]any{} but got %+v", res)
-	} else if err != nil && err.Error() != "[GroupBy Select] not supported for FindOne" {
+	} else if err != nil && err.Error() != "[Select] not supported for FindOne" {
 		t.Error(err)
 	}
 
@@ -123,7 +123,7 @@ func TestHandlerError(t *testing.T) {
 
 	if res, err := ctl(nil).GroupBy("").Select("").FindAll(); reflect.DeepEqual(res, map[string]any{}) {
 		t.Errorf("expect map[string]any{} but got %+v", res)
-	} else if err != nil && err.Error() != "[GroupBy Select] not supported for FindAll" {
+	} else if err != nil && err.Error() != "[Select] not supported for FindAll" {
 		t.Error(err)
 	}
 
@@ -154,7 +154,7 @@ func TestHandlerError(t *testing.T) {
 
 	if id, err := ctl(nil).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Select("").Insert(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where OrderBy GroupBy Select] not supported for Insert" {
+	} else if err != nil && err.Error() != "[Filter Where Select OrderBy GroupBy] not supported for Insert" {
 		t.Error(err)
 	}
 
@@ -167,13 +167,13 @@ func TestHandlerError(t *testing.T) {
 
 	if num, err := ctl(nil).GroupBy("").Select("").Update(map[string]any{}); num != 0 {
 		t.Errorf("expect 0 but got %d", num)
-	} else if err != nil && err.Error() != "[GroupBy Select] not supported for Update" {
+	} else if err != nil && err.Error() != "[Select GroupBy] not supported for Update" {
 		t.Error(err)
 	}
 
 	if num, err := ctl(nil).GroupBy("").Select("").OrderBy("").Update(map[string]any{}); num != 0 {
 		t.Errorf("expect 0 but got %d", num)
-	} else if err != nil && err.Error() != "[GroupBy Select OrderBy] not supported for Update" {
+	} else if err != nil && err.Error() != "[Select GroupBy OrderBy] not supported for Update" {
 		t.Error(err)
 	}
 
@@ -186,13 +186,13 @@ func TestHandlerError(t *testing.T) {
 
 	if num, err := ctl(nil).GroupBy("").Select("").Remove(); num != 0 {
 		t.Errorf("expect 0 but got %d", num)
-	} else if err != nil && err.Error() != "[GroupBy Select] not supported for Remove" {
+	} else if err != nil && err.Error() != "[Select GroupBy] not supported for Remove" {
 		t.Error(err)
 	}
 
 	if num, err := ctl(nil).GroupBy("").Select("").OrderBy("").Remove(); num != 0 {
 		t.Errorf("expect 0 but got %d", num)
-	} else if err != nil && err.Error() != "[GroupBy Select OrderBy] not supported for Remove" {
+	} else if err != nil && err.Error() != "[Select GroupBy OrderBy] not supported for Remove" {
 		t.Error(err)
 	}
 

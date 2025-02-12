@@ -667,7 +667,11 @@ func (p *QuerySetImpl) SliceGroupByToSQL(groupBy []string) QuerySet {
 }
 
 func (p *QuerySetImpl) GetHavingSQL() (string, []any) {
-	return p.havingSQL.SQL, p.havingSQL.Args
+	if p.havingSQL.SQL == "" {
+		return "", []any{}
+	}
+
+	return " HAVING " + p.havingSQL.SQL, p.havingSQL.Args
 }
 
 func (p *QuerySetImpl) HavingToSQL(having string, args ...any) QuerySet {
