@@ -65,12 +65,6 @@ var (
 	filterAndExclude = []string{"Filter", "Exclude"}
 )
 
-type cond struct {
-	Conj string
-	SQL  string
-	Args []any
-}
-
 type callFlag int64
 
 const (
@@ -81,7 +75,14 @@ const (
 	callLimit
 	callSelect
 	callGroupBy
+	callHaving
 )
+
+type cond struct {
+	Conj string
+	SQL  string
+	Args []any
+}
 
 func newCond() *cond {
 	return &cond{}
@@ -127,6 +128,8 @@ type QuerySet interface {
 	GroupByToSQL(groupBy any) QuerySet
 	StrGroupByToSQL(groupBy string) QuerySet
 	SliceGroupByToSQL(groupBy []string) QuerySet
+	GetHavingSQL() (string, []any)
+	HavingToSQL(having string, args ...any) QuerySet
 }
 
 type QuerySetImpl struct {
@@ -138,6 +141,7 @@ type QuerySetImpl struct {
 	orderBySQL    string
 	limitSQL      string
 	groupSQL      string
+	havingSQL     cond
 	err           error
 	called        callFlag
 }
@@ -658,6 +662,22 @@ func (p *QuerySetImpl) SliceGroupByToSQL(groupBy []string) QuerySet {
 	b.WriteString("`")
 
 	p.groupSQL = b.String()
+
+	return p
+}
+
+func (p *QuerySetImpl) GetHavingSQL() (string, []any) {
+	if p.havingSQL.SQL == "" {
+		return "", []any{}
+	}
+
+	return " HAVING " + p.havingSQL.SQL, p.havingSQL.Args
+}
+
+func (p *QuerySetImpl) HavingToSQL(having string, args ...any) QuerySet {
+	p.setCalled(callHaving)
+
+	p.havingSQL.SetSQL(having, args)
 
 	return p
 }

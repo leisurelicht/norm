@@ -610,3 +610,45 @@ func TestGroupBy(t *testing.T) {
 		})
 	}
 }
+
+func TestHaving(t *testing.T) {
+	type args struct {
+		havingSQL  string
+		havingArgs []any
+	}
+	type want struct {
+		havingSQL  string
+		havingArgs []any
+	}
+	tests := []struct {
+		name string
+		args args
+		want want
+	}{
+		{"blank string", args{"", []any{}}, want{"", []any{}}},
+		{"string", args{"SUM(test) > ?", []any{1}}, want{" HAVING SUM(test) > ?", []any{1}}},
+		{"string", args{"SUM(test) > ? AND SUM(test2) < ?", []any{1, 2}}, want{" HAVING SUM(test) > ? AND SUM(test2) < ?", []any{1, 2}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewQuerySet(mysqlOp.NewOperator())
+			p.HavingToSQL(tt.args.havingSQL, tt.args.havingArgs...)
+
+			sql, sqlArgs := p.GetHavingSQL()
+
+			if p.Error() != nil {
+				t.Errorf("TestHaving SQL Occur Error -> error:%+v", p.Error())
+			}
+
+			if sql != tt.want.havingSQL {
+				t.Errorf("TestHaving SQL Gen Error -> sql :%v", sql)
+				t.Errorf("TestHaving SQL Gen Error -> want:%v", tt.want.havingSQL)
+			}
+
+			if !reflect.DeepEqual(sqlArgs, tt.want.havingArgs) {
+				t.Errorf("TestHaving SQL Gen Error -> args :%v", sqlArgs)
+				t.Errorf("TestHaving SQL Gen Error -> want:%v", tt.want.havingArgs)
+			}
+		})
+	}
+}
