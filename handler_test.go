@@ -309,4 +309,33 @@ func TestHandlerError(t *testing.T) {
 		}
 	}
 
+	// test reset
+	cli := ctl(nil)
+	_ = cli.Filter().FindOneModel(&test.Source{})
+
+	if _, err := cli.Insert(map[string]any{}); err != nil && err.Error() != "[Filter] not supported for Insert" {
+		t.Error(err)
+	}
+
+	cli = cli.Reset()
+
+	if _, err := cli.Insert(map[string]any{}); err != nil && err.Error() != "insert data is empty" {
+		t.Error(err)
+	}
+
+	if _, err := cli.Insert(map[string]any{"id": 1000, "name": "rest", "description": "test rest"}); err != nil {
+		t.Error(err)
+	}
+
+	if _, err := cli.Filter(Cond{"id": 1000}).Remove(); err != nil {
+		t.Error(err)
+	}
+
+	if res, err := cli.Filter(Cond{"id": 1000}).FindOne(); err != nil {
+		t.Error(err)
+	} else if len(res) != 0 {
+		t.Errorf("expect 0 but got %d", len(res))
+		t.Errorf("expect empty but got %+v", res)
+	}
+
 }

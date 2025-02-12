@@ -186,7 +186,9 @@ func (p *QuerySetImpl) Reset() {
 	p.orderBySQL = ""
 	p.limitSQL = ""
 	p.groupSQL = ""
+	p.havingSQL = cond{}
 	p.err = nil
+	p.called = 0
 }
 
 func (p *QuerySetImpl) GetQuerySet() (sql string, args []any) {
