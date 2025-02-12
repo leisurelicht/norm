@@ -63,8 +63,8 @@ type (
 		Having(having string, args ...any) Controller
 		Insert(data map[string]any) (id int64, err error)
 		InsertModel(model any) (id int64, err error)
-		BulkInsert(data []map[string]any, handler sqlx.ResultHandler) (err error)
-		BulkInsertModel(modelSlice any, handler sqlx.ResultHandler) (err error)
+		//BulkInsert(data []map[string]any, handler sqlx.ResultHandler) (err error)
+		//BulkInsertModel(modelSlice any, handler sqlx.ResultHandler) (err error)
 		Remove() (num int64, err error)
 		Update(data map[string]any) (num int64, err error)
 		Count() (num int64, err error)
@@ -383,6 +383,10 @@ func (m *Impl) InsertModel(model any) (id int64, err error) {
 }
 
 func (m *Impl) BulkInsert(data []map[string]any, handler sqlx.ResultHandler) (err error) {
+	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
+		return fmt.Errorf(UnsupportedControllerError, methods, "BulkInsert")
+	}
+
 	return m.operator.BulkInsert(m.ctx(), m.conn, m.tableName, data, handler)
 }
 
