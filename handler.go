@@ -651,7 +651,7 @@ func (m *Impl) CreateOrUpdate(data map[string]any, filter ...any) (bool, int64, 
 		}
 	}
 
-	id, err := m.Insert(data)
+	id, err := m.Reset().Insert(data)
 	if err != nil {
 		return false, 0, err
 	}
