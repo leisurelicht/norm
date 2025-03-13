@@ -37,11 +37,12 @@ const (
 )
 
 const (
-	argsLenError      = "args length must be equal to ? number"
-	orderKeyTypeError = "order key value must be a list of string"
-	orderKeyLenError  = "order key length must be equal to filter key length"
-	isNotValueError   = "isNot value must be 0 or 1"
-	paramTypeError    = "param type must be string or slice of string"
+	argsLenError          = "args length must be equal to ? number"
+	orderKeyTypeError     = "order key value must be a list of string"
+	orderKeyLenError      = "order key length must be equal to filter key length"
+	isNotValueError       = "isNot value must be 0 or 1"
+	paramTypeError        = "param type must be string or slice of string"
+	pageSizeORNumberError = "page size and page number must be positive"
 
 	filterOrWhereError          = "[%s] or [Where] can not be called at the same time"
 	fieldLookupError            = "field lookups [%s] is invalid"
@@ -614,6 +615,9 @@ func (p *QuerySetImpl) LimitToSQL(pageSize, pageNum int64) QuerySet {
 		offset = (pageNum - 1) * pageSize
 		limit = pageSize
 		p.limitSQL = " LIMIT " + strconv.FormatInt(limit, 10) + " OFFSET " + strconv.FormatInt(offset, 10)
+	} else if pageSize < 0 || pageNum < 0 {
+		p.setError(pageSizeORNumberError)
+		return p
 	}
 
 	return p
