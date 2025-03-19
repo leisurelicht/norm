@@ -233,8 +233,8 @@ func TestFilterError(t *testing.T) {
 		want want
 	}{
 		{"empty", args{0, []any{}}, want{nil}},
-		{"order_key_type", args{0, []any{COND{SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{fmt.Errorf(orderKeyTypeError)}},
-		{"order_key_type", args{0, []any{COND{SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{fmt.Errorf(orderKeyLenError)}},
+		{"order_key_type", args{0, []any{COND{SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyTypeError)}},
+		{"order_key_type", args{0, []any{COND{SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyLenError)}},
 		{"order_key_type", args{0, []any{COND{"1__not__contains": "b"}}}, want{fmt.Errorf(fieldLookupError, "1__not__contains")}},
 		{"order_key_type", args{0, []any{COND{"1__contain": "b"}}}, want{fmt.Errorf(unknownOperatorError, "contain")}},
 		{"order_key_type", args{0, []any{COND{"test": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "exact", 0)}},
@@ -391,7 +391,7 @@ func TestSelect(t *testing.T) {
 		//{"excess space in slice", args{[]string{"test as test1", " test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
 		//{"excess space in slice 2", args{[]string{"test as  test1", " test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
 		//{"DISTINCT in slice 2", args{[]string{"DISTINCT test1", " test2"}}, want{sql: "DISTINCT `test1`, `test2`", err: nil}},
-		{"array", args{[1]string{"test"}}, want{sql: "`test`", err: fmt.Errorf(paramTypeError)}},
+		{"array", args{[1]string{"test"}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -439,8 +439,8 @@ func TestLimit(t *testing.T) {
 		{"zero1", args{0, 0}, want{"", nil}},
 		{"zero2", args{10, 0}, want{"", nil}},
 		{"zero3", args{0, 10}, want{"", nil}},
-		{"negative1", args{-1, -1}, want{"", fmt.Errorf(pageSizeORNumberError)}},
-		{"negative2", args{10, -1}, want{"", fmt.Errorf(pageSizeORNumberError)}},
+		{"negative1", args{-1, -1}, want{"", errors.New(pageSizeORNumberError)}},
+		{"negative2", args{10, -1}, want{"", errors.New(pageSizeORNumberError)}},
 		{"negative3", args{-1, 0}, want{"", nil}},
 
 		{"page one size ten", args{10, 1}, want{" LIMIT 10 OFFSET 0", nil}},
