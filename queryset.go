@@ -465,8 +465,8 @@ func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
 
 	for _, f := range filter {
 		switch f.(type) {
-		case Cond:
-			arg, conjFlag = f.(Cond), andTag
+		case COND:
+			arg, conjFlag = f.(COND), andTag
 		case AND:
 			arg, conjFlag = f.(AND), andTag
 		case OR:
