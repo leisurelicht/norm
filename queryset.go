@@ -245,7 +245,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 	}
 
 	var (
-		filterConds = make(map[string]*cond)
+		filterConds = make(map[string]*cond, len(filter))
 		skList      []string
 		isOrder     = false
 		fieldName   string
