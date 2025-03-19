@@ -33,9 +33,9 @@ func ToOR(key string) string {
 }
 
 func EachOR(conds any) any {
-	switch conds.(type) {
+	switch ctype := conds.(type) {
 	case Cond:
-		conditions := conds.(Cond)
+		conditions := ctype
 		for k, v := range conditions {
 			if k == SortKey {
 				continue
@@ -47,7 +47,7 @@ func EachOR(conds any) any {
 		}
 		return conditions
 	case AND:
-		conditions := conds.(AND)
+		conditions := ctype
 		for k, v := range conditions {
 			if k == SortKey {
 				continue
@@ -59,7 +59,7 @@ func EachOR(conds any) any {
 		}
 		return conditions
 	case OR:
-		conditions := conds.(OR)
+		conditions := ctype
 		for k, v := range conditions {
 			if k == SortKey {
 				continue
