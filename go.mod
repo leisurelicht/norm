@@ -1,10 +1,8 @@
 module github.com/leisurelicht/norm
 
-go 1.23.2
+go 1.23.5
 
-require (
-	github.com/zeromicro/go-zero v1.7.4
-)
+require github.com/zeromicro/go-zero v1.7.4
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
