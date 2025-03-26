@@ -230,20 +230,18 @@ func (m *Impl) Where(cond string, args ...any) Controller {
 func (m *Impl) Select(selects any) Controller {
 	m.setCalled(ctlSelect)
 
-	switch selects.(type) {
+	switch sel := selects.(type) {
 	case string:
-		if selects.(string) == "" {
+		if sel == "" {
 			return m
 		}
-		m.qs.StrSelectToSQL(selects.(string))
+		m.qs.StrSelectToSQL(sel)
 	case []string:
-		selectList, _ := selects.([]string)
-
-		if len(selectList) == 0 {
+		if len(sel) == 0 {
 			return m
 		}
 
-		validatedColumns, err := m.validateColumns(selectList)
+		validatedColumns, err := m.validateColumns(sel)
 
 		if err != nil {
 			m.setError("Select columns validate error: %s", err)
@@ -270,21 +268,18 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 
 	var validatedOrderBy []string
 
-	switch orderBy.(type) {
+	switch orderByVal := orderBy.(type) {
 	case string:
-		if orderBy.(string) == "" {
+		if orderByVal == "" {
 			return m
 		}
-		m.qs.StrOrderByToSQL(orderBy.(string))
+		m.qs.StrOrderByToSQL(orderByVal)
 	case []string:
-		orderByList, _ := orderBy.([]string)
-
-		if len(orderByList) == 0 {
+		if len(orderByVal) == 0 {
 			return m
 		}
-
 		unknownColumns := []string{}
-		for _, by := range orderByList {
+		for _, by := range orderByVal {
 			needValidate := by
 			if strings.HasPrefix(by, "-") {
 				needValidate = by[1:]
@@ -313,20 +308,18 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 func (m *Impl) GroupBy(groupBy any) Controller {
 	m.setCalled(ctlGroupBy)
 
-	switch groupBy.(type) {
+	switch gb := groupBy.(type) {
 	case string:
-		if groupBy.(string) == "" {
+		if gb == "" {
 			return m
 		}
-		m.qs.StrGroupByToSQL(groupBy.(string))
+		m.qs.StrGroupByToSQL(gb)
 	case []string:
-		groupByList, _ := groupBy.([]string)
-
-		if len(groupByList) == 0 {
+		if len(gb) == 0 {
 			return m
 		}
 
-		validatedColumns, err := m.validateColumns(groupByList)
+		validatedColumns, err := m.validateColumns(gb)
 
 		if err != nil {
 			m.setError("GroupBy columns validate error: %s", err)
