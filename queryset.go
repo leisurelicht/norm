@@ -517,11 +517,11 @@ func (p *QuerySetImpl) GetSelectSQL() string {
 func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
 	p.setCalled(callSelect)
 
-	switch columns.(type) {
+	switch cols := columns.(type) {
 	case string:
-		p.StrSelectToSQL(columns.(string))
+		p.StrSelectToSQL(cols)
 	case []string:
-		p.SliceSelectToSQL(columns.([]string))
+		p.SliceSelectToSQL(cols)
 	default:
 		p.setError(paramTypeError)
 	}
@@ -557,11 +557,11 @@ func (p *QuerySetImpl) GetOrderBySQL() string {
 func (p *QuerySetImpl) OrderByToSQL(orderBy any) QuerySet {
 	p.setCalled(callOrderBy)
 
-	switch orderBy.(type) {
+	switch o := orderBy.(type) {
 	case string:
-		p.StrOrderByToSQL(orderBy.(string))
+		p.StrOrderByToSQL(o)
 	case []string:
-		p.SliceOrderByToSQL(orderBy.([]string))
+		p.SliceOrderByToSQL(o)
 	default:
 		p.setError(paramTypeError)
 		return p
@@ -632,11 +632,11 @@ func (p *QuerySetImpl) GetGroupBySQL() string {
 }
 
 func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
-	switch groupBy.(type) {
+	switch v := groupBy.(type) {
 	case string:
-		p.StrGroupByToSQL(groupBy.(string))
+		p.StrGroupByToSQL(v)
 	case []string:
-		p.SliceGroupByToSQL(groupBy.([]string))
+		p.SliceGroupByToSQL(v)
 	default:
 		p.setError(paramTypeError)
 	}
