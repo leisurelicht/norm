@@ -36,9 +36,9 @@ clean:
 benchmark:
 	go test -bench=. -benchmem
 
-## bench_report: Run benchmark tests and save results to a timestamped file
-.PHONY: bench_report
-bench_report:
+## benchnote: Run benchmark tests and save results to a timestamped file
+.PHONY: benchnote
+benchnote:
 	@mkdir -p bench
 	@DATE=$$(date +%Y-%m-%d); \
 	LATEST_NUM=$$(ls -1 bench/$${DATE}_* 2>/dev/null | sed -e "s/bench\/$${DATE}_//" | sort -n | tail -1 || echo "0"); \
