@@ -31,3 +31,7 @@ prepare:
 .PHONY: clean
 clean:
 	@docker stop norm_test_mysql && docker rm norm_test_mysql
+
+.PHONY: benchmark
+benchmark:
+	go test -bench=. -benchmem
