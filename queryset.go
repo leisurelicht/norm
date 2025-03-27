@@ -193,50 +193,86 @@ func (p *QuerySetImpl) Reset() {
 }
 
 func (p *QuerySetImpl) GetQuerySet() (sql string, args []any) {
-	where := " WHERE "
-
+	// Handle the case with direct WHERE condition
 	if p.whereCond.SQL != "" {
-		return where + p.whereCond.SQL, p.whereCond.Args
+		return " WHERE " + p.whereCond.SQL, p.whereCond.Args
 	}
 
+	// Early return for no filter conditions
 	if len(p.filterConds) == 0 {
-		return "", []any{}
+		return "", nil
 	}
 
-	conj := ""
+	// Pre-calculate approximate capacity for string builder
+	totalConditions := 0
+	for _, filterList := range p.filterConds {
+		totalConditions += len(filterList)
+	}
+
+	// Initial capacity estimate: 8 chars per condition + conjunctions
+	outerSQL := strings.Builder{}
+	outerSQL.Grow(totalConditions*20 + len(p.filterConds)*10)
+	outerSQL.WriteString(" WHERE ")
+
+	args = make([]any, 0, totalConditions*2) // Estimate arg count
+
 	for i, filterList := range p.filterConds {
-		if i > 0 && len(p.filterConds) > 1 {
-			conj = conjunctions[p.filterConjTag[i]]
-		} else {
-			conj = ""
+		if len(filterList) == 0 {
+			continue
 		}
 
+		// Add conjunction between filter groups
+		if i > 0 {
+			outerSQL.WriteString(" ")
+			outerSQL.WriteString(conjunctions[p.filterConjTag[i]])
+			outerSQL.WriteString(" ")
+		}
+
+		// Check if this is a NOT condition by examining the first filter in the group
+		// The isNot flag affects the entire filter group
+		isNot := strings.Contains(filterList[0].Conj, "NOT")
+		if isNot {
+			outerSQL.WriteString("NOT ")
+		}
+
+		// Single condition doesn't need inner parentheses
 		if len(filterList) == 1 {
-			tempConj := filterList[0].Conj
-			if i > 0 {
-				tempConj = " " + tempConj
-			}
-			sql += tempConj + " (" + filterList[0].SQL + ")"
+			outerSQL.WriteString("(")
+			outerSQL.WriteString(filterList[0].SQL)
+			outerSQL.WriteString(")")
 			args = append(args, filterList[0].Args...)
-		} else if len(filterList) > 1 {
-			sql += "(" + filterList[0].SQL + ")"
-			args = append(args, filterList[0].Args...)
-
-			for _, filter := range filterList[1:] {
-				sql += " " + filter.Conj + " (" + filter.SQL + ")"
-				args = append(args, filter.Args...)
-			}
-			sql = conj + "(" + sql + ")"
+			continue
 		}
+
+		// Multiple conditions in this group
+		outerSQL.WriteString("(")
+
+		// First condition
+		outerSQL.WriteString("(")
+		outerSQL.WriteString(filterList[0].SQL)
+		outerSQL.WriteString(")")
+		args = append(args, filterList[0].Args...)
+
+		// Remaining conditions with their conjunctions
+		for _, filter := range filterList[1:] {
+			// Extract the base conjunction without NOT suffix for inner conditions
+			baseConj := filter.Conj
+			if isNot {
+				baseConj = strings.ReplaceAll(baseConj, " NOT", "")
+			}
+
+			outerSQL.WriteString(" ")
+			outerSQL.WriteString(baseConj)
+			outerSQL.WriteString(" (")
+			outerSQL.WriteString(filter.SQL)
+			outerSQL.WriteString(")")
+			args = append(args, filter.Args...)
+		}
+
+		outerSQL.WriteString(")")
 	}
 
-	if sql[0:3] == "AND" {
-		sql = sql[4:]
-	} else if sql[0:2] == "OR" {
-		sql = sql[3:]
-	}
-
-	return where + sql, args
+	return outerSQL.String(), args
 }
 
 func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, filterArgs []any) {
@@ -477,7 +513,13 @@ func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
 		if filterSQL, filterArgs := p.filterHandler(arg); filterSQL == "" {
 			continue
 		} else {
-			filterConds = append(filterConds, *newCondByValue(conjunctions[conjFlag]+not[isNot], filterSQL, filterArgs))
+			// Only add "NOT" to the conjunction for the first condition
+			// The rest will be handled in GetQuerySet
+			conjStr := conjunctions[conjFlag]
+			if isNot == 1 && len(filterConds) == 0 {
+				conjStr = conjunctions[conjFlag+2] // Use AND NOT or OR NOT
+			}
+			filterConds = append(filterConds, *newCondByValue(conjStr, filterSQL, filterArgs))
 		}
 	}
 
