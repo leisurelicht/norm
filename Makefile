@@ -35,3 +35,14 @@ clean:
 .PHONY: benchmark
 benchmark:
 	go test -bench=. -benchmem
+
+## bench_report: Run benchmark tests and save results to a timestamped file
+.PHONY: bench_report
+bench_report:
+	@mkdir -p bench
+	@DATE=$$(date +%Y-%m-%d); \
+	LATEST_NUM=$$(ls -1 bench/$${DATE}_* 2>/dev/null | sed -e "s/bench\/$${DATE}_//" | sort -n | tail -1 || echo "0"); \
+	NEXT_NUM=$$(($$LATEST_NUM + 1)); \
+	FILENAME=bench/$${DATE}_$${NEXT_NUM}; \
+	echo "Running benchmark tests, saving results to $${FILENAME}"; \
+	go test -bench=. -benchmem | tee $${FILENAME}
