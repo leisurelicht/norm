@@ -1,0 +1,28 @@
+{"@timestamp":"2025-03-27T13:33:25.433+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `source`","duration":"17.0ms","level":"info"}
+{"@timestamp":"2025-03-27T13:33:25.436+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source` WHERE (`id` = 11) LIMIT 1","duration":"2.5ms","level":"info"}
+{"@timestamp":"2025-03-27T13:33:25.437+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source` WHERE (`is_deleted` = 0) LIMIT 1","duration":"1.1ms","level":"info"}
+{"@timestamp":"2025-03-27T13:33:25.438+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source` WHERE (`id` = 11) LIMIT 1","duration":"1.1ms","level":"info"}
+{"@timestamp":"2025-03-27T13:33:25.439+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source` WHERE ((`id` = 11) OR (`id` = 12))","duration":"1.3ms","level":"info"}
+{"@timestamp":"2025-03-27T13:33:25.440+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source` WHERE ((`id` = 11) AND (`id` = 12))","duration":"0.8ms","level":"info"}
+{"@timestamp":"2025-03-27T13:33:25.442+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source` WHERE (`is_deleted` = 0) ORDER BY id LIMIT 10 OFFSET 0","duration":"1.2ms","level":"info"}
+{"@timestamp":"2025-03-27T13:33:25.443+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source` LIMIT 1","duration":"0.7ms","level":"info"}
+{"@timestamp":"2025-03-27T13:33:25.443+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source` LIMIT 1","duration":"0.4ms","level":"info"}
+{"@timestamp":"2025-03-27T13:33:25.443+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source` LIMIT 1","duration":"0.4ms","level":"info"}
+{"@timestamp":"2025-03-27T13:33:25.444+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source`","duration":"0.3ms","level":"info"}
+{"@timestamp":"2025-03-27T13:33:25.444+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source` LIMIT 1","duration":"0.3ms","level":"info"}
+{"@timestamp":"2025-03-27T13:33:25.455+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO `source` (`id`,`name`,`description`) VALUES (1000,'rest','test rest')","duration":"10.9ms","level":"info"}
+{"@timestamp":"2025-03-27T13:33:25.458+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM `source` WHERE (`id` = 1000)","duration":"3.1ms","level":"info"}
+{"@timestamp":"2025-03-27T13:33:25.460+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source` WHERE (`id` = 1000) AND (`id` = 1000) LIMIT 1","duration":"1.2ms","level":"info"}
+goos: darwin
+goarch: arm64
+pkg: github.com/leisurelicht/norm
+cpu: Apple M1 Pro
+BenchmarkQuerySet_SimpleFilter-10       	 1391929	       843.6 ns/op	    1280 B/op	      18 allocs/op
+BenchmarkQuerySet_ComplexFilter-10      	  340916	      3266 ns/op	    3878 B/op	      69 allocs/op
+BenchmarkQuerySet_MultipleFilters-10    	  297498	      4306 ns/op	    4903 B/op	      83 allocs/op
+BenchmarkQuerySet_Where-10              	 7815496	       150.7 ns/op	     384 B/op	       4 allocs/op
+BenchmarkQuerySet_CompleteQuery-10      	  338242	      3461 ns/op	    4014 B/op	      75 allocs/op
+BenchmarkQuerySet_BuildLargeQuery-10    	  292012	      4011 ns/op	    5619 B/op	      78 allocs/op
+BenchmarkQuerySet_FilterExclude-10      	  871142	      1258 ns/op	    2065 B/op	      25 allocs/op
+PASS
+ok  	github.com/leisurelicht/norm	10.033s
