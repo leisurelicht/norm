@@ -63,8 +63,8 @@ type (
 		Having(having string, args ...any) Controller
 		Insert(data map[string]any) (id int64, err error)
 		InsertModel(model any) (id int64, err error)
-		//BulkInsert(data []map[string]any, handler sqlx.ResultHandler) (err error)
-		//BulkInsertModel(modelSlice any, handler sqlx.ResultHandler) (err error)
+		//BulkInsert(data []map[string]any) (err error)
+		//BulkInsertModel(modelSlice []any) (err error)
 		Remove() (num int64, err error)
 		Update(data map[string]any) (num int64, err error)
 		Count() (num int64, err error)
@@ -380,16 +380,39 @@ func (m *Impl) InsertModel(model any) (id int64, err error) {
 	return m.Insert(Struct2Map(model, m.mTag))
 }
 
-func (m *Impl) BulkInsert(data []map[string]any, handler sqlx.ResultHandler) (err error) {
+func (m *Impl) BulkInsert(data []map[string]any) (err error) {
 	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlGroupBy, ctlHaving, ctlOrderBy); called {
 		return fmt.Errorf(UnsupportedControllerError, methods, "BulkInsert")
 	}
 
-	return m.operator.BulkInsert(m.ctx(), m.conn, m.tableName, data, handler)
+	if err = m.haveError(); err != nil {
+		return err
+	}
+
+	if len(data) == 0 {
+		return errors.New("insert data is empty")
+	}
+
+	var (
+		rows []string
+		args []string
+	)
+
+	for k := range m.fieldNameMap {
+		if _, ok := data[0][k]; !ok {
+			continue
+		}
+		rows = append(rows, fmt.Sprintf("`%s`", k))
+		args = append(args, k)
+	}
+
+	sql := fmt.Sprintf(InsertTemp, m.tableName, strings.Join(rows, ","), strings.Repeat("?,", len(rows)-1)+"?")
+
+	return m.operator.BulkInsert(m.ctx(), m.conn, sql, args, data)
 }
 
-func (m *Impl) BulkInsertModel(modelSlice any, handler sqlx.ResultHandler) (err error) {
-	return m.BulkInsert(StructSlice2MapSlice(modelSlice, m.mTag), handler)
+func (m *Impl) BulkInsertModel(modelSlice []any) (err error) {
+	return m.BulkInsert(StructSlice2MapSlice(modelSlice, m.mTag))
 }
 
 func (m *Impl) Remove() (num int64, err error) {

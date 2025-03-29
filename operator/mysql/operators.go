@@ -71,7 +71,39 @@ func (d *Operator) Insert(ctx context.Context, conn any, sql string, args ...any
 	return id, err
 }
 
-func (d *Operator) BulkInsert(ctx context.Context, conn any, sql string, args ...any) (err error) {
+func (d *Operator) BulkInsert(ctx context.Context, conn any, sql string, args []string, data []map[string]any) (err error) {
+	blk, err := sqlx.NewBulkInserter(conn.(sqlx.SqlConn), sql)
+	if err != nil {
+		panic(err)
+	}
+
+	values := make([]any, 0, len(args))
+	for _, row := range data {
+		for i, arg := range args {
+			if val, ok := row[arg]; ok {
+				values[i] = val
+			}
+		}
+		blk.Insert(values...)
+	}
+
+	blk.Flush()
+
+	blk.SetResultHandler(func(result sql.Result, err error) {
+		if err != nil {
+			logc.Errorf(ctx, "Bulk insert error: %s", err)
+			return
+		}
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			logc.Errorf(ctx, "Bulk insert rows affected error: %s", err)
+			return
+		}
+
+		logc.Infof(ctx, "Inserted %d rows", rowsAffected)
+	})
+
 	return err
 }
 
