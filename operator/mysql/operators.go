@@ -89,20 +89,20 @@ func (d *Operator) BulkInsert(ctx context.Context, conn any, sql string, args []
 
 	blk.Flush()
 
-	blk.SetResultHandler(func(result sql.Result, err error) {
-		if err != nil {
-			logc.Errorf(ctx, "Bulk insert error: %s", err)
-			return
-		}
+	// blk.SetResultHandler(func(result sql.Result, err error) {
+	// 	if err != nil {
+	// 		logc.Errorf(ctx, "Bulk insert error: %s", err)
+	// 		return
+	// 	}
 
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			logc.Errorf(ctx, "Bulk insert rows affected error: %s", err)
-			return
-		}
+	// 	rowsAffected, err := result.RowsAffected()
+	// 	if err != nil {
+	// 		logc.Errorf(ctx, "Bulk insert rows affected error: %s", err)
+	// 		return
+	// 	}
 
-		logc.Infof(ctx, "Inserted %d rows", rowsAffected)
-	})
+	// 	logc.Infof(ctx, "Inserted %d rows", rowsAffected)
+	// })
 
 	return err
 }
