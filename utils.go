@@ -19,36 +19,59 @@ func Struct2Map(obj any, tag string) map[string]any {
 	data := make(map[string]any, t.NumField())
 
 	for i := 0; i < t.NumField(); i++ {
-		if t.Field(i).Tag.Get(tag) == "" {
+		// Skip if no tag or field is unexported
+		if t.Field(i).Tag.Get(tag) == "" || !v.Field(i).CanInterface() {
 			continue
 		}
 
-		if v.Field(i).Kind() != reflect.Struct {
-			data[t.Field(i).Tag.Get(tag)] = v.Field(i).Interface()
+		fieldValue := v.Field(i)
+		fieldType := t.Field(i)
+		tagName := fieldType.Tag.Get(tag)
+
+		// Handle struct type, but not sql.Null* types which we'll handle separately
+		if fieldValue.Kind() == reflect.Struct &&
+			!strings.HasPrefix(fieldType.Type.String(), "sql.Null") {
+			// Option to process embedded structs here if needed
+			// For now we'll skip struct fields
+			continue
 		}
 
-		value := v.Field(i).Interface()
-		switch reflect.TypeOf(value) {
-		case reflect.TypeOf(sql.NullString{}):
-			if value.(sql.NullString).Valid {
-				value = value.(sql.NullString).String
+		// Get the value and handle sql.Null* types
+		value := fieldValue.Interface()
+		switch v := value.(type) {
+		case sql.NullString:
+			if v.Valid {
+				value = v.String
 			} else {
 				value = nil
 			}
-		case reflect.TypeOf(sql.NullInt64{}):
-			if value.(sql.NullInt64).Valid {
-				value = value.(sql.NullInt64).Int64
+		case sql.NullInt64:
+			if v.Valid {
+				value = v.Int64
 			} else {
 				value = nil
 			}
-		case reflect.TypeOf(sql.NullTime{}):
-			if value.(sql.NullTime).Valid {
-				value = value.(sql.NullTime).Time
+		case sql.NullFloat64:
+			if v.Valid {
+				value = v.Float64
+			} else {
+				value = nil
+			}
+		case sql.NullBool:
+			if v.Valid {
+				value = v.Bool
+			} else {
+				value = nil
+			}
+		case sql.NullTime:
+			if v.Valid {
+				value = v.Time
 			} else {
 				value = nil
 			}
 		}
-		data[t.Field(i).Tag.Get(tag)] = value
+
+		data[tagName] = value
 	}
 	return data
 }
