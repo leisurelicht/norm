@@ -36,12 +36,12 @@ func TestEachOR(t *testing.T) {
 		args args
 		want any
 	}{
-		{"one", args{COND{"test": 1}}, COND{"| test": 1}},
-		{"two", args{COND{"test": 1, "test2": 2}}, COND{"| test": 1, "| test2": 2}},
-		{"three", args{COND{"test": 1, "test2": 2, "test3": 3}}, COND{"| test": 1, "| test2": 2, "| test3": 3}},
-		{"one_string", args{COND{"test": "1"}}, COND{"| test": "1"}},
-		{"two_string", args{COND{"test": "1", "test2": "2"}}, COND{"| test": "1", "| test2": "2"}},
-		{"three_string", args{COND{"test": "1", "test2": "2", "test3": "3"}}, COND{"| test": "1", "| test2": "2", "| test3": "3"}},
+		{"one", args{Cond{"test": 1}}, Cond{"| test": 1}},
+		{"two", args{Cond{"test": 1, "test2": 2}}, Cond{"| test": 1, "| test2": 2}},
+		{"three", args{Cond{"test": 1, "test2": 2, "test3": 3}}, Cond{"| test": 1, "| test2": 2, "| test3": 3}},
+		{"one_string", args{Cond{"test": "1"}}, Cond{"| test": "1"}},
+		{"two_string", args{Cond{"test": "1", "test2": "2"}}, Cond{"| test": "1", "| test2": "2"}},
+		{"three_string", args{Cond{"test": "1", "test2": "2", "test3": "3"}}, Cond{"| test": "1", "| test2": "2", "| test3": "3"}},
 		{"one_and", args{AND{"test": 1}}, AND{"| test": 1}},
 		{"two_and", args{AND{"test": 1, "test2": 2}}, AND{"| test": 1, "| test2": 2}},
 		{"three_and", args{AND{"test": 1, "test2": 2, "test3": 3}}, AND{"| test": 1, "| test2": 2, "| test3": 3}},
@@ -57,7 +57,7 @@ func TestEachOR(t *testing.T) {
 			// and call EachOR accordingly
 			var got any
 			switch v := tt.args.cond.(type) {
-			case COND:
+			case Cond:
 				got = EachOR(v)
 			case AND:
 				got = EachOR(v)

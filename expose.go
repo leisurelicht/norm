@@ -18,7 +18,7 @@ const (
 )
 
 type (
-	COND map[string]any
+	Cond map[string]any
 	AND  map[string]any
 	OR   map[string]any
 )
@@ -32,7 +32,7 @@ func ToOR(key string) string {
 
 // EachOR converts all keys in a condition to OR keys
 // Only accepts Cond, AND, or OR as input
-func EachOR[T COND | AND | OR](conditions T) T {
+func EachOR[T Cond | AND | OR](conditions T) T {
 	for k, v := range conditions {
 		if k == SortKey {
 			continue

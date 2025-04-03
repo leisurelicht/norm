@@ -51,7 +51,7 @@ func createComplexFilterMap() map[string]any {
 // BenchmarkQuerySet_SimpleFilter benchmarks filtering with basic conditions
 func BenchmarkQuerySet_SimpleFilter(b *testing.B) {
 	qs := setupQuerySet()
-	filter := COND(createSimpleFilterMap())
+	filter := Cond(createSimpleFilterMap())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -64,7 +64,7 @@ func BenchmarkQuerySet_SimpleFilter(b *testing.B) {
 // BenchmarkQuerySet_ComplexFilter benchmarks filtering with complex conditions
 func BenchmarkQuerySet_ComplexFilter(b *testing.B) {
 	qs := setupQuerySet()
-	filter := COND(createComplexFilterMap())
+	filter := Cond(createComplexFilterMap())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -77,8 +77,8 @@ func BenchmarkQuerySet_ComplexFilter(b *testing.B) {
 // BenchmarkQuerySet_MultipleFilters benchmarks applying multiple filter conditions
 func BenchmarkQuerySet_MultipleFilters(b *testing.B) {
 	qs := setupQuerySet()
-	filter1 := COND(createSimpleFilterMap())
-	filter2 := COND(createComplexFilterMap())
+	filter1 := Cond(createSimpleFilterMap())
+	filter2 := Cond(createComplexFilterMap())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -104,7 +104,7 @@ func BenchmarkQuerySet_Where(b *testing.B) {
 // BenchmarkQuerySet_CompleteQuery benchmarks generating a complete query with multiple parts
 func BenchmarkQuerySet_CompleteQuery(b *testing.B) {
 	qs := setupQuerySet()
-	filter := COND(createComplexFilterMap())
+	filter := Cond(createComplexFilterMap())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -123,11 +123,11 @@ func BenchmarkQuerySet_BuildLargeQuery(b *testing.B) {
 
 	// Create 5 different filter conditions
 	filters := []any{
-		COND(map[string]any{"id": 1, "name": "test1"}),
-		COND(map[string]any{"age__gte": 18, "status": 1}),
-		COND(map[string]any{"email__contains": "example.com"}),
+		Cond(map[string]any{"id": 1, "name": "test1"}),
+		Cond(map[string]any{"age__gte": 18, "status": 1}),
+		Cond(map[string]any{"email__contains": "example.com"}),
 		OR(map[string]any{"country": "USA", "region": "Canada"}), // Fixed duplicate key
-		COND(map[string]any{"created_at__between": []string{"2020-01-01", "2023-01-01"}}),
+		Cond(map[string]any{"created_at__between": []string{"2020-01-01", "2023-01-01"}}),
 	}
 
 	b.ResetTimer()
@@ -153,8 +153,8 @@ func BenchmarkQuerySet_BuildLargeQuery(b *testing.B) {
 // BenchmarkQuerySet_FilterExclude benchmarks filter and exclude operations
 func BenchmarkQuerySet_FilterExclude(b *testing.B) {
 	qs := setupQuerySet()
-	filter := COND(createSimpleFilterMap())
-	exclude := COND(map[string]any{"status": 0})
+	filter := Cond(createSimpleFilterMap())
+	exclude := Cond(map[string]any{"status": 0})
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -168,7 +168,7 @@ func BenchmarkQuerySet_FilterExclude(b *testing.B) {
 // 添加一个简单的测试函数，以确保基准测试可以正确运行
 func TestQuerySetFunctionality(t *testing.T) {
 	qs := setupQuerySet()
-	filter := COND(createSimpleFilterMap())
+	filter := Cond(createSimpleFilterMap())
 
 	qs.FilterToSQL(0, filter)
 	sql, args := qs.GetQuerySet()

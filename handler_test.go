@@ -25,7 +25,7 @@ func TestQuery(t *testing.T) {
 		t.Errorf("expect 8 but got %d", num)
 	}
 
-	if res, err := ctl(nil).Filter(COND{"id": 11}).FindOne(); err != nil {
+	if res, err := ctl(nil).Filter(Cond{"id": 11}).FindOne(); err != nil {
 		t.Error(err)
 	} else if reflect.DeepEqual(res, map[string]any{}) {
 		t.Error("expect not nil")
@@ -33,7 +33,7 @@ func TestQuery(t *testing.T) {
 		t.Errorf("expect 11 but got %d", res["id"])
 	}
 
-	if res, err := ctl(nil).Filter(COND{"is_deleted": false}).FindOne(); err != nil {
+	if res, err := ctl(nil).Filter(Cond{"is_deleted": false}).FindOne(); err != nil {
 		t.Error(err)
 	} else if res["name"].(string) != "Acfun" {
 		t.Errorf("expect Acfun but got %s", res["name"])
@@ -44,7 +44,7 @@ func TestQuery(t *testing.T) {
 	source1 := test.Source{Id: 11, Name: "Acfun", Type: 1, Description: "A 站", IsDeleted: false, CreateTime: created, UpdateTime: updated}
 	source2 := test.Source{}
 
-	if err := ctl(nil).Filter(COND{"id": 11}).FindOneModel(&source2); err != nil {
+	if err := ctl(nil).Filter(Cond{"id": 11}).FindOneModel(&source2); err != nil {
 		t.Error(err)
 	} else if source1.Id != source2.Id {
 		t.Errorf("expect 11 but got %d", source2.Id)
@@ -62,7 +62,7 @@ func TestQuery(t *testing.T) {
 		t.Errorf("expect %s but got %s", source1.UpdateTime, source2.UpdateTime)
 	}
 
-	if res, err := ctl(nil).Filter(COND{"id": 11}, OR{"id": 12}).FindAll(); err != nil {
+	if res, err := ctl(nil).Filter(Cond{"id": 11}, OR{"id": 12}).FindAll(); err != nil {
 		t.Error(err)
 	} else if len(res) != 2 {
 		t.Errorf("expect 2 but got %d", len(res))
@@ -72,13 +72,13 @@ func TestQuery(t *testing.T) {
 		t.Errorf("expect 12 but got %d", res[1]["id"])
 	}
 
-	if res, err := ctl(nil).Filter(COND{"id": 11}, AND{"id": 12}).FindAll(); err != nil {
+	if res, err := ctl(nil).Filter(Cond{"id": 11}, AND{"id": 12}).FindAll(); err != nil {
 		t.Error(err)
 	} else if len(res) != 0 {
 		t.Errorf("expect 0 but got %d", len(res))
 	}
 
-	if res, err := ctl(nil).Filter(COND{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAll(); err != nil {
+	if res, err := ctl(nil).Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAll(); err != nil {
 		t.Error(err)
 	} else if len(res) != 6 {
 		t.Errorf("expect 6 but got %d", len(res))
@@ -93,11 +93,11 @@ func TestQuery(t *testing.T) {
 func TestHandlerError(t *testing.T) {
 	ctl := NewController(sqlx.NewMysql(mysqlAddress), mysqlOp.NewOperator(), test.Source{})
 
-	if _, err := ctl(nil).Filter(COND{}).Where("").FindOne(); err != nil && err.Error() != fmt.Sprintf(filterOrWhereError, "Filter") {
+	if _, err := ctl(nil).Filter(Cond{}).Where("").FindOne(); err != nil && err.Error() != fmt.Sprintf(filterOrWhereError, "Filter") {
 		t.Errorf("expect nil but got %v", err)
 	}
 
-	if _, err := ctl(nil).Exclude(COND{}).Where("").FindOne(); err != nil && err.Error() != fmt.Sprintf(filterOrWhereError, "Exclude") {
+	if _, err := ctl(nil).Exclude(Cond{}).Where("").FindOne(); err != nil && err.Error() != fmt.Sprintf(filterOrWhereError, "Exclude") {
 		t.Errorf("expect nil but got %v", err)
 	}
 
@@ -128,31 +128,31 @@ func TestHandlerError(t *testing.T) {
 	}
 
 	// Insert unsupported operations
-	if id, err := ctl(nil).Filter(COND{}).Insert(map[string]any{}); id != 0 {
+	if id, err := ctl(nil).Filter(Cond{}).Insert(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
 	} else if err != nil && err.Error() != "[Filter] not supported for Insert" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(nil).Filter(COND{}).Where("").Insert(map[string]any{}); id != 0 {
+	if id, err := ctl(nil).Filter(Cond{}).Where("").Insert(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
 	} else if err != nil && err.Error() != "[Filter Where] not supported for Insert" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(nil).Filter(COND{}).Where("").OrderBy("").Insert(map[string]any{}); id != 0 {
+	if id, err := ctl(nil).Filter(Cond{}).Where("").OrderBy("").Insert(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
 	} else if err != nil && err.Error() != "[Filter Where OrderBy] not supported for Insert" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(nil).Filter(COND{}).Where("").OrderBy("").GroupBy("").Insert(map[string]any{}); id != 0 {
+	if id, err := ctl(nil).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Insert(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
 	} else if err != nil && err.Error() != "[Filter Where OrderBy GroupBy] not supported for Insert" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(nil).Filter(COND{}).Where("").OrderBy("").GroupBy("").Select("").Insert(map[string]any{}); id != 0 {
+	if id, err := ctl(nil).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Select("").Insert(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
 	} else if err != nil && err.Error() != "[Filter Where Select OrderBy GroupBy] not supported for Insert" {
 		t.Error(err)
@@ -327,11 +327,11 @@ func TestHandlerError(t *testing.T) {
 		t.Error(err)
 	}
 
-	if _, err := cli.Filter(COND{"id": 1000}).Remove(); err != nil {
+	if _, err := cli.Filter(Cond{"id": 1000}).Remove(); err != nil {
 		t.Error(err)
 	}
 
-	if res, err := cli.Filter(COND{"id": 1000}).FindOne(); err != nil {
+	if res, err := cli.Filter(Cond{"id": 1000}).FindOne(); err != nil {
 		t.Error(err)
 	} else if len(res) != 0 {
 		t.Errorf("expect 0 but got %d", len(res))
