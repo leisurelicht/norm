@@ -355,9 +355,86 @@ map, err := ctrl.GetC2CMap("id", "username")
 
 // List with pagination (returns total count and paginated data)
 total, data, err := ctrl.Filter(norm.AND{"is_deleted": false})
-                         .OrderBy([]string{"created_at"})
-                         .Limit(10, 1)
-                         .List()
+                     .OrderBy([]string{"created_at"})
+                     .Limit(10, 1)
+                     .List()
+
+// GetOrCreate finds a record matching the criteria or creates it if not found
+result, err := ctrl.GetOrCreate(map[string]any{
+    "username": "johndoe",
+    "email": "john@example.com",
+})
+
+// CreateOrUpdate creates a record if it doesn't exist, otherwise updates it
+// Returns: created (bool), id/affected rows (int64), error
+created, id, err := ctrl.CreateOrUpdate(
+    map[string]any{"email": "updated@example.com"}, // data to insert/update
+    norm.AND{"username": "johndoe"}, // filter criteria
+)
+
+// CreateIfNotExist only creates a record if one matching the criteria doesn't exist
+// Returns: id (int64), created (bool), error
+id, created, err := ctrl.CreateIfNotExist(map[string]any{
+    "username": "unique_user",
+    "email": "unique@example.com",
+})
+
+// Modify - automatically excludes the filter fields from update data
+// Useful for updating records while preventing certain fields from being changed
+num, err := ctrl.Modify(map[string]any{
+    "status": "active", 
+    "id": 1, // The id field will be used as a filter and not updated
+})
+```
+
+### Transaction with Multiple Operations
+
+For more complex transactions that involve multiple operations:
+
+```go
+err := session.TransactCtx(context.Background(), func(ctx context.Context, s sqlx.Session) error {
+    // Create controller with session
+    ctrl := userCtrl(ctx).WithSession(s)
+    
+    // 1. Insert a new user
+    userData := map[string]any{
+        "username": "new_user",
+        "email": "new@example.com",
+        "created_at": time.Now(),
+    }
+    userId, err := ctrl.Insert(userData)
+    if err != nil {
+        return err
+    }
+    
+    // 2. Create related user profile
+    profileCtrl := profileCtrl(ctx).WithSession(s)
+    profileId, err := profileCtrl.Insert(map[string]any{
+        "user_id": userId,
+        "display_name": "New User",
+        "created_at": time.Now(),
+    })
+    if err != nil {
+        return err
+    }
+    
+    // 3. Update user with profile reference
+    _, err = ctrl.Reset().Filter(norm.AND{"id": userId}).Update(map[string]any{
+        "profile_id": profileId,
+        "status": "active",
+    })
+    if err != nil {
+        return err
+    }
+    
+    // All operations succeeded - transaction will commit
+    return nil
+})
+
+if err != nil {
+    // Handle transaction error
+    log.Printf("Transaction failed: %v", err)
+}
 ```
 
 ## Extending Norm
