@@ -22,12 +22,16 @@ test:
 prepare:
 	@echo "prepare test environment"
 	@docker run -d --name norm_test_mysql \
-		-e MYSQL_ROOT_PASSWORD=123456 \
-		-p 6033:3306 \
-		-v $(PWD)/test/ddl.sql:/docker-entrypoint-initdb.d/init.sql \
-		mysql:8.4
+        -e MYSQL_ROOT_PASSWORD=123456 \
+        -e MYSQL_CHARSET=utf8mb4 \
+        -e MYSQL_COLLATION=utf8mb4_unicode_ci \
+        -e MYSQL_CHARACTER_SET_SERVER=utf8mb4 \
+        -e MYSQL_COLLATION_SERVER=utf8mb4_unicode_ci \
+        -p 6033:3306 \
+        mysql:8.4
 	@echo "Waiting for MySQL to initialize..."
-	@sleep 15
+	@sleep 20
+	@docker exec -i norm_test_mysql mysql -uroot -p123456 --default-character-set=utf8mb4 < ./test/ddl.sql
 	@goctl model mysql ddl --style go_zero --src ./test/ddl.sql --dir ./test
 	@echo "prepare test environment over"
 

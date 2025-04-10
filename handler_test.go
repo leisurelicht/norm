@@ -13,8 +13,27 @@ import (
 )
 
 const (
-	mysqlAddress = "root:123456@tcp(127.0.0.1:6033)/test?charset=utf8mb4&loc=Asia%2FShanghai&parseTime=true"
+	mysqlAddress = "root:123456@tcp(127.0.0.1:6033)/test?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
 )
+
+func TestCharacterEncoding(t *testing.T) {
+	db := sqlx.NewMysql(mysqlAddress)
+	var variables []struct {
+		Variable string `db:"Variable_name"`
+		Value    string `db:"Value"`
+	}
+
+	err := db.QueryRows(&variables, "SHOW VARIABLES WHERE Variable_name IN ('character_set_client', 'character_set_connection', 'character_set_results')")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, v := range variables {
+		if v.Value != "utf8mb4" {
+			t.Errorf("Expected utf8mb4 for %s, got %s", v.Variable, v.Value)
+		}
+	}
+}
 
 func TestQuery(t *testing.T) {
 	ctl := NewController(sqlx.NewMysql(mysqlAddress), mysqlOp.NewOperator(), test.Source{})
