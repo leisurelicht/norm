@@ -64,6 +64,12 @@ var (
 	not              = [2]string{"", " NOT"}
 	conjunctions     = [4]string{"AND", "OR", "AND NOT", "OR NOT"}
 	filterAndExclude = []string{"Filter", "Exclude"}
+	// Define a map for conjunction types and their tags
+	conjunctionMap = map[reflect.Type]int{
+		reflect.TypeOf(Cond{}): andTag,
+		reflect.TypeOf(AND{}):  andTag,
+		reflect.TypeOf(OR{}):   orTag,
+	}
 )
 
 type callFlag int64
@@ -482,24 +488,24 @@ func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
 		return p
 	}
 
-	if conj, ok := filter[0].(string); !ok {
-		p.filterConjTag = append(p.filterConjTag, andTag)
-	} else {
-		if res := indexConjunctions(conj); res > 0 {
-			p.filterConjTag = append(p.filterConjTag, res)
-		} else {
-			p.filterConjTag = append(p.filterConjTag, andTag)
-		}
-		filter = filter[1:]
-	}
-
 	var (
 		arg         map[string]any
 		conjFlag    = andTag
 		filterConds = make([]cond, 0, defaultInnerFilterCondsLen)
 	)
 
-	for _, f := range filter {
+	for i, f := range filter {
+		// Set the conjunction tag for the first filter
+		if i == 0 {
+			// Use the map to determine the conjunction tag
+			conjTag, ok := conjunctionMap[reflect.TypeOf(f)]
+			if !ok {
+				p.setError(unsupportedFilterTypeError, reflect.TypeOf(f).String())
+				return p // Return immediately if there's an error
+			}
+			p.filterConjTag = append(p.filterConjTag, conjTag)
+		}
+
 		switch v := f.(type) {
 		case Cond:
 			arg, conjFlag = v, andTag
@@ -510,6 +516,7 @@ func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
 		default:
 			p.setError(unsupportedFilterTypeError, reflect.TypeOf(f).String())
 		}
+
 		if filterSQL, filterArgs := p.filterHandler(arg); filterSQL == "" {
 			continue
 		} else {

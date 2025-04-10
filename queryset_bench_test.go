@@ -127,7 +127,7 @@ func BenchmarkQuerySet_BuildLargeQuery(b *testing.B) {
 		Cond(map[string]any{"age__gte": 18, "status": 1}),
 		Cond(map[string]any{"email__contains": "example.com"}),
 		OR(map[string]any{"country": "USA", "region": "Canada"}), // Fixed duplicate key
-		Cond(map[string]any{"created_at__between": []string{"2020-01-01", "2023-01-01"}}),
+		OR(map[string]any{"created_at__between": []string{"2020-01-01", "2023-01-01"}}),
 	}
 
 	b.ResetTimer()
@@ -136,10 +136,10 @@ func BenchmarkQuerySet_BuildLargeQuery(b *testing.B) {
 
 		// Apply each filter with alternating AND/OR conjunctions
 		qs.FilterToSQL(0, filters[0])
-		qs.FilterToSQL(0, "AND", filters[1])
-		qs.FilterToSQL(0, "OR", filters[2])
-		qs.FilterToSQL(0, "AND", filters[3])
-		qs.FilterToSQL(0, "OR", filters[4])
+		qs.FilterToSQL(0, filters[1])
+		qs.FilterToSQL(0, filters[2])
+		qs.FilterToSQL(0, filters[3])
+		qs.FilterToSQL(0, filters[4])
 
 		qs.OrderByToSQL([]string{"id", "name", "-age"})
 		qs.LimitToSQL(20, 3)
