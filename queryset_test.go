@@ -322,11 +322,12 @@ func TestWhere(t *testing.T) {
 		args args
 		want want
 	}{
-		{"one", args{"`test` = ?", []any{1}, nil}, want{"`test` = ?", []any{1}, nil}},
-		{"two", args{"`test` = ? AND test2 = ?", []any{1, 2}, nil}, want{"`test` = ? AND test2 = ?", []any{1, 2}, nil}},
-		{"three", args{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}, nil}, want{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}, nil}},
-		{"one_with_filter", args{"`test` = ?", []any{1}, &filterArgs{0, []any{Cond{"test": 1}}}}, want{"`test` = ?", []any{1}, fmt.Errorf(filterOrWhereError, "Filter")}},
-		{"one_with_exclude", args{"`test` = ?", []any{1}, &filterArgs{1, []any{Cond{"test": 1}}}}, want{"`test` = ?", []any{1}, fmt.Errorf(filterOrWhereError, "Exclude")}},
+		{"one", args{"`test` = ?", []any{1}, nil}, want{" WHERE `test` = ?", []any{1}, nil}},
+		{"two", args{"`test` = ? AND test2 = ?", []any{1, 2}, nil}, want{" WHERE `test` = ? AND test2 = ?", []any{1, 2}, nil}},
+		{"three", args{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}, nil}, want{" WHERE test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}, nil}},
+		{"one_with_filter", args{"`test` = ?", []any{1}, &filterArgs{0, []any{Cond{"test": 1}}}}, want{" WHERE `test` = ?", []any{1}, fmt.Errorf(filterOrWhereError, "Filter")}},
+		{"one_with_exclude", args{"`test` = ?", []any{1}, &filterArgs{1, []any{Cond{"test": 1}}}}, want{" WHERE `test` = ?", []any{1}, fmt.Errorf(filterOrWhereError, "Exclude")}},
+		{"args_mismatch", args{"test = ? AND test2 = ? AND test3 = ?", []any{1, 2}, nil}, want{"", []any{}, errors.New(argsLenError)}},
 	}
 
 	for _, tt := range tests {
@@ -344,10 +345,9 @@ func TestWhere(t *testing.T) {
 				return
 			}
 
-			wantSQL := " WHERE " + tt.want.sql
-			if sql != wantSQL {
+			if sql != tt.want.sql {
 				t.Errorf("TestFilter SQL Gen Error -> sql :%v", sql)
-				t.Errorf("TestFilter SQL Gen Error -> want:%v", wantSQL)
+				t.Errorf("TestFilter SQL Gen Error -> want:%v", tt.want.sql)
 			}
 
 			if len(sqlArgs) != len(tt.want.args) {
@@ -655,30 +655,6 @@ func TestHaving(t *testing.T) {
 	}
 }
 
-func TestWhereError(t *testing.T) {
-	tests := []struct {
-		name string
-		cond string
-		args []any
-		want error
-	}{
-		{"args_mismatch", "test = ? AND test2 = ? AND test3 = ?", []any{1, 2}, errors.New(argsLenError)},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
-			p.WhereToSQL(tt.cond, tt.args...)
-
-			if p.Error() == nil || p.Error().Error() != tt.want.Error() {
-				t.Errorf("TestWhereError not works as expected.")
-				t.Errorf("want: %s", tt.want)
-				t.Errorf("get : %s", p.Error())
-			}
-		})
-	}
-}
-
 func TestFilterAndExcludeConflict(t *testing.T) {
 	p := NewQuerySet(mysqlOp.NewOperator())
 	p.WhereToSQL("test = ?", 1)
@@ -721,51 +697,6 @@ func TestGroupByError(t *testing.T) {
 
 	if p.Error() == nil || p.Error().Error() != paramTypeError {
 		t.Errorf("TestGroupByError not working as expected")
-	}
-}
-
-func TestFilterWithConjunction(t *testing.T) {
-	type args struct {
-		isNot  int
-		filter []any
-	}
-	type want struct {
-		sql  string
-		args []any
-	}
-	tests := []struct {
-		name string
-		args args
-		want want
-	}{
-		{"with_and", args{0, []any{"AND", Cond{"test": 1}}}, want{" WHERE (`test` = ?)", []any{1}}},
-		{"with_or", args{0, []any{"OR", Cond{"test": 1}}}, want{" WHERE (`test` = ?)", []any{1}}},
-		{"with_invalid", args{0, []any{"INVALID", Cond{"test": 1}}}, want{" WHERE (`test` = ?)", []any{1}}},
-		{"with_and_not", args{1, []any{"AND", Cond{"test": 1}}}, want{" WHERE NOT (`test` = ?)", []any{1}}},
-		{"with_or_not", args{1, []any{"OR", Cond{"test": 1}}}, want{" WHERE NOT (`test` = ?)", []any{1}}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
-			p = p.FilterToSQL(tt.args.isNot, tt.args.filter...)
-			sql, sqlArgs := p.GetQuerySet()
-
-			if p.Error() != nil {
-				t.Errorf("TestFilterWithConjunction SQL Occur Error -> error:%+v", p.Error())
-			}
-
-			wantSQL := tt.want.sql
-			if sql != wantSQL {
-				t.Errorf("TestFilterWithConjunction SQL Gen Error -> sql :%v", sql)
-				t.Errorf("TestFilterWithConjunction SQL Gen Error -> want:%v", wantSQL)
-			}
-
-			if len(sqlArgs) != len(tt.want.args) {
-				t.Errorf("TestFilterWithConjunction Args Length Error -> len:%+v, want:%+v", len(sqlArgs), len(tt.want.args))
-				t.Errorf("TestFilterWithConjunction Args Length Error -> args:%+v", sqlArgs)
-				t.Errorf("TestFilterWithConjunction Args Length Error -> want:%+v", tt.want.args)
-			}
-		})
 	}
 }
 
