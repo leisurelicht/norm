@@ -17,7 +17,8 @@ To run all benchmark tests, use the following command:
 ```bash
 make benchmark
 ```
-or 
+
+or
 
 ```bash
 go test -bench=. -benchmem
