@@ -37,11 +37,12 @@ const (
 )
 
 const (
-	argsLenError      = "args length must be equal to ? number"
-	orderKeyTypeError = "order key value must be a list of string"
-	orderKeyLenError  = "order key length must be equal to filter key length"
-	isNotValueError   = "isNot value must be 0 or 1"
-	paramTypeError    = "param type must be string or slice of string"
+	argsLenError          = "args length must be equal to ? number"
+	orderKeyTypeError     = "order key value must be a list of string"
+	orderKeyLenError      = "order key length must be equal to filter key length"
+	isNotValueError       = "isNot value must be 0 or 1"
+	paramTypeError        = "param type must be string or slice of string"
+	pageSizeORNumberError = "page size and page number must be positive"
 
 	filterOrWhereError          = "[%s] or [Where] can not be called at the same time"
 	fieldLookupError            = "field lookups [%s] is invalid"
@@ -63,6 +64,12 @@ var (
 	not              = [2]string{"", " NOT"}
 	conjunctions     = [4]string{"AND", "OR", "AND NOT", "OR NOT"}
 	filterAndExclude = []string{"Filter", "Exclude"}
+	// Define a map for conjunction types and their tags
+	conjunctionMap = map[reflect.Type]int{
+		reflect.TypeOf(Cond{}): andTag,
+		reflect.TypeOf(AND{}):  andTag,
+		reflect.TypeOf(OR{}):   orTag,
+	}
 )
 
 type callFlag int64
@@ -192,50 +199,86 @@ func (p *QuerySetImpl) Reset() {
 }
 
 func (p *QuerySetImpl) GetQuerySet() (sql string, args []any) {
-	where := " WHERE "
-
+	// Handle the case with direct WHERE condition
 	if p.whereCond.SQL != "" {
-		return where + p.whereCond.SQL, p.whereCond.Args
+		return " WHERE " + p.whereCond.SQL, p.whereCond.Args
 	}
 
+	// Early return for no filter conditions
 	if len(p.filterConds) == 0 {
-		return "", []any{}
+		return "", nil
 	}
 
-	conj := ""
+	// Pre-calculate approximate capacity for string builder
+	totalConditions := 0
+	for _, filterList := range p.filterConds {
+		totalConditions += len(filterList)
+	}
+
+	// Initial capacity estimate: 8 chars per condition + conjunctions
+	outerSQL := strings.Builder{}
+	outerSQL.Grow(totalConditions*20 + len(p.filterConds)*10)
+	outerSQL.WriteString(" WHERE ")
+
+	args = make([]any, 0, totalConditions*2) // Estimate arg count
+
 	for i, filterList := range p.filterConds {
-		if i > 0 && len(p.filterConds) > 1 {
-			conj = conjunctions[p.filterConjTag[i]]
-		} else {
-			conj = ""
+		if len(filterList) == 0 {
+			continue
 		}
 
+		// Add conjunction between filter groups
+		if i > 0 {
+			outerSQL.WriteString(" ")
+			outerSQL.WriteString(conjunctions[p.filterConjTag[i]])
+			outerSQL.WriteString(" ")
+		}
+
+		// Check if this is a NOT condition by examining the first filter in the group
+		// The isNot flag affects the entire filter group
+		isNot := strings.Contains(filterList[0].Conj, "NOT")
+		if isNot {
+			outerSQL.WriteString("NOT ")
+		}
+
+		// Single condition doesn't need inner parentheses
 		if len(filterList) == 1 {
-			tempConj := filterList[0].Conj
-			if i > 0 {
-				tempConj = " " + tempConj
-			}
-			sql += tempConj + " (" + filterList[0].SQL + ")"
+			outerSQL.WriteString("(")
+			outerSQL.WriteString(filterList[0].SQL)
+			outerSQL.WriteString(")")
 			args = append(args, filterList[0].Args...)
-		} else if len(filterList) > 1 {
-			sql += "(" + filterList[0].SQL + ")"
-			args = append(args, filterList[0].Args...)
-
-			for _, filter := range filterList[1:] {
-				sql += " " + filter.Conj + " (" + filter.SQL + ")"
-				args = append(args, filter.Args...)
-			}
-			sql = conj + "(" + sql + ")"
+			continue
 		}
+
+		// Multiple conditions in this group
+		outerSQL.WriteString("(")
+
+		// First condition
+		outerSQL.WriteString("(")
+		outerSQL.WriteString(filterList[0].SQL)
+		outerSQL.WriteString(")")
+		args = append(args, filterList[0].Args...)
+
+		// Remaining conditions with their conjunctions
+		for _, filter := range filterList[1:] {
+			// Extract the base conjunction without NOT suffix for inner conditions
+			baseConj := filter.Conj
+			if isNot {
+				baseConj = strings.ReplaceAll(baseConj, " NOT", "")
+			}
+
+			outerSQL.WriteString(" ")
+			outerSQL.WriteString(baseConj)
+			outerSQL.WriteString(" (")
+			outerSQL.WriteString(filter.SQL)
+			outerSQL.WriteString(")")
+			args = append(args, filter.Args...)
+		}
+
+		outerSQL.WriteString(")")
 	}
 
-	if sql[0:3] == "AND" {
-		sql = sql[4:]
-	} else if sql[0:2] == "OR" {
-		sql = sql[3:]
-	}
-
-	return where + sql, args
+	return outerSQL.String(), args
 }
 
 func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, filterArgs []any) {
@@ -244,7 +287,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 	}
 
 	var (
-		filterConds = make(map[string]*cond)
+		filterConds = make(map[string]*cond, len(filter))
 		skList      []string
 		isOrder     = false
 		fieldName   string
@@ -445,38 +488,45 @@ func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
 		return p
 	}
 
-	if conj, ok := filter[0].(string); !ok {
-		p.filterConjTag = append(p.filterConjTag, andTag)
-	} else {
-		if res := indexConjunctions(conj); res > 0 {
-			p.filterConjTag = append(p.filterConjTag, res)
-		} else {
-			p.filterConjTag = append(p.filterConjTag, andTag)
-		}
-		filter = filter[1:]
-	}
-
 	var (
 		arg         map[string]any
 		conjFlag    = andTag
 		filterConds = make([]cond, 0, defaultInnerFilterCondsLen)
 	)
 
-	for _, f := range filter {
-		switch f.(type) {
+	for i, f := range filter {
+		// Set the conjunction tag for the first filter
+		if i == 0 {
+			// Use the map to determine the conjunction tag
+			conjTag, ok := conjunctionMap[reflect.TypeOf(f)]
+			if !ok {
+				p.setError(unsupportedFilterTypeError, reflect.TypeOf(f).String())
+				return p // Return immediately if there's an error
+			}
+			p.filterConjTag = append(p.filterConjTag, conjTag)
+		}
+
+		switch v := f.(type) {
 		case Cond:
-			arg, conjFlag = f.(Cond), andTag
+			arg, conjFlag = v, andTag
 		case AND:
-			arg, conjFlag = f.(AND), andTag
+			arg, conjFlag = v, andTag
 		case OR:
-			arg, conjFlag = f.(OR), orTag
+			arg, conjFlag = v, orTag
 		default:
 			p.setError(unsupportedFilterTypeError, reflect.TypeOf(f).String())
 		}
+
 		if filterSQL, filterArgs := p.filterHandler(arg); filterSQL == "" {
 			continue
 		} else {
-			filterConds = append(filterConds, *newCondByValue(conjunctions[conjFlag]+not[isNot], filterSQL, filterArgs))
+			// Only add "NOT" to the conjunction for the first condition
+			// The rest will be handled in GetQuerySet
+			conjStr := conjunctions[conjFlag]
+			if isNot == 1 && len(filterConds) == 0 {
+				conjStr = conjunctions[conjFlag+2] // Use AND NOT or OR NOT
+			}
+			filterConds = append(filterConds, *newCondByValue(conjStr, filterSQL, filterArgs))
 		}
 	}
 
@@ -516,11 +566,11 @@ func (p *QuerySetImpl) GetSelectSQL() string {
 func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
 	p.setCalled(callSelect)
 
-	switch columns.(type) {
+	switch cols := columns.(type) {
 	case string:
-		p.StrSelectToSQL(columns.(string))
+		p.StrSelectToSQL(cols)
 	case []string:
-		p.SliceSelectToSQL(columns.([]string))
+		p.SliceSelectToSQL(cols)
 	default:
 		p.setError(paramTypeError)
 	}
@@ -556,11 +606,11 @@ func (p *QuerySetImpl) GetOrderBySQL() string {
 func (p *QuerySetImpl) OrderByToSQL(orderBy any) QuerySet {
 	p.setCalled(callOrderBy)
 
-	switch orderBy.(type) {
+	switch o := orderBy.(type) {
 	case string:
-		p.StrOrderByToSQL(orderBy.(string))
+		p.StrOrderByToSQL(o)
 	case []string:
-		p.SliceOrderByToSQL(orderBy.([]string))
+		p.SliceOrderByToSQL(o)
 	default:
 		p.setError(paramTypeError)
 		return p
@@ -614,6 +664,9 @@ func (p *QuerySetImpl) LimitToSQL(pageSize, pageNum int64) QuerySet {
 		offset = (pageNum - 1) * pageSize
 		limit = pageSize
 		p.limitSQL = " LIMIT " + strconv.FormatInt(limit, 10) + " OFFSET " + strconv.FormatInt(offset, 10)
+	} else if pageSize < 0 || pageNum < 0 {
+		p.setError(pageSizeORNumberError)
+		return p
 	}
 
 	return p
@@ -628,11 +681,11 @@ func (p *QuerySetImpl) GetGroupBySQL() string {
 }
 
 func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
-	switch groupBy.(type) {
+	switch v := groupBy.(type) {
 	case string:
-		p.StrGroupByToSQL(groupBy.(string))
+		p.StrGroupByToSQL(v)
 	case []string:
-		p.SliceGroupByToSQL(groupBy.([]string))
+		p.SliceGroupByToSQL(v)
 	default:
 		p.setError(paramTypeError)
 	}

@@ -63,8 +63,8 @@ type (
 		Having(having string, args ...any) Controller
 		Insert(data map[string]any) (id int64, err error)
 		InsertModel(model any) (id int64, err error)
-		//BulkInsert(data []map[string]any, handler sqlx.ResultHandler) (err error)
-		//BulkInsertModel(modelSlice any, handler sqlx.ResultHandler) (err error)
+		//BulkInsert(data []map[string]any) (err error)
+		//BulkInsertModel(modelSlice []any) (err error)
 		Remove() (num int64, err error)
 		Update(data map[string]any) (num int64, err error)
 		Count() (num int64, err error)
@@ -230,20 +230,18 @@ func (m *Impl) Where(cond string, args ...any) Controller {
 func (m *Impl) Select(selects any) Controller {
 	m.setCalled(ctlSelect)
 
-	switch selects.(type) {
+	switch sel := selects.(type) {
 	case string:
-		if selects.(string) == "" {
+		if sel == "" {
 			return m
 		}
-		m.qs.StrSelectToSQL(selects.(string))
+		m.qs.StrSelectToSQL(sel)
 	case []string:
-		selectList, _ := selects.([]string)
-
-		if len(selectList) == 0 {
+		if len(sel) == 0 {
 			return m
 		}
 
-		validatedColumns, err := m.validateColumns(selectList)
+		validatedColumns, err := m.validateColumns(sel)
 
 		if err != nil {
 			m.setError("Select columns validate error: %s", err)
@@ -270,21 +268,18 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 
 	var validatedOrderBy []string
 
-	switch orderBy.(type) {
+	switch orderByVal := orderBy.(type) {
 	case string:
-		if orderBy.(string) == "" {
+		if orderByVal == "" {
 			return m
 		}
-		m.qs.StrOrderByToSQL(orderBy.(string))
+		m.qs.StrOrderByToSQL(orderByVal)
 	case []string:
-		orderByList, _ := orderBy.([]string)
-
-		if len(orderByList) == 0 {
+		if len(orderByVal) == 0 {
 			return m
 		}
-
 		unknownColumns := []string{}
-		for _, by := range orderByList {
+		for _, by := range orderByVal {
 			needValidate := by
 			if strings.HasPrefix(by, "-") {
 				needValidate = by[1:]
@@ -313,20 +308,18 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 func (m *Impl) GroupBy(groupBy any) Controller {
 	m.setCalled(ctlGroupBy)
 
-	switch groupBy.(type) {
+	switch gb := groupBy.(type) {
 	case string:
-		if groupBy.(string) == "" {
+		if gb == "" {
 			return m
 		}
-		m.qs.StrGroupByToSQL(groupBy.(string))
+		m.qs.StrGroupByToSQL(gb)
 	case []string:
-		groupByList, _ := groupBy.([]string)
-
-		if len(groupByList) == 0 {
+		if len(gb) == 0 {
 			return m
 		}
 
-		validatedColumns, err := m.validateColumns(groupByList)
+		validatedColumns, err := m.validateColumns(gb)
 
 		if err != nil {
 			m.setError("GroupBy columns validate error: %s", err)
@@ -387,16 +380,39 @@ func (m *Impl) InsertModel(model any) (id int64, err error) {
 	return m.Insert(Struct2Map(model, m.mTag))
 }
 
-func (m *Impl) BulkInsert(data []map[string]any, handler sqlx.ResultHandler) (err error) {
+func (m *Impl) BulkInsert(data []map[string]any) (err error) {
 	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlGroupBy, ctlHaving, ctlOrderBy); called {
 		return fmt.Errorf(UnsupportedControllerError, methods, "BulkInsert")
 	}
 
-	return m.operator.BulkInsert(m.ctx(), m.conn, m.tableName, data, handler)
+	if err = m.haveError(); err != nil {
+		return err
+	}
+
+	if len(data) == 0 {
+		return errors.New("insert data is empty")
+	}
+
+	var (
+		rows []string
+		args []string
+	)
+
+	for k := range m.fieldNameMap {
+		if _, ok := data[0][k]; !ok {
+			continue
+		}
+		rows = append(rows, fmt.Sprintf("`%s`", k))
+		args = append(args, k)
+	}
+
+	sql := fmt.Sprintf(InsertTemp, m.tableName, strings.Join(rows, ","), strings.Repeat("?,", len(rows)-1)+"?")
+
+	return m.operator.BulkInsert(m.ctx(), m.conn, sql, args, data)
 }
 
-func (m *Impl) BulkInsertModel(modelSlice any, handler sqlx.ResultHandler) (err error) {
-	return m.BulkInsert(StructSlice2MapSlice(modelSlice, m.mTag), handler)
+func (m *Impl) BulkInsertModel(modelSlice []any) (err error) {
+	return m.BulkInsert(StructSlice2MapSlice(modelSlice, m.mTag))
 }
 
 func (m *Impl) Remove() (num int64, err error) {
