@@ -494,6 +494,11 @@ func (p *QuerySetImpl) FilterToSQL(stat int, filter ...any) QuerySet {
 	)
 
 	for i, f := range filter {
+		if f == nil {
+			p.setError(unsupportedFilterTypeError, "nil")
+			return p
+		}
+
 		// Set the conjunction tag for the first filter
 		if i == 0 {
 			// Use the map to determine the conjunction tag
