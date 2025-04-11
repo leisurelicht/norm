@@ -56,7 +56,7 @@ func BenchmarkQuerySet_SimpleFilter(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		qs.(*QuerySetImpl).Reset()
-		qs.FilterToSQL(0, filter)
+		qs.FilterToSQL(notNot, filter)
 		qs.GetQuerySet()
 	}
 }
@@ -69,7 +69,7 @@ func BenchmarkQuerySet_ComplexFilter(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		qs.(*QuerySetImpl).Reset()
-		qs.FilterToSQL(0, filter)
+		qs.FilterToSQL(notNot, filter)
 		qs.GetQuerySet()
 	}
 }
@@ -83,8 +83,8 @@ func BenchmarkQuerySet_MultipleFilters(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		qs.(*QuerySetImpl).Reset()
-		qs.FilterToSQL(0, filter1)
-		qs.FilterToSQL(0, "OR", filter2)
+		qs.FilterToSQL(notNot, filter1)
+		qs.FilterToSQL(notNot, "OR", filter2)
 		qs.GetQuerySet()
 	}
 }
@@ -110,7 +110,7 @@ func BenchmarkQuerySet_CompleteQuery(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		qs.(*QuerySetImpl).Reset()
 		qs.SelectToSQL("id, name, age, email")
-		qs.FilterToSQL(0, filter)
+		qs.FilterToSQL(notNot, filter)
 		qs.OrderByToSQL([]string{"name", "-age"})
 		qs.LimitToSQL(10, 1)
 		qs.GetQuerySet()
@@ -135,11 +135,11 @@ func BenchmarkQuerySet_BuildLargeQuery(b *testing.B) {
 		qs.(*QuerySetImpl).Reset()
 
 		// Apply each filter with alternating AND/OR conjunctions
-		qs.FilterToSQL(0, filters[0])
-		qs.FilterToSQL(0, filters[1])
-		qs.FilterToSQL(0, filters[2])
-		qs.FilterToSQL(0, filters[3])
-		qs.FilterToSQL(0, filters[4])
+		qs.FilterToSQL(notNot, filters[0])
+		qs.FilterToSQL(notNot, filters[1])
+		qs.FilterToSQL(notNot, filters[2])
+		qs.FilterToSQL(notNot, filters[3])
+		qs.FilterToSQL(notNot, filters[4])
 
 		qs.OrderByToSQL([]string{"id", "name", "-age"})
 		qs.LimitToSQL(20, 3)
@@ -159,8 +159,8 @@ func BenchmarkQuerySet_FilterExclude(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		qs.(*QuerySetImpl).Reset()
-		qs.FilterToSQL(0, filter)
-		qs.FilterToSQL(1, exclude) // Using 1 for exclude
+		qs.FilterToSQL(notNot, filter)
+		qs.FilterToSQL(isNot, exclude) // Using 1 for exclude
 		qs.GetQuerySet()
 	}
 }
@@ -170,7 +170,7 @@ func TestQuerySetFunctionality(t *testing.T) {
 	qs := setupQuerySet()
 	filter := Cond(createSimpleFilterMap())
 
-	qs.FilterToSQL(0, filter)
+	qs.FilterToSQL(notNot, filter)
 	sql, args := qs.GetQuerySet()
 
 	if sql == "" || len(args) == 0 {

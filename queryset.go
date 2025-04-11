@@ -56,7 +56,7 @@ const (
 )
 
 const (
-	emptyTag, notTag                   = 0, 1
+	notNot, isNot                      = 0, 1
 	andTag, orTag, andNotTag, orNotTag = 0, 1, 2, 3
 )
 
@@ -293,7 +293,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 		fieldName   string
 		operator    string
 		andOrFlag   = andTag
-		notFlag     = emptyTag
+		notFlag     = notNot
 	)
 
 	if sk, ok := filter[SortKey]; ok {
@@ -321,14 +321,14 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 		lookup := strings.Split(fieldLookup, operatorJoiner)
 		if len(lookup) == 1 {
 			operator = _exact
-			notFlag = emptyTag
+			notFlag = notNot
 		} else if len(lookup) == 2 {
 			operator = strings.ToLower(strings.TrimSpace(lookup[1]))
 			if strings.HasPrefix(operator, notPrefix) {
 				operator = strings.TrimPrefix(operator, notPrefix)
-				notFlag = notTag
+				notFlag = isNot
 			} else {
-				notFlag = emptyTag
+				notFlag = notNot
 			}
 		} else {
 			p.setError(fieldLookupError, fieldLookup)
@@ -468,23 +468,22 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 	return filterSql, filterArgs
 }
 
-func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
+func (p *QuerySetImpl) FilterToSQL(stat int, filter ...any) QuerySet {
 	if !p.hasCalled(callWhere) {
-		if isNot == 0 {
+		if stat == notNot {
 			p.setCalled(callFilter)
-		} else if isNot == 1 {
+		} else if stat == isNot {
 			p.setCalled(callExclude)
+		} else {
+			p.setError(isNotValueError)
+			return p
 		}
 	} else {
-		p.setError(filterOrWhereError, filterAndExclude[isNot])
+		p.setError(filterOrWhereError, filterAndExclude[stat])
 		return p
 	}
 
 	if len(filter) == 0 {
-		return p
-	}
-	if isNot != 0 && isNot != 1 {
-		p.setError(isNotValueError)
 		return p
 	}
 
@@ -523,7 +522,7 @@ func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
 			// Only add "NOT" to the conjunction for the first condition
 			// The rest will be handled in GetQuerySet
 			conjStr := conjunctions[conjFlag]
-			if isNot == 1 && len(filterConds) == 0 {
+			if stat == 1 && len(filterConds) == 0 {
 				conjStr = conjunctions[conjFlag+2] // Use AND NOT or OR NOT
 			}
 			filterConds = append(filterConds, *newCondByValue(conjStr, filterSQL, filterArgs))
@@ -538,7 +537,7 @@ func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
 }
 
 func (p *QuerySetImpl) WhereToSQL(cond string, args ...any) QuerySet {
-	if !p.hasCalled(callFilter) || !p.hasCalled(callExclude) {
+	if !p.hasCalled(callFilter) && !p.hasCalled(callExclude) {
 		p.setCalled(callWhere)
 	} else if p.hasCalled(callFilter) {
 		p.setError(filterOrWhereError, filterAndExclude[0])
