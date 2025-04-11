@@ -31,6 +31,8 @@ var operators = map[string]string{
 	"iendswith":   "`%s`%s LIKE ?",
 
 	"unimplemented": "UNIMPLEMENTED", // Placeholder for unimplemented operators
+
+	"is_null": "`%s` IS NULL",
 }
 
 var selectKeys = map[string]struct{}{

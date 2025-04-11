@@ -206,7 +206,7 @@ func (m *Impl) Reset() Controller {
 func (m *Impl) Filter(filter ...any) Controller {
 	m.setCalled(ctlFilter)
 
-	m.qs.FilterToSQL(0, filter...)
+	m.qs.FilterToSQL(notNot, filter...)
 
 	return m
 }
@@ -214,7 +214,7 @@ func (m *Impl) Filter(filter ...any) Controller {
 func (m *Impl) Exclude(exclude ...any) Controller {
 	m.setCalled(ctlExclude)
 
-	m.qs.FilterToSQL(1, exclude...)
+	m.qs.FilterToSQL(isNot, exclude...)
 
 	return m
 }

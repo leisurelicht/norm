@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	mysqlOp "github.com/leisurelicht/norm/operator/mysql"
@@ -26,6 +27,9 @@ func TestFilter(t *testing.T) {
 		{"default_cond", args{0, []any{Cond{}}}, want{"", []any{}}},
 		{"default_cond", args{0, []any{AND{}}}, want{"", []any{}}},
 		{"default_cond", args{0, []any{OR{}}}, want{"", []any{}}},
+		{"default_cond", args{0, []any{Cond{}, AND{}}}, want{"", []any{}}},
+		{"default_cond", args{0, []any{Cond{}, OR{}}}, want{"", []any{}}},
+		{"default_cond", args{0, []any{Cond{}, AND{}, OR{}}}, want{"", []any{}}},
 
 		{"default_cond", args{0, []any{Cond{"test": 1}}}, want{" WHERE (`test` = ?)", []any{1}}},
 		{"default_list_cond", args{0, []any{Cond{"test": []any{1, 2}}}}, want{" WHERE (`test` = ? AND `test` = ?)", []any{1, 2}}},
@@ -118,6 +122,11 @@ func TestFilter(t *testing.T) {
 		{"exact_one_and_list_and_cond", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, "test2": []any{3, 4}}}}, want{" WHERE (`test` = ? AND (`test2` = ? AND `test2` = ?))", []any{1, 3, 4}}},
 		{"exact_list_and_list_cond", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": []any{1, 2}, "test2": []any{3, 4}}}}, want{" WHERE ((`test` = ? AND `test` = ?) AND (`test2` = ? AND `test2` = ?))", []any{1, 2, 3, 4}}},
 
+		{"test_value_is_null", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, "test2": nil}}}, want{" WHERE (`test` = ? AND `test2` IS NULL)", []any{1}}},
+		{"test_value_is_null", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": nil, "test2": nil}}}, want{" WHERE (`test` IS NULL AND `test2` IS NULL)", []any{}}},
+
+		{"test_empty_in_midst", args{0, []any{Cond{"test1": 1}, Cond{}, Cond{"test3": 3}}}, want{" WHERE ((`test1` = ?) AND (`test3` = ?))", []any{1, 3}}},
+
 		// ToOR
 		{"exact_one_or_one_cond", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, ToOR("test2"): 2}}}, want{" WHERE (`test` = ? OR `test2` = ?)", []any{1, 2}}},
 		{"exact_one_or_list_and_cond", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, ToOR("test2"): []any{3, 4}}}}, want{" WHERE (`test` = ? OR (`test2` = ? AND `test2` = ?))", []any{1, 3, 4}}},
@@ -179,10 +188,10 @@ func TestMultipleCallFilter(t *testing.T) {
 		want want
 	}{
 		// multiple call
-		{"double call", []args{{0, []any{Cond{"test1": 1}}}, {0, []any{Cond{"test2": 1}}}}, want{" WHERE (`test1` = ?) AND (`test2` = ?)", []any{1, 1}}},
+		{"double call", []args{{notNot, []any{Cond{"test1": 1}}}, {0, []any{Cond{"test2": 1}}}}, want{" WHERE (`test1` = ?) AND (`test2` = ?)", []any{1, 1}}},
 
 		// meet by accident
-		{"meet1", []args{{0, []any{Cond{SortKey: []string{"delete_flag", "devise_sn"}, "delete_flag": 0, "devise_sn__len": 22}}}, {0, []any{Cond{SortKey: []string{"device_name", "devise_sn", "belong_to_company"}, "device_name__icontains": "test", "devise_sn__icontains": "test", "belong_to_company__icontains": "test"}}}}, want{" WHERE (`delete_flag` = ? AND LENGTH(`devise_sn`) = ?) AND (`device_name` LIKE ? AND `devise_sn` LIKE ? AND `belong_to_company` LIKE ?)", []any{0, 22, "%test%", "%test%", "%test%"}}},
+		{"meet1", []args{{notNot, []any{Cond{SortKey: []string{"delete_flag", "devise_sn"}, "delete_flag": 0, "devise_sn__len": 22}}}, {0, []any{Cond{SortKey: []string{"device_name", "devise_sn", "belong_to_company"}, "device_name__icontains": "test", "devise_sn__icontains": "test", "belong_to_company__icontains": "test"}}}}, want{" WHERE (`delete_flag` = ? AND LENGTH(`devise_sn`) = ?) AND (`device_name` LIKE ? AND `devise_sn` LIKE ? AND `belong_to_company` LIKE ?)", []any{0, 22, "%test%", "%test%", "%test%"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -233,50 +242,266 @@ func TestFilterError(t *testing.T) {
 		want want
 	}{
 		{"empty", args{0, []any{}}, want{nil}},
-		{"order_key_type", args{0, []any{Cond{SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyTypeError)}},
-		{"order_key_type", args{0, []any{Cond{SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyLenError)}},
-		{"order_key_type", args{0, []any{Cond{"1__not__contains": "b"}}}, want{fmt.Errorf(fieldLookupError, "1__not__contains")}},
-		{"order_key_type", args{0, []any{Cond{"1__contain": "b"}}}, want{fmt.Errorf(unknownOperatorError, "contain")}},
-		{"order_key_type", args{0, []any{Cond{"test": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "exact", 0)}},
-		{"order_key_type", args{0, []any{Cond{"test": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "exact", "map")}},
-		{"order_key_type", args{0, []any{Cond{"test__exclude": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "exclude", 0)}},
-		{"order_key_type", args{0, []any{Cond{"test__exclude": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "exclude", "map")}},
-		{"order_key_type", args{0, []any{Cond{"test__iexact": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "iexact", 0)}},
-		{"order_key_type", args{0, []any{Cond{"test__iexact": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "iexact", "map")}},
-		{"order_key_type", args{0, []any{Cond{"test__gt": "10"}}}, want{fmt.Errorf(unsupportedValueError, "gt", "string")}},
-		{"order_key_type", args{0, []any{Cond{"test__gte": "10"}}}, want{fmt.Errorf(unsupportedValueError, "gte", "string")}},
-		{"order_key_type", args{0, []any{Cond{"test__lt": "10"}}}, want{fmt.Errorf(unsupportedValueError, "lt", "string")}},
-		{"order_key_type", args{0, []any{Cond{"test__lte": "10"}}}, want{fmt.Errorf(unsupportedValueError, "lte", "string")}},
-		{"order_key_type", args{0, []any{Cond{"test__len": "10"}}}, want{fmt.Errorf(unsupportedValueError, "len", "string")}},
-		{"order_key_type", args{0, []any{Cond{"test__gt": true}}}, want{fmt.Errorf(unsupportedValueError, "gt", "bool")}},
-		{"order_key_type", args{0, []any{Cond{"test__gte": true}}}, want{fmt.Errorf(unsupportedValueError, "gte", "bool")}},
-		{"order_key_type", args{0, []any{Cond{"test__lt": true}}}, want{fmt.Errorf(unsupportedValueError, "lt", "bool")}},
-		{"order_key_type", args{0, []any{Cond{"test__lte": true}}}, want{fmt.Errorf(unsupportedValueError, "lte", "bool")}},
-		{"order_key_type", args{0, []any{Cond{"test__len": true}}}, want{fmt.Errorf(unsupportedValueError, "len", "bool")}},
-		{"order_key_type", args{0, []any{Cond{"test__gt": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gt", "slice")}},
-		{"order_key_type", args{0, []any{Cond{"test__gte": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gte", "slice")}},
-		{"order_key_type", args{0, []any{Cond{"test__lt": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lt", "slice")}},
-		{"order_key_type", args{0, []any{Cond{"test__lte": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lte", "slice")}},
-		{"order_key_type", args{0, []any{Cond{"test__len": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "len", "slice")}},
-		{"order_key_type", args{0, []any{Cond{"test__gt": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gt", "array")}},
-		{"order_key_type", args{0, []any{Cond{"test__gte": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gte", "array")}},
-		{"order_key_type", args{0, []any{Cond{"test__lt": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lt", "array")}},
-		{"order_key_type", args{0, []any{Cond{"test__lte": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lte", "array")}},
-		{"order_key_type", args{0, []any{Cond{"test__len": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "len", "array")}},
-		{"order_key_type", args{0, []any{Cond{"test__in": 1}}}, want{fmt.Errorf(unsupportedValueError, "in", "int")}},
-		{"order_key_type", args{0, []any{Cond{"test__in": []int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "in", 0)}},
-		{"order_key_type", args{0, []any{Cond{"test__between": "test"}}}, want{fmt.Errorf(unsupportedValueError, "between", "string")}},
-		{"order_key_type", args{0, []any{Cond{"test__between": []int{}}}}, want{fmt.Errorf(operatorValueLenError, "between", 2)}},
-		{"order_key_type", args{0, []any{Cond{"test__contains": ""}}}, want{fmt.Errorf(unsupportedValueError, "contains", "blank string")}},
-		{"order_key_type", args{0, []any{Cond{"test__contains": []int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "contains", 0)}},
-		{"order_key_type", args{0, []any{Cond{"test__contains": [0]int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "contains", 0)}},
-		{"order_key_type", args{0, []any{Cond{"test__contains": []int{1, 2}}}}, want{fmt.Errorf(operatorValueTypeError, "contains")}},
-		{"order_key_type", args{0, []any{Cond{"test__contains": [2]int{1, 2}}}}, want{fmt.Errorf(operatorValueTypeError, "contains")}},
-		{"order_key_type", args{0, []any{Cond{"test__contains": true}}}, want{fmt.Errorf(unsupportedValueError, "contains", "bool")}},
-		{"order_key_type", args{0, []any{Cond{"test__contains": 0}}}, want{fmt.Errorf(unsupportedValueError, "contains", "int")}},
-		{"order_key_type", args{0, []any{Cond{"test__contains": 1}}}, want{fmt.Errorf(unsupportedValueError, "contains", "int")}},
-		{"order_key_type", args{0, []any{Cond{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedValueError, "contains", "float64")}},
-		{"order_key_type", args{0, []any{Cond{"test__unimplemented": 1}}}, want{fmt.Errorf(notImplementedOperatorError, "UNIMPLEMENTED")}},
+		{"order key type", args{0, []any{Cond{SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyTypeError)}},
+		{"order key len", args{0, []any{Cond{SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyLenError)}},
+		{"field lookup", args{0, []any{Cond{"1__not__contains": "b"}}}, want{fmt.Errorf(fieldLookupError, "1__not__contains")}},
+		{"unknown operator", args{0, []any{Cond{"1__contain": "b"}}}, want{fmt.Errorf(unknownOperatorError, "contain")}},
+		{"operator value len", args{0, []any{Cond{"test__between": []int{}}}}, want{fmt.Errorf(operatorValueLenError, "between", 2)}},
+		{"operator value len less", args{0, []any{Cond{"test": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "exact", 0)}},
+		{"operator value len less1", args{0, []any{Cond{"test__exclude": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "exclude", 0)}},
+		{"operator value len less2", args{0, []any{Cond{"test__iexact": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "iexact", 0)}},
+		{"operator value len less3", args{0, []any{Cond{"test__in": []int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "in", 0)}},
+		{"operator value len less4", args{0, []any{Cond{"test__contains": []int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "contains", 0)}},
+		{"operator value len less5", args{0, []any{Cond{"test__contains": [0]int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "contains", 0)}},
+		{"operator value type", args{0, []any{Cond{"test__contains": []int{1, 2}}}}, want{fmt.Errorf(operatorValueTypeError, "contains")}},
+		{"operator value type1", args{0, []any{Cond{"test__contains": [2]int{1, 2}}}}, want{fmt.Errorf(operatorValueTypeError, "contains")}},
+		{"not implementd operator", args{0, []any{Cond{"test__unimplemented": 1}}}, want{fmt.Errorf(notImplementedOperatorError, "UNIMPLEMENTED")}},
+		{"unsupported value", args{0, []any{Cond{"test__exclude": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "exclude", "map")}},
+		{"unsupported value1", args{0, []any{Cond{"test": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "exact", "map")}},
+		{"unsupported value2", args{0, []any{Cond{"test__iexact": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "iexact", "map")}},
+		{"unsupported value3", args{0, []any{Cond{"test__gt": "10"}}}, want{fmt.Errorf(unsupportedValueError, "gt", "string")}},
+		{"unsupported value4", args{0, []any{Cond{"test__gte": "10"}}}, want{fmt.Errorf(unsupportedValueError, "gte", "string")}},
+		{"unsupported value5", args{0, []any{Cond{"test__lt": "10"}}}, want{fmt.Errorf(unsupportedValueError, "lt", "string")}},
+		{"unsupported value6", args{0, []any{Cond{"test__lte": "10"}}}, want{fmt.Errorf(unsupportedValueError, "lte", "string")}},
+		{"unsupported value7", args{0, []any{Cond{"test__len": "10"}}}, want{fmt.Errorf(unsupportedValueError, "len", "string")}},
+		{"unsupported value8", args{0, []any{Cond{"test__gt": true}}}, want{fmt.Errorf(unsupportedValueError, "gt", "bool")}},
+		{"unsupported value9", args{0, []any{Cond{"test__gte": true}}}, want{fmt.Errorf(unsupportedValueError, "gte", "bool")}},
+		{"unsupported value10", args{0, []any{Cond{"test__lt": true}}}, want{fmt.Errorf(unsupportedValueError, "lt", "bool")}},
+		{"unsupported value11", args{0, []any{Cond{"test__lte": true}}}, want{fmt.Errorf(unsupportedValueError, "lte", "bool")}},
+		{"unsupported value12", args{0, []any{Cond{"test__len": true}}}, want{fmt.Errorf(unsupportedValueError, "len", "bool")}},
+		{"unsupported value13", args{0, []any{Cond{"test__gt": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gt", "slice")}},
+		{"unsupported value14", args{0, []any{Cond{"test__gte": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gte", "slice")}},
+		{"unsupported value15", args{0, []any{Cond{"test__lt": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lt", "slice")}},
+		{"unsupported value16", args{0, []any{Cond{"test__lte": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lte", "slice")}},
+		{"unsupported value17", args{0, []any{Cond{"test__len": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "len", "slice")}},
+		{"unsupported value18", args{0, []any{Cond{"test__gt": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gt", "array")}},
+		{"unsupported value19", args{0, []any{Cond{"test__gte": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gte", "array")}},
+		{"unsupported value20", args{0, []any{Cond{"test__lt": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lt", "array")}},
+		{"unsupported value21", args{0, []any{Cond{"test__lte": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lte", "array")}},
+		{"unsupported value22", args{0, []any{Cond{"test__len": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "len", "array")}},
+		{"unsupported value23", args{0, []any{Cond{"test__in": 1}}}, want{err: fmt.Errorf(unsupportedValueError, "in", "int")}},
+		{"unsupported value25", args{0, []any{Cond{"test__between": "test"}}}, want{err: fmt.Errorf(unsupportedValueError, "between", "string")}},
+		{"unsupported value26", args{0, []any{Cond{"test__contains": ""}}}, want{err: fmt.Errorf(unsupportedValueError, "contains", "blank string")}},
+		{"unsupported value27", args{0, []any{Cond{"test__contains": true}}}, want{err: fmt.Errorf(unsupportedValueError, "contains", "bool")}},
+		{"unsupported value28", args{0, []any{Cond{"test__contains": 0}}}, want{err: fmt.Errorf(unsupportedValueError, "contains", "int")}},
+		{"unsupported value29", args{0, []any{Cond{"test__contains": 1}}}, want{err: fmt.Errorf(unsupportedValueError, "contains", "int")}},
+		{"unsupported value30", args{0, []any{Cond{"test__contains": 1.0}}}, want{err: fmt.Errorf(unsupportedValueError, "contains", "float64")}},
+		{"order key type", args{0, []any{Cond{SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{err: errors.New(orderKeyTypeError)}},
+		{"order key len", args{0, []any{Cond{SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{err: errors.New(orderKeyLenError)}},
+		{"field lookup", args{0, []any{Cond{"1__not__contains": "b"}}}, want{err: fmt.Errorf(fieldLookupError, "1__not__contains")}},
+		{"unknown operator", args{0, []any{Cond{"1__contain": "b"}}}, want{fmt.Errorf(unknownOperatorError, "contain")}},
+		{"operator value len", args{0, []any{Cond{"test__between": []int{}}}}, want{fmt.Errorf(operatorValueLenError, "between", 2)}},
+		{"operator value len less", args{0, []any{Cond{"test": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "exact", 0)}},
+		{"operator value len less1", args{0, []any{Cond{"test__exclude": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "exclude", 0)}},
+		{"operator value len less2", args{0, []any{Cond{"test__iexact": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "iexact", 0)}},
+		{"operator value len less3", args{0, []any{Cond{"test__in": []int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "in", 0)}},
+		{"operator value len less4", args{0, []any{Cond{"test__contains": []int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "contains", 0)}},
+		{"operator value len less5", args{0, []any{Cond{"test__contains": [0]int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "contains", 0)}},
+		{"operator value type", args{0, []any{Cond{"test__contains": []int{1, 2}}}}, want{fmt.Errorf(operatorValueTypeError, "contains")}},
+		{"operator value type1", args{0, []any{Cond{"test__contains": [2]int{1, 2}}}}, want{fmt.Errorf(operatorValueTypeError, "contains")}},
+		{"not implementd operator", args{0, []any{Cond{"test__unimplemented": 1}}}, want{fmt.Errorf(notImplementedOperatorError, "UNIMPLEMENTED")}},
+		{"unsupported value", args{0, []any{Cond{"test__exclude": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "exclude", "map")}},
+		{"unsupported value1", args{0, []any{Cond{"test": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "exact", "map")}},
+		{"unsupported value2", args{0, []any{Cond{"test__iexact": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "iexact", "map")}},
+		{"unsupported value3", args{0, []any{Cond{"test__gt": "10"}}}, want{fmt.Errorf(unsupportedValueError, "gt", "string")}},
+		{"unsupported value4", args{0, []any{Cond{"test__gte": "10"}}}, want{fmt.Errorf(unsupportedValueError, "gte", "string")}},
+		{"unsupported value5", args{0, []any{Cond{"test__lt": "10"}}}, want{fmt.Errorf(unsupportedValueError, "lt", "string")}},
+		{"unsupported value6", args{0, []any{Cond{"test__lte": "10"}}}, want{fmt.Errorf(unsupportedValueError, "lte", "string")}},
+		{"unsupported value7", args{0, []any{Cond{"test__len": "10"}}}, want{fmt.Errorf(unsupportedValueError, "len", "string")}},
+		{"unsupported value8", args{0, []any{Cond{"test__gt": true}}}, want{fmt.Errorf(unsupportedValueError, "gt", "bool")}},
+		{"unsupported value9", args{0, []any{Cond{"test__gte": true}}}, want{fmt.Errorf(unsupportedValueError, "gte", "bool")}},
+		{"unsupported value10", args{0, []any{Cond{"test__lt": true}}}, want{fmt.Errorf(unsupportedValueError, "lt", "bool")}},
+		{"unsupported value11", args{0, []any{Cond{"test__lte": true}}}, want{fmt.Errorf(unsupportedValueError, "lte", "bool")}},
+		{"unsupported value12", args{0, []any{Cond{"test__len": true}}}, want{fmt.Errorf(unsupportedValueError, "len", "bool")}},
+		{"unsupported value13", args{0, []any{Cond{"test__gt": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gt", "slice")}},
+		{"unsupported value14", args{0, []any{Cond{"test__gte": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gte", "slice")}},
+		{"unsupported value15", args{0, []any{Cond{"test__lt": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lt", "slice")}},
+		{"unsupported value16", args{0, []any{Cond{"test__lte": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lte", "slice")}},
+		{"unsupported value17", args{0, []any{Cond{"test__len": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "len", "slice")}},
+		{"unsupported value18", args{0, []any{Cond{"test__gt": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gt", "array")}},
+		{"unsupported value19", args{0, []any{Cond{"test__gte": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gte", "array")}},
+		{"unsupported value20", args{0, []any{Cond{"test__lt": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lt", "array")}},
+		{"unsupported value21", args{0, []any{Cond{"test__lte": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lte", "array")}},
+		{"unsupported value22", args{0, []any{Cond{"test__len": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "len", "array")}},
+		{"unsupported value23", args{0, []any{Cond{"test__in": 1}}}, want{fmt.Errorf(unsupportedValueError, "in", "int")}},
+		{"unsupported value25", args{0, []any{Cond{"test__between": "test"}}}, want{fmt.Errorf(unsupportedValueError, "between", "string")}},
+		{"unsupported value26", args{0, []any{Cond{"test__contains": ""}}}, want{fmt.Errorf(unsupportedValueError, "contains", "blank string")}},
+		{"unsupported value27", args{0, []any{Cond{"test__contains": true}}}, want{fmt.Errorf(unsupportedValueError, "contains", "bool")}},
+		{"unsupported value28", args{0, []any{Cond{"test__contains": 0}}}, want{fmt.Errorf(unsupportedValueError, "contains", "int")}},
+		{"unsupported value29", args{0, []any{Cond{"test__contains": 1}}}, want{fmt.Errorf(unsupportedValueError, "contains", "int")}},
+		{"unsupported value30", args{0, []any{Cond{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedValueError, "contains", "float64")}},
+		{"order key type", args{0, []any{AND{SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyTypeError)}},
+		{"order key len", args{0, []any{AND{SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyLenError)}},
+		{"field lookup", args{0, []any{AND{"1__not__contains": "b"}}}, want{fmt.Errorf(fieldLookupError, "1__not__contains")}},
+		{"unknown operator", args{0, []any{AND{"1__contain": "b"}}}, want{fmt.Errorf(unknownOperatorError, "contain")}},
+		{"operator value len", args{0, []any{AND{"test__between": []int{}}}}, want{fmt.Errorf(operatorValueLenError, "between", 2)}},
+		{"operator value len less", args{0, []any{AND{"test": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "exact", 0)}},
+		{"operator value len less1", args{0, []any{AND{"test__exclude": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "exclude", 0)}},
+		{"operator value len less2", args{0, []any{AND{"test__iexact": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "iexact", 0)}},
+		{"operator value len less3", args{0, []any{AND{"test__in": []int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "in", 0)}},
+		{"operator value len less4", args{0, []any{AND{"test__contains": []int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "contains", 0)}},
+		{"operator value len less5", args{0, []any{AND{"test__contains": [0]int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "contains", 0)}},
+		{"operator value type", args{0, []any{AND{"test__contains": []int{1, 2}}}}, want{fmt.Errorf(operatorValueTypeError, "contains")}},
+		{"operator value type1", args{0, []any{AND{"test__contains": [2]int{1, 2}}}}, want{fmt.Errorf(operatorValueTypeError, "contains")}},
+		{"not implementd operator", args{0, []any{AND{"test__unimplemented": 1}}}, want{fmt.Errorf(notImplementedOperatorError, "UNIMPLEMENTED")}},
+		{"unsupported value", args{0, []any{AND{"test__exclude": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "exclude", "map")}},
+		{"unsupported value1", args{0, []any{AND{"test": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "exact", "map")}},
+		{"unsupported value2", args{0, []any{AND{"test__iexact": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "iexact", "map")}},
+		{"unsupported value3", args{0, []any{AND{"test__gt": "10"}}}, want{fmt.Errorf(unsupportedValueError, "gt", "string")}},
+		{"unsupported value4", args{0, []any{AND{"test__gte": "10"}}}, want{fmt.Errorf(unsupportedValueError, "gte", "string")}},
+		{"unsupported value5", args{0, []any{AND{"test__lt": "10"}}}, want{fmt.Errorf(unsupportedValueError, "lt", "string")}},
+		{"unsupported value6", args{0, []any{AND{"test__lte": "10"}}}, want{fmt.Errorf(unsupportedValueError, "lte", "string")}},
+		{"unsupported value7", args{0, []any{AND{"test__len": "10"}}}, want{fmt.Errorf(unsupportedValueError, "len", "string")}},
+		{"unsupported value8", args{0, []any{AND{"test__gt": true}}}, want{fmt.Errorf(unsupportedValueError, "gt", "bool")}},
+		{"unsupported value9", args{0, []any{AND{"test__gte": true}}}, want{fmt.Errorf(unsupportedValueError, "gte", "bool")}},
+		{"unsupported value10", args{0, []any{AND{"test__lt": true}}}, want{fmt.Errorf(unsupportedValueError, "lt", "bool")}},
+		{"unsupported value11", args{0, []any{AND{"test__lte": true}}}, want{fmt.Errorf(unsupportedValueError, "lte", "bool")}},
+		{"unsupported value12", args{0, []any{AND{"test__len": true}}}, want{fmt.Errorf(unsupportedValueError, "len", "bool")}},
+		{"unsupported value13", args{0, []any{AND{"test__gt": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gt", "slice")}},
+		{"unsupported value14", args{0, []any{AND{"test__gte": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gte", "slice")}},
+		{"unsupported value15", args{0, []any{AND{"test__lt": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lt", "slice")}},
+		{"unsupported value16", args{0, []any{AND{"test__lte": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lte", "slice")}},
+		{"unsupported value17", args{0, []any{AND{"test__len": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "len", "slice")}},
+		{"unsupported value18", args{0, []any{AND{"test__gt": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gt", "array")}},
+		{"unsupported value19", args{0, []any{AND{"test__gte": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gte", "array")}},
+		{"unsupported value20", args{0, []any{AND{"test__lt": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lt", "array")}},
+		{"unsupported value21", args{0, []any{AND{"test__lte": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lte", "array")}},
+		{"unsupported value22", args{0, []any{AND{"test__len": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "len", "array")}},
+		{"unsupported value23", args{0, []any{AND{"test__in": 1}}}, want{fmt.Errorf(unsupportedValueError, "in", "int")}},
+		{"unsupported value25", args{0, []any{AND{"test__between": "test"}}}, want{fmt.Errorf(unsupportedValueError, "between", "string")}},
+		{"unsupported value26", args{0, []any{AND{"test__contains": ""}}}, want{fmt.Errorf(unsupportedValueError, "contains", "blank string")}},
+		{"unsupported value27", args{0, []any{AND{"test__contains": true}}}, want{fmt.Errorf(unsupportedValueError, "contains", "bool")}},
+		{"unsupported value28", args{0, []any{AND{"test__contains": 0}}}, want{fmt.Errorf(unsupportedValueError, "contains", "int")}},
+		{"unsupported value29", args{0, []any{AND{"test__contains": 1}}}, want{fmt.Errorf(unsupportedValueError, "contains", "int")}},
+		{"unsupported value30", args{0, []any{AND{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedValueError, "contains", "float64")}},
+		{"order key type", args{0, []any{OR{SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyTypeError)}},
+		{"order key len", args{0, []any{OR{SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyLenError)}},
+		{"field lookup", args{0, []any{OR{"1__not__contains": "b"}}}, want{fmt.Errorf(fieldLookupError, "1__not__contains")}},
+		{"unknown operator", args{0, []any{OR{"1__contain": "b"}}}, want{fmt.Errorf(unknownOperatorError, "contain")}},
+		{"operator value len", args{0, []any{OR{"test__between": []int{}}}}, want{fmt.Errorf(operatorValueLenError, "between", 2)}},
+		{"operator value len less", args{0, []any{OR{"test": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "exact", 0)}},
+		{"operator value len less1", args{0, []any{OR{"test__exclude": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "exclude", 0)}},
+		{"operator value len less2", args{0, []any{OR{"test__iexact": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "iexact", 0)}},
+		{"operator value len less3", args{0, []any{OR{"test__in": []int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "in", 0)}},
+		{"operator value len less4", args{0, []any{OR{"test__contains": []int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "contains", 0)}},
+		{"operator value len less5", args{0, []any{OR{"test__contains": [0]int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "contains", 0)}},
+		{"operator value type", args{0, []any{OR{"test__contains": []int{1, 2}}}}, want{fmt.Errorf(operatorValueTypeError, "contains")}},
+		{"operator value type1", args{0, []any{OR{"test__contains": [2]int{1, 2}}}}, want{fmt.Errorf(operatorValueTypeError, "contains")}},
+		{"not implementd operator", args{0, []any{OR{"test__unimplemented": 1}}}, want{fmt.Errorf(notImplementedOperatorError, "UNIMPLEMENTED")}},
+		{"unsupported value", args{0, []any{OR{"test__exclude": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "exclude", "map")}},
+		{"unsupported value1", args{0, []any{OR{"test": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "exact", "map")}},
+		{"unsupported value2", args{0, []any{OR{"test__iexact": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "iexact", "map")}},
+		{"unsupported value3", args{0, []any{OR{"test__gt": "10"}}}, want{fmt.Errorf(unsupportedValueError, "gt", "string")}},
+		{"unsupported value4", args{0, []any{OR{"test__gte": "10"}}}, want{fmt.Errorf(unsupportedValueError, "gte", "string")}},
+		{"unsupported value5", args{0, []any{OR{"test__lt": "10"}}}, want{fmt.Errorf(unsupportedValueError, "lt", "string")}},
+		{"unsupported value6", args{0, []any{OR{"test__lte": "10"}}}, want{fmt.Errorf(unsupportedValueError, "lte", "string")}},
+		{"unsupported value7", args{0, []any{OR{"test__len": "10"}}}, want{fmt.Errorf(unsupportedValueError, "len", "string")}},
+		{"unsupported value8", args{0, []any{OR{"test__gt": true}}}, want{fmt.Errorf(unsupportedValueError, "gt", "bool")}},
+		{"unsupported value9", args{0, []any{OR{"test__gte": true}}}, want{fmt.Errorf(unsupportedValueError, "gte", "bool")}},
+		{"unsupported value10", args{0, []any{OR{"test__lt": true}}}, want{fmt.Errorf(unsupportedValueError, "lt", "bool")}},
+		{"unsupported value11", args{0, []any{OR{"test__lte": true}}}, want{fmt.Errorf(unsupportedValueError, "lte", "bool")}},
+		{"unsupported value12", args{0, []any{OR{"test__len": true}}}, want{fmt.Errorf(unsupportedValueError, "len", "bool")}},
+		{"unsupported value13", args{0, []any{OR{"test__gt": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gt", "slice")}},
+		{"unsupported value14", args{0, []any{OR{"test__gte": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gte", "slice")}},
+		{"unsupported value15", args{0, []any{OR{"test__lt": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lt", "slice")}},
+		{"unsupported value16", args{0, []any{OR{"test__lte": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lte", "slice")}},
+		{"unsupported value17", args{0, []any{OR{"test__len": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "len", "slice")}},
+		{"unsupported value18", args{0, []any{OR{"test__gt": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gt", "array")}},
+		{"unsupported value19", args{0, []any{OR{"test__gte": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gte", "array")}},
+		{"unsupported value20", args{0, []any{OR{"test__lt": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lt", "array")}},
+		{"unsupported value21", args{0, []any{OR{"test__lte": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lte", "array")}},
+		{"unsupported value22", args{0, []any{OR{"test__len": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "len", "array")}},
+		{"unsupported value23", args{0, []any{OR{"test__in": 1}}}, want{fmt.Errorf(unsupportedValueError, "in", "int")}},
+		{"unsupported value25", args{0, []any{OR{"test__between": "test"}}}, want{fmt.Errorf(unsupportedValueError, "between", "string")}},
+		{"unsupported value26", args{0, []any{OR{"test__contains": ""}}}, want{fmt.Errorf(unsupportedValueError, "contains", "blank string")}},
+		{"unsupported value27", args{0, []any{OR{"test__contains": true}}}, want{fmt.Errorf(unsupportedValueError, "contains", "bool")}},
+		{"unsupported value28", args{0, []any{OR{"test__contains": 0}}}, want{fmt.Errorf(unsupportedValueError, "contains", "int")}},
+		{"unsupported value29", args{0, []any{OR{"test__contains": 1}}}, want{fmt.Errorf(unsupportedValueError, "contains", "int")}},
+		{"unsupported value30", args{0, []any{OR{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedValueError, "contains", "float64")}},
+		{"unsupported supported filter type0", args{0, []any{map[string]any{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]interface {}")}},
+		{"unsupported supported filter type1", args{0, []any{map[string]any{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]interface {}")}},
+		{"unsupported supported filter type2", args{0, []any{map[string]int{"test__contains": 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]int")}},
+		{"unsupported supported filter type3", args{0, []any{map[string]string{"test__contains": "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]string")}},
+		{"unsupported supported filter type4", args{0, []any{map[string]bool{"test__contains": true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]bool")}},
+		{"unsupported supported filter type5", args{0, []any{map[string]float64{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]float64")}},
+		{"unsupported supported filter type6", args{0, []any{map[int]any{1: 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[int]interface {}")}},
+		{"unsupported supported filter type7", args{0, []any{map[int]string{1: "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[int]string")}},
+		{"unsupported supported filter type8", args{0, []any{map[int]bool{1: true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[int]bool")}},
+		{"unsupported supported filter type9", args{0, []any{map[int]float64{1: 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[int]float64")}},
+		{"unsupported supported filter type10", args{0, []any{map[bool]any{true: 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[bool]interface {}")}},
+		{"unsupported supported filter type11", args{0, []any{map[bool]string{true: "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[bool]string")}},
+		{"unsupported supported filter type12", args{0, []any{map[bool]bool{true: true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[bool]bool")}},
+		{"unsupported supported filter type13", args{0, []any{map[bool]float64{true: 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[bool]float64")}},
+		{"unsupported supported filter type14", args{0, []any{map[float64]any{1.0: 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[float64]interface {}")}},
+		{"unsupported supported filter type15", args{0, []any{map[float64]string{1.0: "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[float64]string")}},
+		{"unsupported supported filter type16", args{0, []any{map[float64]bool{1.0: true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[float64]bool")}},
+		{"unsupported supported filter type17", args{0, []any{map[float64]float64{1.0: 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[float64]float64")}},
+		{"unsupported supported filter type18", args{0, []any{map[any]any{"test__contains": 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[interface {}]interface {}")}},
+		{"unsupported supported filter type19", args{0, []any{map[any]string{"test__contains": "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[interface {}]string")}},
+		{"unsupported supported filter type20", args{0, []any{map[any]bool{"test__contains": true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[interface {}]bool")}},
+		{"unsupported supported filter type21", args{0, []any{map[any]float64{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[interface {}]float64")}},
+		{"unsupported supported filter type22", args{0, []any{Cond{}, []any{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]interface {}")}},
+		{"unsupported supported filter type23", args{0, []any{Cond{}, []any{"test__contains"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]interface {}")}},
+		{"unsupported supported filter type24", args{0, []any{Cond{}, 1}}, want{fmt.Errorf(unsupportedFilterTypeError, "int")}},
+		{"unsupported supported filter type25", args{0, []any{Cond{}, "test__contains"}}, want{fmt.Errorf(unsupportedFilterTypeError, "string")}},
+		{"unsupported supported filter type26", args{0, []any{Cond{}, 1.0}}, want{fmt.Errorf(unsupportedFilterTypeError, "float64")}},
+		{"unsupported supported filter type27", args{0, []any{Cond{}, true}}, want{fmt.Errorf(unsupportedFilterTypeError, "bool")}},
+		{"unsupported supported filter type28", args{0, []any{Cond{}, false}}, want{fmt.Errorf(unsupportedFilterTypeError, "bool")}},
+		{"unsupported supported filter type29", args{0, []any{Cond{}, nil}}, want{fmt.Errorf(unsupportedFilterTypeError, "nil")}},
+		{"unsupported supported filter type30", args{0, []any{[]int{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]int")}},
+		{"unsupported supported filter type31", args{0, []any{[]string{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]string")}},
+		{"unsupported supported filter type32", args{0, []any{[]bool{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]bool")}},
+		{"unsupported supported filter type33", args{0, []any{[]float64{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]float64")}},
+		{"unsupported supported filter type34", args{0, []any{[1]int{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[1]int")}},
+		{"unsupported supported filter type35", args{0, []any{[1]string{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[1]string")}},
+		{"unsupported supported filter type36", args{0, []any{[1]bool{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[1]bool")}},
+		{"unsupported supported filter type37", args{0, []any{[1]float64{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[1]float64")}},
+		{"unsupported supported filter type38", args{0, []any{[2]int{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[2]int")}},
+		{"unsupported supported filter type39", args{0, []any{[2]string{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[2]string")}},
+		{"unsupported supported filter type40", args{0, []any{[2]bool{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[2]bool")}},
+		{"unsupported supported filter type41", args{0, []any{[2]float64{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[2]float64")}},
+		{"unsupported supported filter type0", args{0, []any{Cond{}, map[string]any{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]interface {}")}},
+		{"unsupported supported filter type1", args{0, []any{Cond{}, map[string]any{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]interface {}")}},
+		{"unsupported supported filter type2", args{0, []any{Cond{}, map[string]int{"test__contains": 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]int")}},
+		{"unsupported supported filter type3", args{0, []any{Cond{}, map[string]string{"test__contains": "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]string")}},
+		{"unsupported supported filter type4", args{0, []any{Cond{}, map[string]bool{"test__contains": true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]bool")}},
+		{"unsupported supported filter type5", args{0, []any{Cond{}, map[string]float64{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]float64")}},
+		{"unsupported supported filter type6", args{0, []any{Cond{}, map[int]any{1: 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[int]interface {}")}},
+		{"unsupported supported filter type7", args{0, []any{Cond{}, map[int]string{1: "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[int]string")}},
+		{"unsupported supported filter type8", args{0, []any{Cond{}, map[int]bool{1: true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[int]bool")}},
+		{"unsupported supported filter type9", args{0, []any{Cond{}, map[int]float64{1: 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[int]float64")}},
+		{"unsupported supported filter type10", args{0, []any{Cond{}, map[bool]any{true: 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[bool]interface {}")}},
+		{"unsupported supported filter type11", args{0, []any{Cond{}, map[bool]string{true: "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[bool]string")}},
+		{"unsupported supported filter type12", args{0, []any{Cond{}, map[bool]bool{true: true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[bool]bool")}},
+		{"unsupported supported filter type13", args{0, []any{Cond{}, map[bool]float64{true: 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[bool]float64")}},
+		{"unsupported supported filter type14", args{0, []any{Cond{}, map[float64]any{1.0: 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[float64]interface {}")}},
+		{"unsupported supported filter type15", args{0, []any{Cond{}, map[float64]string{1.0: "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[float64]string")}},
+		{"unsupported supported filter type16", args{0, []any{Cond{}, map[float64]bool{1.0: true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[float64]bool")}},
+		{"unsupported supported filter type17", args{0, []any{Cond{}, map[float64]float64{1.0: 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[float64]float64")}},
+		{"unsupported supported filter type18", args{0, []any{Cond{}, map[any]any{"test__contains": 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[interface {}]interface {}")}},
+		{"unsupported supported filter type19", args{0, []any{Cond{}, map[any]string{"test__contains": "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[interface {}]string")}},
+		{"unsupported supported filter type20", args{0, []any{Cond{}, map[any]bool{"test__contains": true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[interface {}]bool")}},
+		{"unsupported supported filter type21", args{0, []any{Cond{}, map[any]float64{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[interface {}]float64")}},
+		{"unsupported supported filter type22", args{0, []any{Cond{}, []any{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]interface {}")}},
+		{"unsupported supported filter type23", args{0, []any{Cond{}, []any{"test__contains"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]interface {}")}},
+		{"unsupported supported filter type24", args{0, []any{Cond{}, 1}}, want{fmt.Errorf(unsupportedFilterTypeError, "int")}},
+		{"unsupported supported filter type25", args{0, []any{Cond{}, "test__contains"}}, want{fmt.Errorf(unsupportedFilterTypeError, "string")}},
+		{"unsupported supported filter type26", args{0, []any{Cond{}, 1.0}}, want{fmt.Errorf(unsupportedFilterTypeError, "float64")}},
+		{"unsupported supported filter type27", args{0, []any{Cond{}, true}}, want{fmt.Errorf(unsupportedFilterTypeError, "bool")}},
+		{"unsupported supported filter type28", args{0, []any{Cond{}, false}}, want{fmt.Errorf(unsupportedFilterTypeError, "bool")}},
+		{"unsupported supported filter type29", args{0, []any{Cond{}, nil}}, want{fmt.Errorf(unsupportedFilterTypeError, "nil")}},
+		{"unsupported supported filter type30", args{0, []any{Cond{}, []int{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]int")}},
+		{"unsupported supported filter type31", args{0, []any{Cond{}, []string{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]string")}},
+		{"unsupported supported filter type32", args{0, []any{Cond{}, []bool{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]bool")}},
+		{"unsupported supported filter type33", args{0, []any{Cond{}, []float64{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]float64")}},
+		{"unsupported supported filter type34", args{0, []any{Cond{}, [1]int{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[1]int")}},
+		{"unsupported supported filter type35", args{0, []any{Cond{}, [1]string{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[1]string")}},
+		{"unsupported supported filter type36", args{0, []any{Cond{}, [1]bool{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[1]bool")}},
+		{"unsupported supported filter type37", args{0, []any{Cond{}, [1]float64{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[1]float64")}},
+		{"unsupported supported filter type38", args{0, []any{Cond{}, [2]int{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[2]int")}},
+		{"unsupported supported filter type39", args{0, []any{Cond{}, [2]string{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[2]string")}},
+		{"unsupported supported filter type40", args{0, []any{Cond{}, [2]bool{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[2]bool")}},
+		{"unsupported supported filter type41", args{0, []any{Cond{}, [2]float64{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[2]float64")}},
 	}
 
 	for _, tt := range tests {
@@ -302,51 +527,34 @@ func TestFilterError(t *testing.T) {
 }
 
 func TestWhere(t *testing.T) {
-	type filterArgs struct {
-		isNot  int
-		filter []any
-	}
 	type args struct {
-		cond    string
-		args    []any
-		filters *filterArgs
+		cond string
+		args []any
 	}
 	type want struct {
 		sql  string
 		args []any
-		err  error
 	}
 	tests := []struct {
 		name string
 		args args
 		want want
 	}{
-		{"one", args{"`test` = ?", []any{1}, nil}, want{"`test` = ?", []any{1}, nil}},
-		{"two", args{"`test` = ? AND test2 = ?", []any{1, 2}, nil}, want{"`test` = ? AND test2 = ?", []any{1, 2}, nil}},
-		{"three", args{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}, nil}, want{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}, nil}},
-		{"one_with_filter", args{"`test` = ?", []any{1}, &filterArgs{0, []any{Cond{"test": 1}}}}, want{"`test` = ?", []any{1}, fmt.Errorf(filterOrWhereError, "Filter")}},
-		{"one_with_exclude", args{"`test` = ?", []any{1}, &filterArgs{1, []any{Cond{"test": 1}}}}, want{"`test` = ?", []any{1}, fmt.Errorf(filterOrWhereError, "Exclude")}},
+		{"one", args{"`test` = ?", []any{1}}, want{" WHERE `test` = ?", []any{1}}},
+		{"two", args{"`test` = ? AND test2 = ?", []any{1, 2}}, want{" WHERE `test` = ? AND test2 = ?", []any{1, 2}}},
+		{"three", args{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}}, want{" WHERE test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewQuerySet(mysqlOp.NewOperator())
 			p.WhereToSQL(tt.args.cond, tt.args.args...)
-			if tt.args.filters != nil {
-				p.FilterToSQL(tt.args.filters.isNot, tt.args.filters.filter...)
-			}
 
 			sql, sqlArgs := p.GetQuerySet()
 
-			if !errors.Is(p.Error(), tt.want.err) && p.Error().Error() != tt.want.err.Error() {
-				t.Errorf("TestFilter SQL Occur Error -> error:%+v", p.Error())
-				return
-			}
-
-			wantSQL := " WHERE " + tt.want.sql
-			if sql != wantSQL {
+			if sql != tt.want.sql {
 				t.Errorf("TestFilter SQL Gen Error -> sql :%v", sql)
-				t.Errorf("TestFilter SQL Gen Error -> want:%v", wantSQL)
+				t.Errorf("TestFilter SQL Gen Error -> want:%v", tt.want.sql)
 			}
 
 			if len(sqlArgs) != len(tt.want.args) {
@@ -365,7 +573,131 @@ func TestWhere(t *testing.T) {
 	}
 }
 
+func TestWhereError(t *testing.T) {
+	type args struct {
+		cond string
+		args []any
+	}
+	type want struct {
+		sql  string
+		args []any
+		err  error
+	}
+	tests := []struct {
+		name string
+		args args
+		want want
+	}{
+		{"args num mismatch", args{"test = ? AND test2 = ? AND test3 = ?", []any{1, 2}}, want{"", []any{}, errors.New(argsLenError)}},
+		{"args num mismatch1", args{"test = ? AND test2 = ? AND test3 = ?", []any{1, 2, 3, 4}}, want{"", []any{}, errors.New(argsLenError)}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewQuerySet(mysqlOp.NewOperator())
+			p.WhereToSQL(tt.args.cond, tt.args.args...)
+
+			sql, sqlArgs := p.GetQuerySet()
+
+			if !errors.Is(p.Error(), tt.want.err) && p.Error().Error() != tt.want.err.Error() {
+				t.Errorf("TestFilter SQL Occur Error -> error:%+v", p.Error())
+				t.Errorf("TestFilter SQL Occur Error -> want:%+v", tt.want.err)
+			}
+
+			if sql != tt.want.sql {
+				t.Errorf("TestFilter SQL Gen Error -> sql :%v", sql)
+				t.Errorf("TestFilter SQL Gen Error -> want:%v", tt.want.sql)
+			}
+
+			if len(sqlArgs) != len(tt.want.args) {
+				t.Errorf("TestFilter Args Length Error -> len:%+v, want:%+v", len(sqlArgs), len(tt.want.args))
+				t.Errorf("TestFilter Args Length Error -> args:%+v", sqlArgs)
+				t.Errorf("TestFilter Args Length Error -> want:%+v", tt.want.args)
+			}
+
+			for i, a := range sqlArgs {
+				if !reflect.DeepEqual(a, tt.want.args[i]) {
+					t.Errorf("TestFilter Arg Value Error -> args:%+v", sqlArgs)
+					t.Errorf("TestFilter Arg Value Error -> want:%+v", tt.want.args)
+				}
+			}
+		})
+	}
+}
+
+func TestFilterAndWhereConflict(t *testing.T) {
+	p := NewQuerySet(mysqlOp.NewOperator())
+	p.WhereToSQL("test = ?", 1)
+	p.FilterToSQL(notNot, Cond{"test": 1})
+	if p.Error() == nil {
+		t.Error("Test Where Filter Conflict Not Occur Error")
+	} else if p.Error().Error() != fmt.Errorf(filterOrWhereError, "Filter").Error() {
+		t.Errorf("TestFilterAndExcludeConflict not working as expected")
+	}
+
+	p = NewQuerySet(mysqlOp.NewOperator())
+	p.WhereToSQL("test = ?", 1)
+	p.FilterToSQL(isNot, Cond{"test": 1})
+	if p.Error() == nil {
+		t.Error("Test Where Exclude Conflict Not Occur Error")
+	} else if p.Error().Error() != fmt.Errorf(filterOrWhereError, "Exclude").Error() {
+		t.Errorf("TestFilterAndExcludeConflict not working as expected")
+	}
+
+	p = NewQuerySet(mysqlOp.NewOperator())
+	p.FilterToSQL(notNot, Cond{"test": 1})
+	p.WhereToSQL("test = ?", 1)
+	if p.Error() == nil {
+		t.Error("Test Filter Where Conflict Not Occur Error")
+		return
+	} else if p.Error().Error() != fmt.Errorf(filterOrWhereError, "Filter").Error() {
+		t.Errorf("TestFilter SQL Occur Error -> error:%+v", p.Error().Error())
+		t.Errorf("TestFilter SQL Occur Error -> want:%+v", fmt.Errorf(filterOrWhereError, "Filter").Error())
+	}
+}
+
 func TestSelect(t *testing.T) {
+	type args struct {
+		selects any
+	}
+	type want struct {
+		sql string
+	}
+	tests := []struct {
+		name string
+		args args
+		want want
+	}{
+		{"blank string", args{""}, want{""}},
+		{"string", args{"test, test2 as test3"}, want{"test, test2 as test3"}},
+		{"zero slice", args{[]string{}}, want{"*"}},
+		{"one slice", args{[]string{"test"}}, want{"`test`"}},
+		{"two slice", args{[]string{"test", "test2"}}, want{"`test`, `test2`"}},
+		{"three slice", args{[]string{"test", "test2", "test3"}}, want{"`test`, `test2`, `test3`"}},
+		{"four slice", args{[]string{"test", "test2", "test3", "test4"}}, want{"`test`, `test2`, `test3`, `test4`"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewQuerySet(mysqlOp.NewOperator())
+
+			sql := p.GetSelectSQL()
+			if sql != "*" {
+				t.Errorf("TestSelect SQL Gen Error -> sql : %v", sql)
+				t.Errorf("TestSelect SQL Gen Error -> want: %v", "*")
+			}
+
+			p.SelectToSQL(tt.args.selects)
+			sql = p.GetSelectSQL()
+
+			if sql != tt.want.sql {
+				t.Errorf("TestSelect SQL Gen Error -> sql : %v", sql)
+				t.Errorf("TestSelect SQL Gen Error -> want: %v", tt.want.sql)
+			}
+		})
+	}
+}
+
+func TestSelectError(t *testing.T) {
 	type args struct {
 		selects any
 	}
@@ -378,20 +710,16 @@ func TestSelect(t *testing.T) {
 		args args
 		want want
 	}{
-		{"blank string", args{""}, want{sql: "", err: nil}},
-		{"string", args{"test, test2 as test3"}, want{sql: "test, test2 as test3", err: nil}},
-		{"zero slice", args{[]string{}}, want{sql: "*", err: nil}},
-		{"one slice", args{[]string{"test"}}, want{sql: "`test`", err: nil}},
-		{"two slice", args{[]string{"test", "test2"}}, want{sql: "`test`, `test2`", err: nil}},
-		{"three slice", args{[]string{"test", "test2", "test3"}}, want{sql: "`test`, `test2`, `test3`", err: nil}},
-		{"four slice", args{[]string{"test", "test2", "test3", "test4"}}, want{sql: "`test`, `test2`, `test3`, `test4`", err: nil}},
-		//{"as in slice", args{[]string{"test as test1"}}, want{sql: "`test` as `test1`", err: nil}},
-		//{"two as in slice", args{[]string{"test as test1", "testa as test2"}}, want{sql: "`test` as `test1`, `testa` as `test2`", err: nil}},
-		//{"mix in slice", args{[]string{"test as test1", "test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
-		//{"excess space in slice", args{[]string{"test as test1", " test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
-		//{"excess space in slice 2", args{[]string{"test as  test1", " test2"}}, want{sql: "`test` as `test1`, `test2`", err: nil}},
-		//{"DISTINCT in slice 2", args{[]string{"DISTINCT test1", " test2"}}, want{sql: "DISTINCT `test1`, `test2`", err: nil}},
 		{"array", args{[1]string{"test"}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
+		{"array", args{123}, want{sql: "`test`", err: errors.New(paramTypeError)}},
+		{"array", args{[]int{1, 2}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
+		{"array", args{map[string]int{"test": 1}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
+		{"array", args{map[int]string{1: "test"}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
+		{"array", args{map[bool]string{true: "test"}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
+		{"array", args{map[string]bool{"test": true}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
+		{"array", args{map[string]any{"test": 1}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
+		{"array", args{map[string]any{"test": "test"}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
+		{"array", args{map[string]any{"test": 1.0}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -541,6 +869,7 @@ func TestOrderBy(t *testing.T) {
 		args args
 		want want
 	}{
+		{"one_asc ", args{[]string{}}, want{""}},
 		{"one_asc ", args{[]string{"test"}}, want{" ORDER BY `test` ASC"}},
 		{"two_asc ", args{[]string{"test", "test2"}}, want{" ORDER BY `test` ASC, `test2` ASC"}},
 		{"three_asc ", args{[]string{"test", "test2", "test3"}}, want{" ORDER BY `test` ASC, `test2` ASC, `test3` ASC"}},
@@ -571,6 +900,15 @@ func TestOrderBy(t *testing.T) {
 				t.Errorf("TestOrderBy SQL Gen Error -> want:%v", tt.want.sql)
 			}
 		})
+	}
+}
+
+func TestOrderByError(t *testing.T) {
+	p := NewQuerySet(mysqlOp.NewOperator())
+	p.OrderByToSQL(123)
+
+	if p.Error() == nil || p.Error().Error() != paramTypeError {
+		t.Errorf("TestOrderByError not working as expected")
 	}
 }
 
@@ -648,8 +986,312 @@ func TestHaving(t *testing.T) {
 
 			if !reflect.DeepEqual(sqlArgs, tt.want.havingArgs) {
 				t.Errorf("TestHaving SQL Gen Error -> args :%v", sqlArgs)
-				t.Errorf("TestHaving SQL Gen Error -> want:%v", tt.want.havingArgs)
+				t.Errorf("TestHaving SQL Gen Error -> want:%+v", tt.want.havingArgs)
 			}
 		})
 	}
 }
+
+func TestGroupByError(t *testing.T) {
+	p := NewQuerySet(mysqlOp.NewOperator())
+	p.GroupByToSQL(123)
+
+	if p.Error() == nil || p.Error().Error() != paramTypeError {
+		t.Errorf("TestGroupByError not working as expected")
+	}
+}
+
+func TestEmptyFilters(t *testing.T) {
+	p := NewQuerySet(mysqlOp.NewOperator())
+	p = p.FilterToSQL(notNot)
+	sql, args := p.GetQuerySet()
+
+	if p.Error() != nil {
+		t.Errorf("TestEmptyFilters SQL Occur Error -> error:%+v", p.Error())
+	}
+
+	if sql != "" {
+		t.Errorf("TestEmptyFilters SQL should be empty, got: %s", sql)
+	}
+
+	if len(args) != 0 {
+		t.Errorf("TestEmptyFilters Args should be empty, got: %v", args)
+	}
+}
+
+func TestInvalidIsNot(t *testing.T) {
+	p := NewQuerySet(mysqlOp.NewOperator())
+	p = p.FilterToSQL(2, Cond{"test": 1}) // 2 is invalid for isNot
+	p.GetQuerySet()
+
+	if p.Error() == nil || p.Error().Error() != isNotValueError {
+		t.Errorf("TestInvalidIsNot not working as expected")
+		t.Errorf("want: %s", isNotValueError)
+		t.Errorf("get : %s", p.Error())
+	}
+}
+
+func TestFilterResetAndError(t *testing.T) {
+	p := NewQuerySet(mysqlOp.NewOperator())
+
+	// Create an error
+	p.SelectToSQL(123)
+	if p.Error() == nil {
+		t.Errorf("Error should be set")
+	}
+
+	// Reset should clear the error
+	p.Reset()
+	if p.Error() != nil {
+		t.Errorf("Error should be nil after Reset, got: %v", p.Error())
+	}
+
+	// After reset, functions should work properly
+	p.FilterToSQL(notNot, Cond{"test": 1})
+	sql, args := p.GetQuerySet()
+
+	if sql != " WHERE (`test` = ?)" || len(args) != 1 || args[0] != 1 {
+		t.Errorf("FilterToSQL not working after Reset")
+	}
+}
+
+func TestComplexFilterCombinations(t *testing.T) {
+	type args struct {
+		isNot  int
+		filter []any
+	}
+	type want struct {
+		sql  string
+		args []any
+	}
+	tests := []struct {
+		name string
+		args args
+		want want
+	}{
+		{
+			"complex_nested_conditions",
+			args{0, []any{
+				Cond{"test1": 1},
+				AND{SortKey: []string{"test2", "test3"}, "test2": 2, "test3__contains": "val"},
+				OR{"test4__in": []int{4, 5, 6}},
+			}},
+			want{
+				" WHERE ((`test1` = ?) AND (`test2` = ? AND `test3` LIKE BINARY ?) OR (`test4` IN (?,?,?)))",
+				[]any{1, 2, "%val%", 4, 5, 6},
+			},
+		},
+		{
+			"mixed_operators_with_not",
+			args{1, []any{
+				Cond{"test1__gt": 10},
+				OR{"test2__contains": "search"},
+				AND{"test3__between": []int{20, 30}},
+			}},
+			want{
+				" WHERE NOT ((`test1` > ?) OR (`test2` LIKE BINARY ?) AND (`test3` BETWEEN ? AND ?))",
+				[]any{10, "%search%", 20, 30},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewQuerySet(mysqlOp.NewOperator())
+			p = p.FilterToSQL(tt.args.isNot, tt.args.filter...)
+			sql, sqlArgs := p.GetQuerySet()
+
+			if p.Error() != nil {
+				t.Errorf("TestComplexFilterCombinations SQL Occur Error -> error:%+v", p.Error())
+			}
+
+			wantSQL := tt.want.sql
+			if sql != wantSQL {
+				t.Errorf("TestComplexFilterCombinations SQL Gen Error -> sql : %v", sql)
+				t.Errorf("TestComplexFilterCombinations SQL Gen Error -> want: %v", wantSQL)
+			}
+
+			if len(sqlArgs) != len(tt.want.args) {
+				t.Errorf("TestComplexFilterCombinations Args Length Error -> len:%+v, want:%+v", len(sqlArgs), len(tt.want.args))
+				t.Errorf("TestComplexFilterCombinations Args Length Error -> args:%+v", sqlArgs)
+				t.Errorf("TestComplexFilterCombinations Args Length Error -> want:%+v", tt.want.args)
+			}
+		})
+	}
+}
+
+// Test that multiple call flags are properly set
+func TestMultipleCallFlags(t *testing.T) {
+	p := NewQuerySet(mysqlOp.NewOperator()).(*QuerySetImpl)
+
+	// Test initial state
+	if p.hasCalled(callFilter) || p.hasCalled(callExclude) || p.hasCalled(callWhere) {
+		t.Errorf("Initial call flags should be unset")
+	}
+
+	// Test filter flag
+	p.FilterToSQL(notNot, Cond{"test": 1})
+	if !p.hasCalled(callFilter) {
+		t.Errorf("callFilter flag should be set")
+	}
+
+	// Reset and test exclude flag
+	p.Reset()
+	p.FilterToSQL(isNot, Cond{"test": 1})
+	if !p.hasCalled(callExclude) {
+		t.Errorf("callExclude flag should be set")
+	}
+
+	// Reset and test where flag
+	p.Reset()
+	p.WhereToSQL("test = ?", 1)
+	if !p.hasCalled(callWhere) {
+		t.Errorf("callWhere flag should be set")
+	}
+
+	// Test multiple flags
+	p.Reset()
+	p.SelectToSQL("test")
+	p.OrderByToSQL("test")
+	p.LimitToSQL(10, 1)
+	p.GroupByToSQL("test")
+	p.HavingToSQL("test = ?", 1)
+
+	if !p.hasCalled(callSelect) || !p.hasCalled(callOrderBy) ||
+		!p.hasCalled(callLimit) || !p.hasCalled(callGroupBy) ||
+		!p.hasCalled(callHaving) {
+		t.Errorf("Multiple call flags were not set correctly")
+	}
+}
+
+func TestEmptyConditionsList(t *testing.T) {
+	p := NewQuerySet(mysqlOp.NewOperator())
+
+	// Add an empty filter condition
+	p.FilterToSQL(notNot, Cond{})
+	sql, args := p.GetQuerySet()
+
+	if sql != "" || len(args) != 0 {
+		t.Errorf("Empty condition should result in empty SQL, got: %s", sql)
+	}
+}
+
+func TestConditionalExpressionHandling(t *testing.T) {
+	tests := []struct {
+		name string
+		fn   func(p QuerySet) QuerySet
+		want string
+	}{
+		{
+			"select_column_empty",
+			func(p QuerySet) QuerySet {
+				return p.SelectToSQL("")
+			},
+			"",
+		},
+		{
+			"select_column_explicit_asterisk",
+			func(p QuerySet) QuerySet {
+				return p.SelectToSQL("*")
+			},
+			"*",
+		},
+		{
+			"group_by_empty_slice",
+			func(p QuerySet) QuerySet {
+				return p.GroupByToSQL([]string{})
+			},
+			"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewQuerySet(mysqlOp.NewOperator())
+			result := tt.fn(p)
+
+			if p.Error() != nil {
+				t.Errorf("Error should be nil, got: %v", p.Error())
+			}
+
+			var got string
+			if strings.Contains(tt.name, "select") {
+				got = result.GetSelectSQL()
+			} else if strings.Contains(tt.name, "group") {
+				got = result.GetGroupBySQL()
+			}
+
+			if got != tt.want {
+				t.Errorf("Expected result %q, got %q", tt.want, got)
+			}
+		})
+	}
+}
+
+func TestGetHavingSQL(t *testing.T) {
+	tests := []struct {
+		name     string
+		query    string
+		args     []any
+		want     string
+		wantArgs []any
+	}{
+		{"empty_having", "", nil, "", []any{}},
+		{"simple_having", "SUM(test) > ?", []any{100}, " HAVING SUM(test) > ?", []any{100}},
+		{"complex_having", "AVG(test) BETWEEN ? AND ?", []any{10, 20}, " HAVING AVG(test) BETWEEN ? AND ?", []any{10, 20}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewQuerySet(mysqlOp.NewOperator())
+			if tt.query != "" {
+				p.HavingToSQL(tt.query, tt.args...)
+			}
+
+			sql, args := p.GetHavingSQL()
+
+			if sql != tt.want {
+				t.Errorf("GetHavingSQL() SQL = %v, want %v", sql, tt.want)
+			}
+
+			if !reflect.DeepEqual(args, tt.wantArgs) {
+				t.Errorf("GetHavingSQL() args = %v, want %v", args, tt.wantArgs)
+			}
+		})
+	}
+}
+
+// Test case for handling empty filter conditions within a filter call
+// func TestEmptyFiltersInMiddle(t *testing.T) {
+// 	p := NewQuerySet(mysqlOp.NewOperator())
+// 	p = p.FilterToSQL(notNot, Cond{"test1": 1}, Cond{}, Cond{"test3": 3})
+// 	sql, args := p.GetQuerySet()
+
+// 	// Should ignore empty filter
+// 	expectedSQL := " WHERE ((`test1` = ?) AND (`test3` = ?))"
+// 	expectedArgs := []any{1, 3}
+
+// 	if sql != expectedSQL {
+// 		t.Errorf("TestEmptyFiltersInMiddle SQL = %v, want %v", sql, expectedSQL)
+// 	}
+
+// 	if !reflect.DeepEqual(args, expectedArgs) {
+// 		t.Errorf("TestEmptyFiltersInMiddle args = %v, want %v", args, expectedArgs)
+// 	}
+// }
+
+// // Test behavior when SQL contains multiple filters but all are empty
+// func TestAllEmptyFilters(t *testing.T) {
+// 	p := NewQuerySet(mysqlOp.NewOperator())
+// 	p = p.FilterToSQL(notNot, Cond{}, AND{}, OR{})
+// 	sql, args := p.GetQuerySet()
+
+// 	// Should result in empty SQL
+// 	if sql != "" {
+// 		t.Errorf("TestAllEmptyFilters SQL should be empty, got: %v", sql)
+// 	}
+
+// 	if len(args) != 0 {
+// 		t.Errorf("TestAllEmptyFilters args should be empty, got: %v", args)
+// 	}
+// }
