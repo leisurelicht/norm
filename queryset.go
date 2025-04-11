@@ -18,14 +18,15 @@ const (
 )
 
 const (
-	_exact       = "exact"
-	_exclude     = "exclude"
-	_iexact      = "iexact"
-	_gt          = "gt"
-	_gte         = "gte"
-	_lt          = "lt"
-	_lte         = "lte"
-	_len         = "len"
+	_exact   = "exact"
+	_exclude = "exclude"
+	_iexact  = "iexact"
+	_gt      = "gt"
+	_gte     = "gte"
+	_lt      = "lt"
+	_lte     = "lte"
+	_len     = "len"
+
 	_in          = "in"
 	_between     = "between"
 	_contains    = "contains"
@@ -34,6 +35,8 @@ const (
 	_istartswith = "istartswith"
 	_endswith    = "endswith"
 	_iendswith   = "iendswith"
+
+	_isNull = "is_null"
 )
 
 const (
@@ -311,6 +314,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 	}
 
 	for fieldLookup, filedValue := range filter {
+		fmt.Printf("0 k: %s, v: %+v\n", fieldLookup, filedValue)
 		if strings.HasPrefix(fieldLookup, orPrefix) {
 			fieldLookup = strings.TrimPrefix(fieldLookup, orPrefix)
 			andOrFlag = orTag
@@ -349,7 +353,15 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 		valueOf := reflect.ValueOf(filedValue)
 		valueKind := valueOf.Kind()
 		switch operator {
-		case _exact, _exclude, _iexact:
+		case _exact:
+			if filedValue == nil {
+				// should generate sql like "fieldName IS NULL"
+				filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(p.OperatorSQL(_isNull), fieldName), []any{})
+				break
+			}
+			// the value arrived here is not nil, so go to the next case for processing
+			fallthrough
+		case _exclude, _iexact:
 			if isStringKind(valueKind) || isBoolKind(valueKind) || isNumericKind(valueKind) {
 				filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(op, fieldName), []any{filedValue})
 			} else if isListKind(valueKind) {
@@ -363,7 +375,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 					sql = "(" + sql + ")"
 				}
 				args := make([]any, valueOf.Len())
-				for i := 0; i < valueOf.Len(); i++ {
+				for i := range valueOf.Len() {
 					args[i] = valueOf.Index(i).Interface()
 				}
 				filterConds[fieldName] = fCond.SetSQL(sql, args)

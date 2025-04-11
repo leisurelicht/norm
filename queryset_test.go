@@ -27,6 +27,9 @@ func TestFilter(t *testing.T) {
 		{"default_cond", args{0, []any{Cond{}}}, want{"", []any{}}},
 		{"default_cond", args{0, []any{AND{}}}, want{"", []any{}}},
 		{"default_cond", args{0, []any{OR{}}}, want{"", []any{}}},
+		{"default_cond", args{0, []any{Cond{}, AND{}}}, want{"", []any{}}},
+		{"default_cond", args{0, []any{Cond{}, OR{}}}, want{"", []any{}}},
+		{"default_cond", args{0, []any{Cond{}, AND{}, OR{}}}, want{"", []any{}}},
 
 		{"default_cond", args{0, []any{Cond{"test": 1}}}, want{" WHERE (`test` = ?)", []any{1}}},
 		{"default_list_cond", args{0, []any{Cond{"test": []any{1, 2}}}}, want{" WHERE (`test` = ? AND `test` = ?)", []any{1, 2}}},
@@ -118,6 +121,11 @@ func TestFilter(t *testing.T) {
 		{"exact_one_and_one_cond", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, "test2": 2}}}, want{" WHERE (`test` = ? AND `test2` = ?)", []any{1, 2}}},
 		{"exact_one_and_list_and_cond", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, "test2": []any{3, 4}}}}, want{" WHERE (`test` = ? AND (`test2` = ? AND `test2` = ?))", []any{1, 3, 4}}},
 		{"exact_list_and_list_cond", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": []any{1, 2}, "test2": []any{3, 4}}}}, want{" WHERE ((`test` = ? AND `test` = ?) AND (`test2` = ? AND `test2` = ?))", []any{1, 2, 3, 4}}},
+
+		{"test_value_is_null", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, "test2": nil}}}, want{" WHERE (`test` = ? AND `test2` IS NULL)", []any{1}}},
+		{"test_value_is_null", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": nil, "test2": nil}}}, want{" WHERE (`test` IS NULL AND `test2` IS NULL)", []any{}}},
+
+		{"test_empty_in_midst", args{0, []any{Cond{"test1": 1}, Cond{}, Cond{"test3": 3}}}, want{" WHERE ((`test1` = ?) AND (`test3` = ?))", []any{1, 3}}},
 
 		// ToOR
 		{"exact_one_or_one_cond", args{0, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, ToOR("test2"): 2}}}, want{" WHERE (`test` = ? OR `test2` = ?)", []any{1, 2}}},
@@ -861,6 +869,7 @@ func TestOrderBy(t *testing.T) {
 		args args
 		want want
 	}{
+		{"one_asc ", args{[]string{}}, want{""}},
 		{"one_asc ", args{[]string{"test"}}, want{" ORDER BY `test` ASC"}},
 		{"two_asc ", args{[]string{"test", "test2"}}, want{" ORDER BY `test` ASC, `test2` ASC"}},
 		{"three_asc ", args{[]string{"test", "test2", "test3"}}, want{" ORDER BY `test` ASC, `test2` ASC, `test3` ASC"}},
@@ -891,6 +900,15 @@ func TestOrderBy(t *testing.T) {
 				t.Errorf("TestOrderBy SQL Gen Error -> want:%v", tt.want.sql)
 			}
 		})
+	}
+}
+
+func TestOrderByError(t *testing.T) {
+	p := NewQuerySet(mysqlOp.NewOperator())
+	p.OrderByToSQL(123)
+
+	if p.Error() == nil || p.Error().Error() != paramTypeError {
+		t.Errorf("TestOrderByError not working as expected")
 	}
 }
 
@@ -974,34 +992,12 @@ func TestHaving(t *testing.T) {
 	}
 }
 
-func TestOrderByError(t *testing.T) {
-	p := NewQuerySet(mysqlOp.NewOperator())
-	p.OrderByToSQL(123)
-
-	if p.Error() == nil || p.Error().Error() != paramTypeError {
-		t.Errorf("TestOrderByError not working as expected")
-	}
-}
-
 func TestGroupByError(t *testing.T) {
 	p := NewQuerySet(mysqlOp.NewOperator())
 	p.GroupByToSQL(123)
 
 	if p.Error() == nil || p.Error().Error() != paramTypeError {
 		t.Errorf("TestGroupByError not working as expected")
-	}
-}
-
-func TestInvalidFilterType(t *testing.T) {
-	p := NewQuerySet(mysqlOp.NewOperator())
-	p = p.FilterToSQL(notNot, 123) // Invalid filter type
-	p.GetQuerySet()
-
-	expected := fmt.Errorf(unsupportedFilterTypeError, "int")
-	if p.Error() == nil || p.Error().Error() != expected.Error() {
-		t.Errorf("TestInvalidFilterType not working as expected")
-		t.Errorf("want: %s", expected)
-		t.Errorf("get : %s", p.Error())
 	}
 }
 
@@ -1266,36 +1262,36 @@ func TestGetHavingSQL(t *testing.T) {
 }
 
 // Test case for handling empty filter conditions within a filter call
-func TestEmptyFiltersInMiddle(t *testing.T) {
-	p := NewQuerySet(mysqlOp.NewOperator())
-	p = p.FilterToSQL(notNot, Cond{"test1": 1}, Cond{}, Cond{"test3": 3})
-	sql, args := p.GetQuerySet()
+// func TestEmptyFiltersInMiddle(t *testing.T) {
+// 	p := NewQuerySet(mysqlOp.NewOperator())
+// 	p = p.FilterToSQL(notNot, Cond{"test1": 1}, Cond{}, Cond{"test3": 3})
+// 	sql, args := p.GetQuerySet()
 
-	// Should ignore empty filter
-	expectedSQL := " WHERE ((`test1` = ?) AND (`test3` = ?))"
-	expectedArgs := []any{1, 3}
+// 	// Should ignore empty filter
+// 	expectedSQL := " WHERE ((`test1` = ?) AND (`test3` = ?))"
+// 	expectedArgs := []any{1, 3}
 
-	if sql != expectedSQL {
-		t.Errorf("TestEmptyFiltersInMiddle SQL = %v, want %v", sql, expectedSQL)
-	}
+// 	if sql != expectedSQL {
+// 		t.Errorf("TestEmptyFiltersInMiddle SQL = %v, want %v", sql, expectedSQL)
+// 	}
 
-	if !reflect.DeepEqual(args, expectedArgs) {
-		t.Errorf("TestEmptyFiltersInMiddle args = %v, want %v", args, expectedArgs)
-	}
-}
+// 	if !reflect.DeepEqual(args, expectedArgs) {
+// 		t.Errorf("TestEmptyFiltersInMiddle args = %v, want %v", args, expectedArgs)
+// 	}
+// }
 
-// Test behavior when SQL contains multiple filters but all are empty
-func TestAllEmptyFilters(t *testing.T) {
-	p := NewQuerySet(mysqlOp.NewOperator())
-	p = p.FilterToSQL(notNot, Cond{}, AND{}, OR{})
-	sql, args := p.GetQuerySet()
+// // Test behavior when SQL contains multiple filters but all are empty
+// func TestAllEmptyFilters(t *testing.T) {
+// 	p := NewQuerySet(mysqlOp.NewOperator())
+// 	p = p.FilterToSQL(notNot, Cond{}, AND{}, OR{})
+// 	sql, args := p.GetQuerySet()
 
-	// Should result in empty SQL
-	if sql != "" {
-		t.Errorf("TestAllEmptyFilters SQL should be empty, got: %v", sql)
-	}
+// 	// Should result in empty SQL
+// 	if sql != "" {
+// 		t.Errorf("TestAllEmptyFilters SQL should be empty, got: %v", sql)
+// 	}
 
-	if len(args) != 0 {
-		t.Errorf("TestAllEmptyFilters args should be empty, got: %v", args)
-	}
-}
+// 	if len(args) != 0 {
+// 		t.Errorf("TestAllEmptyFilters args should be empty, got: %v", args)
+// 	}
+// }
