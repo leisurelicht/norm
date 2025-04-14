@@ -7,9 +7,6 @@ import (
 	"log"
 	"reflect"
 	"strings"
-
-	"github.com/zeromicro/go-zero/core/stores/builder"
-	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
 const (
@@ -51,7 +48,6 @@ type (
 		validateColumns(columns []string) (validatedColumns []string, err error)
 		setError(format string, a ...any)
 		haveError() error
-		WithSession(session sqlx.Session) Controller
 		Reset() Controller
 		Filter(filter ...any) Controller
 		Exclude(exclude ...any) Controller
@@ -83,35 +79,20 @@ type (
 	}
 
 	Impl struct {
-		context      context.Context
-		conn         any
-		model        any
-		modelSlice   any
-		operator     Operator
-		tableName    string
-		fieldNameMap map[string]struct{}
-		fieldRows    string
-		mTag         string
-		qs           QuerySet
-		called       callFlag
+		context        context.Context
+		conn           any
+		model          any
+		modelSlice     any
+		operator       Operator
+		tableName      string
+		fieldNameMap   map[string]struct{}
+		fieldNameSlice []string
+		fieldRows      string
+		mTag           string
+		qs             QuerySet
+		called         callFlag
 	}
 )
-
-// shiftName shift name like DevicePolicyMap to device_policy_map
-func shiftName(s string) string {
-	res := ""
-	for i, c := range s {
-		if c >= 'A' && c <= 'Z' {
-			if i != 0 {
-				res += "_"
-			}
-			res += string(c + 32)
-		} else {
-			res += string(c)
-		}
-	}
-	return "`" + res + "`"
-}
 
 func NewController(conn any, op Operator, m any) func(ctx context.Context) Controller {
 	t := reflect.TypeOf(m)
@@ -121,23 +102,25 @@ func NewController(conn any, op Operator, m any) func(ctx context.Context) Contr
 	}
 
 	mPtr, mSlicePtr := CreatePointerAndSlice(m)
+	fieldNameSlice := rawFieldNames(m, true)
 
 	return func(ctx context.Context) Controller {
 		if ctx == nil {
 			ctx = context.Background()
 		}
 		return &Impl{
-			context:      ctx,
-			conn:         conn,
-			model:        mPtr,
-			modelSlice:   mSlicePtr,
-			operator:     op,
-			tableName:    shiftName(t.Name()),
-			fieldNameMap: StrSlice2Map(builder.RawFieldNames(m, true)),
-			fieldRows:    strings.Join(builder.RawFieldNames(m), ","),
-			mTag:         DefaultModelTag,
-			qs:           NewQuerySet(op),
-			called:       0,
+			context:        ctx,
+			conn:           conn,
+			model:          mPtr,
+			modelSlice:     mSlicePtr,
+			operator:       op,
+			tableName:      shiftName(t.Name()),
+			fieldNameMap:   StrSlice2Map(fieldNameSlice),
+			fieldNameSlice: fieldNameSlice,
+			fieldRows:      strings.Join(rawFieldNames(m, false), ","),
+			mTag:           DefaultModelTag,
+			qs:             NewQuerySet(op),
+			called:         0,
 		}
 	}
 }
@@ -190,11 +173,6 @@ func (m *Impl) haveError() error {
 		return err
 	}
 	return nil
-}
-
-func (m *Impl) WithSession(session sqlx.Session) Controller {
-	m.conn = sqlx.NewSqlConnFromSession(session)
-	return m
 }
 
 func (m *Impl) Reset() Controller {
@@ -359,7 +337,7 @@ func (m *Impl) Insert(data map[string]any) (id int64, err error) {
 		args []any
 	)
 
-	for k := range m.fieldNameMap {
+	for _, k := range m.fieldNameSlice {
 		if _, ok := data[k]; !ok {
 			continue
 		}
@@ -398,7 +376,7 @@ func (m *Impl) BulkInsert(data []map[string]any) (err error) {
 		args []string
 	)
 
-	for k := range m.fieldNameMap {
+	for _, k := range m.fieldNameSlice {
 		if _, ok := data[0][k]; !ok {
 			continue
 		}

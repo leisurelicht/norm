@@ -92,7 +92,7 @@ func StructSlice2MapSlice(obj any, tag string) []map[string]any {
 	return data
 }
 
-func CreatePointerAndSlice(input interface{}) (interface{}, interface{}) {
+func CreatePointerAndSlice(input any) (any, any) {
 	// 获取输入值的反射值
 	inputValue := reflect.ValueOf(input)
 
@@ -220,15 +220,6 @@ func DeepCopy(src any) (any, error) {
 	return src, nil
 }
 
-// StrSlice2Map convert string slice to map
-func StrSlice2Map(s []string) (res map[string]struct{}) {
-	res = make(map[string]struct{})
-	for _, e := range s {
-		res[e] = struct{}{}
-	}
-	return res
-}
-
 // 用反引号包裹字段
 func wrapWithBackticks(str string) string {
 	// 如果已经被包裹，不做修改
@@ -270,4 +261,82 @@ func processSQL(sqlParts []string, isKeyWord func(word string) bool) string {
 	}
 
 	return result.String()
+}
+
+// StrSlice2Map convert string slice to map
+func StrSlice2Map(s []string) (res map[string]struct{}) {
+	res = make(map[string]struct{})
+	for _, e := range s {
+		res[e] = struct{}{}
+	}
+	return res
+}
+
+func rawFieldNames(in any, pg bool) []string {
+	v := reflect.ValueOf(in)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	// we only accept structs
+	if v.Kind() != reflect.Struct {
+		panic(fmt.Errorf("ToMap only accepts structs; got %T", v))
+	}
+
+	out := make([]string, 0, v.NumField())
+
+	typ := v.Type()
+	for i := 0; i < v.NumField(); i++ {
+		// gets us a StructField
+		fi := typ.Field(i)
+		tagv := fi.Tag.Get(DefaultModelTag)
+		switch tagv {
+		case "-":
+			continue
+		case "":
+			if pg {
+				out = append(out, fi.Name)
+			} else {
+				out = append(out, fmt.Sprintf("`%s`", fi.Name))
+			}
+		default:
+			// get tag name with the tag option, e.g.:
+			// `db:"id"`
+			// `db:"id,type=char,length=16"`
+			// `db:",type=char,length=16"`
+			// `db:"-,type=char,length=16"`
+			if strings.Contains(tagv, ",") {
+				tagv = strings.TrimSpace(strings.Split(tagv, ",")[0])
+			}
+			if tagv == "-" {
+				continue
+			}
+			if len(tagv) == 0 {
+				tagv = fi.Name
+			}
+			if pg {
+				out = append(out, tagv)
+			} else {
+				out = append(out, fmt.Sprintf("`%s`", tagv))
+			}
+		}
+	}
+
+	return out
+}
+
+// shiftName shift name like DevicePolicyMap to device_policy_map
+func shiftName(s string) string {
+	res := ""
+	for i, c := range s {
+		if c >= 'A' && c <= 'Z' {
+			if i != 0 {
+				res += "_"
+			}
+			res += string(c + 32)
+		} else {
+			res += string(c)
+		}
+	}
+	return "`" + res + "`"
 }
