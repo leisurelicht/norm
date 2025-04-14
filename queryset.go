@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+type callFlag int64
+
 const (
 	defaultOuterFilterCondsLen = 10
 	defaultInnerFilterCondsLen = 10
@@ -59,6 +61,17 @@ const (
 )
 
 const (
+	callFilter callFlag = 1 << iota
+	callExclude
+	callWhere
+	callOrderBy
+	callLimit
+	callSelect
+	callGroupBy
+	callHaving
+)
+
+const (
 	notNot, isNot                      = 0, 1
 	andTag, orTag, andNotTag, orNotTag = 0, 1, 2, 3
 )
@@ -73,19 +86,6 @@ var (
 		reflect.TypeOf(AND{}):  andTag,
 		reflect.TypeOf(OR{}):   orTag,
 	}
-)
-
-type callFlag int64
-
-const (
-	callFilter callFlag = 1 << iota
-	callExclude
-	callWhere
-	callOrderBy
-	callLimit
-	callSelect
-	callGroupBy
-	callHaving
 )
 
 type cond struct {
