@@ -226,11 +226,7 @@ func (p *QuerySetImpl) GetQuerySet() (sql string, args []any) {
 
 	args = make([]any, 0, totalConditions*2) // Estimate arg count
 
-	for i, filterList := range p.filterConds {
-		if len(filterList) == 0 {
-			continue
-		}
-
+	for i, condList := range p.filterConds {
 		// Add conjunction between filter groups
 		if i > 0 {
 			outerSQL.WriteString(" ")
@@ -240,17 +236,17 @@ func (p *QuerySetImpl) GetQuerySet() (sql string, args []any) {
 
 		// Check if this is a NOT condition by examining the first filter in the group
 		// The isNot flag affects the entire filter group
-		isNot := strings.Contains(filterList[0].Conj, "NOT")
+		isNot := strings.Contains(condList[0].Conj, "NOT")
 		if isNot {
 			outerSQL.WriteString("NOT ")
 		}
 
 		// Single condition doesn't need inner parentheses
-		if len(filterList) == 1 {
+		if len(condList) == 1 {
 			outerSQL.WriteString("(")
-			outerSQL.WriteString(filterList[0].SQL)
+			outerSQL.WriteString(condList[0].SQL)
 			outerSQL.WriteString(")")
-			args = append(args, filterList[0].Args...)
+			args = append(args, condList[0].Args...)
 			continue
 		}
 
@@ -259,12 +255,12 @@ func (p *QuerySetImpl) GetQuerySet() (sql string, args []any) {
 
 		// First condition
 		outerSQL.WriteString("(")
-		outerSQL.WriteString(filterList[0].SQL)
+		outerSQL.WriteString(condList[0].SQL)
 		outerSQL.WriteString(")")
-		args = append(args, filterList[0].Args...)
+		args = append(args, condList[0].Args...)
 
 		// Remaining conditions with their conjunctions
-		for _, filter := range filterList[1:] {
+		for _, filter := range condList[1:] {
 			// Extract the base conjunction without NOT suffix for inner conditions
 			baseConj := filter.Conj
 			if isNot {
