@@ -148,15 +148,6 @@ func isListKind(kind reflect.Kind) bool {
 	return kind == reflect.Slice || kind == reflect.Array
 }
 
-// func indexConjunctions(conj string) int {
-// 	for i, v := range conjunctions {
-// 		if strings.ToUpper(conj) == v {
-// 			return i
-// 		}
-// 	}
-// 	return -1
-// }
-
 func genStrListValueLikeSQL(p *QuerySetImpl, filterConditions map[string]*cond, fieldName string, valueOf reflect.Value, notFlag int, operator, valueFormat string) {
 	op := p.OperatorSQL(operator)
 
