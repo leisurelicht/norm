@@ -314,7 +314,6 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 	}
 
 	for fieldLookup, filedValue := range filter {
-		fmt.Printf("0 k: %s, v: %+v\n", fieldLookup, filedValue)
 		if strings.HasPrefix(fieldLookup, orPrefix) {
 			fieldLookup = strings.TrimPrefix(fieldLookup, orPrefix)
 			andOrFlag = orTag
