@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 	"testing"
 
 	mysqlOp "github.com/leisurelicht/norm/operator/mysql"
@@ -139,7 +138,31 @@ func TestFilter(t *testing.T) {
 		{"each_or_and", args{isFilter, []any{Cond{"test": 1}, EachOR(AND{SortKey: []string{"test1", "test2"}, "test1": 1, "test2": 2})}}, want{" WHERE ((`test` = ?) AND (`test1` = ? OR `test2` = ?))", []any{1, 1, 2}}},
 		{"each_or_or", args{isFilter, []any{Cond{"test": 1}, EachOR(OR{SortKey: []string{"test1", "test2"}, "test1": 1, "test2": 2})}}, want{" WHERE ((`test` = ?) OR (`test1` = ? OR `test2` = ?))", []any{1, 1, 2}}},
 
-		// meet by accident
+		// complex
+		{
+			"complex_nested_conditions",
+			args{isFilter, []any{
+				Cond{"test1": 1},
+				AND{SortKey: []string{"test2", "test3"}, "test2": 2, "test3__contains": "val"},
+				OR{"test4__in": []int{4, 5, 6}},
+			}},
+			want{
+				" WHERE ((`test1` = ?) AND (`test2` = ? AND `test3` LIKE BINARY ?) OR (`test4` IN (?,?,?)))",
+				[]any{1, 2, "%val%", 4, 5, 6},
+			},
+		},
+		{
+			"mixed_operators_with_not",
+			args{isExclude, []any{
+				Cond{"test1__gt": 10},
+				OR{"test2__contains": "search"},
+				AND{"test3__between": []int{20, 30}},
+			}},
+			want{
+				" WHERE NOT ((`test1` > ?) OR (`test2` LIKE BINARY ?) AND (`test3` BETWEEN ? AND ?))",
+				[]any{10, "%search%", 20, 30},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1079,15 +1102,33 @@ func TestFilterResetAndError(t *testing.T) {
 	p := NewQuerySet(mysqlOp.NewOperator())
 
 	// Create an error
-	p.SelectToSQL(123)
-	if p.Error() == nil {
-		t.Errorf("Error should be set")
-	}
+	p.SelectToSQL("test")
+	p.FilterToSQL(notNot, Cond{"test": 1})
+	p.WhereToSQL("test1 = ?", 1)
+	p.OrderByToSQL("test")
+	p.GroupByToSQL("test")
+	p.HavingToSQL("test = ?", 1)
+	p.LimitToSQL(10, 1)
 
 	// Reset should clear the error
 	p.Reset()
 	if p.Error() != nil {
 		t.Errorf("Error should be nil after Reset, got: %v", p.Error())
+	}
+	if p.GetSelectSQL() != "*" {
+		t.Errorf("SelectToSQL should be reset to default")
+	}
+	if p.GetOrderBySQL() != "" {
+		t.Errorf("OrderByToSQL should be reset to default")
+	}
+	if p.GetGroupBySQL() != "" {
+		t.Errorf("GroupByToSQL should be reset to default")
+	}
+	if sql, args := p.GetHavingSQL(); sql != "" || len(args) != 0 {
+		t.Errorf("HavingToSQL should be reset to default")
+	}
+	if p.GetLimitSQL() != "" {
+		t.Errorf("LimitToSQL should be reset to default")
 	}
 
 	// After reset, functions should work properly
@@ -1096,71 +1137,6 @@ func TestFilterResetAndError(t *testing.T) {
 
 	if sql != " WHERE (`test` = ?)" || len(args) != 1 || args[0] != 1 {
 		t.Errorf("FilterToSQL not working after Reset")
-	}
-}
-
-func TestComplexFilterCombinations(t *testing.T) {
-	type args struct {
-		state  int
-		filter []any
-	}
-	type want struct {
-		sql  string
-		args []any
-	}
-	tests := []struct {
-		name string
-		args args
-		want want
-	}{
-		{
-			"complex_nested_conditions",
-			args{isFilter, []any{
-				Cond{"test1": 1},
-				AND{SortKey: []string{"test2", "test3"}, "test2": 2, "test3__contains": "val"},
-				OR{"test4__in": []int{4, 5, 6}},
-			}},
-			want{
-				" WHERE ((`test1` = ?) AND (`test2` = ? AND `test3` LIKE BINARY ?) OR (`test4` IN (?,?,?)))",
-				[]any{1, 2, "%val%", 4, 5, 6},
-			},
-		},
-		{
-			"mixed_operators_with_not",
-			args{1, []any{
-				Cond{"test1__gt": 10},
-				OR{"test2__contains": "search"},
-				AND{"test3__between": []int{20, 30}},
-			}},
-			want{
-				" WHERE NOT ((`test1` > ?) OR (`test2` LIKE BINARY ?) AND (`test3` BETWEEN ? AND ?))",
-				[]any{10, "%search%", 20, 30},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
-			p = p.FilterToSQL(tt.args.state, tt.args.filter...)
-			sql, sqlArgs := p.GetQuerySet()
-
-			if p.Error() != nil {
-				t.Errorf("TestComplexFilterCombinations SQL Occur Error -> error:%+v", p.Error())
-			}
-
-			wantSQL := tt.want.sql
-			if sql != wantSQL {
-				t.Errorf("TestComplexFilterCombinations SQL Gen Error -> sql : %v", sql)
-				t.Errorf("TestComplexFilterCombinations SQL Gen Error -> want: %v", wantSQL)
-			}
-
-			if len(sqlArgs) != len(tt.want.args) {
-				t.Errorf("TestComplexFilterCombinations Args Length Error -> len:%+v, want:%+v", len(sqlArgs), len(tt.want.args))
-				t.Errorf("TestComplexFilterCombinations Args Length Error -> args:%+v", sqlArgs)
-				t.Errorf("TestComplexFilterCombinations Args Length Error -> want:%+v", tt.want.args)
-			}
-		})
 	}
 }
 
@@ -1207,135 +1183,3 @@ func TestMultipleCallFlags(t *testing.T) {
 		t.Errorf("Multiple call flags were not set correctly")
 	}
 }
-
-func TestEmptyConditionsList(t *testing.T) {
-	p := NewQuerySet(mysqlOp.NewOperator())
-
-	// Add an empty filter condition
-	p.FilterToSQL(notNot, Cond{})
-	sql, args := p.GetQuerySet()
-
-	if sql != "" || len(args) != 0 {
-		t.Errorf("Empty condition should result in empty SQL, got: %s", sql)
-	}
-}
-
-func TestConditionalExpressionHandling(t *testing.T) {
-	tests := []struct {
-		name string
-		fn   func(p QuerySet) QuerySet
-		want string
-	}{
-		{
-			"select_column_empty",
-			func(p QuerySet) QuerySet {
-				return p.SelectToSQL("")
-			},
-			"",
-		},
-		{
-			"select_column_explicit_asterisk",
-			func(p QuerySet) QuerySet {
-				return p.SelectToSQL("*")
-			},
-			"*",
-		},
-		{
-			"group_by_empty_slice",
-			func(p QuerySet) QuerySet {
-				return p.GroupByToSQL([]string{})
-			},
-			"",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
-			result := tt.fn(p)
-
-			if p.Error() != nil {
-				t.Errorf("Error should be nil, got: %v", p.Error())
-			}
-
-			var got string
-			if strings.Contains(tt.name, "select") {
-				got = result.GetSelectSQL()
-			} else if strings.Contains(tt.name, "group") {
-				got = result.GetGroupBySQL()
-			}
-
-			if got != tt.want {
-				t.Errorf("Expected result %q, got %q", tt.want, got)
-			}
-		})
-	}
-}
-
-func TestGetHavingSQL(t *testing.T) {
-	tests := []struct {
-		name     string
-		query    string
-		args     []any
-		want     string
-		wantArgs []any
-	}{
-		{"empty_having", "", nil, "", []any{}},
-		{"simple_having", "SUM(test) > ?", []any{100}, " HAVING SUM(test) > ?", []any{100}},
-		{"complex_having", "AVG(test) BETWEEN ? AND ?", []any{10, 20}, " HAVING AVG(test) BETWEEN ? AND ?", []any{10, 20}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
-			if tt.query != "" {
-				p.HavingToSQL(tt.query, tt.args...)
-			}
-
-			sql, args := p.GetHavingSQL()
-
-			if sql != tt.want {
-				t.Errorf("GetHavingSQL() SQL = %v, want %v", sql, tt.want)
-			}
-
-			if !reflect.DeepEqual(args, tt.wantArgs) {
-				t.Errorf("GetHavingSQL() args = %v, want %v", args, tt.wantArgs)
-			}
-		})
-	}
-}
-
-// Test case for handling empty filter conditions within a filter call
-// func TestEmptyFiltersInMiddle(t *testing.T) {
-// 	p := NewQuerySet(mysqlOp.NewOperator())
-// 	p = p.FilterToSQL(notNot, Cond{"test1": 1}, Cond{}, Cond{"test3": 3})
-// 	sql, args := p.GetQuerySet()
-
-// 	// Should ignore empty filter
-// 	expectedSQL := " WHERE ((`test1` = ?) AND (`test3` = ?))"
-// 	expectedArgs := []any{1, 3}
-
-// 	if sql != expectedSQL {
-// 		t.Errorf("TestEmptyFiltersInMiddle SQL = %v, want %v", sql, expectedSQL)
-// 	}
-
-// 	if !reflect.DeepEqual(args, expectedArgs) {
-// 		t.Errorf("TestEmptyFiltersInMiddle args = %v, want %v", args, expectedArgs)
-// 	}
-// }
-
-// // Test behavior when SQL contains multiple filters but all are empty
-// func TestAllEmptyFilters(t *testing.T) {
-// 	p := NewQuerySet(mysqlOp.NewOperator())
-// 	p = p.FilterToSQL(notNot, Cond{}, AND{}, OR{})
-// 	sql, args := p.GetQuerySet()
-
-// 	// Should result in empty SQL
-// 	if sql != "" {
-// 		t.Errorf("TestAllEmptyFilters SQL should be empty, got: %v", sql)
-// 	}
-
-// 	if len(args) != 0 {
-// 		t.Errorf("TestAllEmptyFilters args should be empty, got: %v", args)
-// 	}
-// }

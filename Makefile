@@ -54,3 +54,13 @@ benchnote:
 	FILENAME=bench/$${DATE}_$${NEXT_NUM}; \
 	echo "Running benchmark tests, saving results to $${FILENAME}"; \
 	go test -bench=. -benchmem | tee $${FILENAME}
+
+## coverage: Run tests with coverage and generate a report
+.PHONY: coverage
+coverage:
+	@mkdir -p test
+	@echo "Running tests with coverage..."
+	@go test -coverprofile=./test/coverage.out ./...
+	@echo "Generating coverage report..."
+	@go tool cover -html=./test/coverage.out
+	@echo "Coverage report generated at ./test/coverage.html"
