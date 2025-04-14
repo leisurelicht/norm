@@ -72,14 +72,15 @@ const (
 )
 
 const (
+	isFilter, isExclude                = 0, 1
 	notNot, isNot                      = 0, 1
 	andTag, orTag, andNotTag, orNotTag = 0, 1, 2, 3
 )
 
 var (
+	filterAndExclude = []string{"Filter", "Exclude"}
 	not              = [2]string{"", " NOT"}
 	conjunctions     = [4]string{"AND", "OR", "AND NOT", "OR NOT"}
-	filterAndExclude = []string{"Filter", "Exclude"}
 	// Define a map for conjunction types and their tags
 	conjunctionMap = map[reflect.Type]int{
 		reflect.TypeOf(Cond{}): andTag,
@@ -479,18 +480,18 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 	return filterSql, filterArgs
 }
 
-func (p *QuerySetImpl) FilterToSQL(stat int, filter ...any) QuerySet {
+func (p *QuerySetImpl) FilterToSQL(state int, filter ...any) QuerySet {
 	if !p.hasCalled(callWhere) {
-		if stat == notNot {
+		if state == isFilter {
 			p.setCalled(callFilter)
-		} else if stat == isNot {
+		} else if state == isExclude {
 			p.setCalled(callExclude)
 		} else {
 			p.setError(isNotValueError)
 			return p
 		}
 	} else {
-		p.setError(filterOrWhereError, filterAndExclude[stat])
+		p.setError(filterOrWhereError, filterAndExclude[state])
 		return p
 	}
 
@@ -538,7 +539,7 @@ func (p *QuerySetImpl) FilterToSQL(stat int, filter ...any) QuerySet {
 			// Only add "NOT" to the conjunction for the first condition
 			// The rest will be handled in GetQuerySet
 			conjStr := conjunctions[conjFlag]
-			if stat == 1 && len(filterConds) == 0 {
+			if state == 1 && len(filterConds) == 0 {
 				conjStr = conjunctions[conjFlag+2] // Use AND NOT or OR NOT
 			}
 			filterConds = append(filterConds, *newCondByValue(conjStr, filterSQL, filterArgs))
@@ -556,10 +557,10 @@ func (p *QuerySetImpl) WhereToSQL(cond string, args ...any) QuerySet {
 	if !p.hasCalled(callFilter) && !p.hasCalled(callExclude) {
 		p.setCalled(callWhere)
 	} else if p.hasCalled(callFilter) {
-		p.setError(filterOrWhereError, filterAndExclude[0])
+		p.setError(filterOrWhereError, filterAndExclude[isFilter])
 		return p
 	} else if p.hasCalled(callExclude) {
-		p.setError(filterOrWhereError, filterAndExclude[1])
+		p.setError(filterOrWhereError, filterAndExclude[isExclude])
 		return p
 	}
 
