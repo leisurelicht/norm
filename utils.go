@@ -7,8 +7,86 @@ import (
 	"strings"
 )
 
-// Struct2Map convert struct to map, tag is the tag name of struct
-func Struct2Map(obj any, tag string) map[string]any {
+// shiftName shift name like DevicePolicyMap to device_policy_map
+func shiftName(s string) string {
+	res := ""
+	for i, c := range s {
+		if c >= 'A' && c <= 'Z' {
+			if i != 0 {
+				res += "_"
+			}
+			res += string(c + 32)
+		} else {
+			res += string(c)
+		}
+	}
+	return "`" + res + "`"
+}
+
+func rawFieldNames(in any, tag string, pg bool) []string {
+	v := reflect.ValueOf(in)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	// we only accept structs
+	if v.Kind() != reflect.Struct {
+		panic(fmt.Errorf("ToMap only accepts structs; got %T", v))
+	}
+
+	out := make([]string, 0, v.NumField())
+
+	typ := v.Type()
+	for i := 0; i < v.NumField(); i++ {
+		// gets us a StructField
+		fi := typ.Field(i)
+		tagv := fi.Tag.Get(tag)
+		switch tagv {
+		case "-":
+			continue
+		case "":
+			if pg {
+				out = append(out, fi.Name)
+			} else {
+				out = append(out, fmt.Sprintf("`%s`", fi.Name))
+			}
+		default:
+			// get tag name with the tag option, e.g.:
+			// `db:"id"`
+			// `db:"id,type=char,length=16"`
+			// `db:",type=char,length=16"`
+			// `db:"-,type=char,length=16"`
+			if strings.Contains(tagv, ",") {
+				tagv = strings.TrimSpace(strings.Split(tagv, ",")[0])
+			}
+			if tagv == "-" {
+				continue
+			}
+			if len(tagv) == 0 {
+				tagv = fi.Name
+			}
+			if pg {
+				out = append(out, tagv)
+			} else {
+				out = append(out, fmt.Sprintf("`%s`", tagv))
+			}
+		}
+	}
+
+	return out
+}
+
+// strSlice2Map convert string slice to map
+func strSlice2Map(s []string) (res map[string]struct{}) {
+	res = make(map[string]struct{})
+	for _, e := range s {
+		res[e] = struct{}{}
+	}
+	return res
+}
+
+// struct2Map convert struct to map, tag is the tag name of struct
+func struct2Map(obj any, tag string) map[string]any {
 	t := reflect.TypeOf(obj)
 	v := reflect.ValueOf(obj)
 	if t.Kind() == reflect.Ptr {
@@ -76,8 +154,8 @@ func Struct2Map(obj any, tag string) map[string]any {
 	return data
 }
 
-// StructSlice2MapSlice convert struct slice to map slice, tag is the tag name of struct
-func StructSlice2MapSlice(obj any, tag string) []map[string]any {
+// structSlice2MapSlice convert struct slice to map slice, tag is the tag name of struct
+func structSlice2MapSlice(obj any, tag string) []map[string]any {
 	t := reflect.TypeOf(obj)
 	v := reflect.ValueOf(obj)
 	if t.Kind() == reflect.Ptr {
@@ -87,7 +165,7 @@ func StructSlice2MapSlice(obj any, tag string) []map[string]any {
 	data := make([]map[string]any, 0, v.Len())
 
 	for i := 0; i < v.Len(); i++ {
-		data = append(data, Struct2Map(v.Index(i).Interface(), tag))
+		data = append(data, struct2Map(v.Index(i).Interface(), tag))
 	}
 	return data
 }
@@ -172,8 +250,8 @@ func joinSQL(filterSql *string, filterArgs *[]any, index int, condition *cond) {
 	*filterArgs = append(*filterArgs, condition.Args...)
 }
 
-// DeepCopy deep copy
-func DeepCopy(src any) (any, error) {
+// deepCopy deep copy
+func deepCopy(src any) (any, error) {
 	srcValue := reflect.ValueOf(src)
 
 	// If src is not a pointer or interface, simply return the original value
@@ -195,7 +273,7 @@ func DeepCopy(src any) (any, error) {
 		destSlice := reflect.ValueOf(dest).Elem()
 
 		for i := 0; i < srcSlice.Len(); i++ {
-			elem, err := DeepCopy(srcSlice.Index(i).Interface())
+			elem, err := deepCopy(srcSlice.Index(i).Interface())
 			if err != nil {
 				return nil, err
 			}
@@ -210,7 +288,7 @@ func DeepCopy(src any) (any, error) {
 			field := srcValue.Elem().Field(i)
 			// Deep copy each struct field
 			deepCopyField := reflect.New(field.Type()).Interface()
-			DeepCopy(field.Interface())
+			deepCopy(field.Interface())
 			reflect.ValueOf(dest).Elem().Field(i).Set(reflect.ValueOf(deepCopyField).Elem())
 		}
 		return dest, nil
@@ -261,82 +339,4 @@ func processSQL(sqlParts []string, isKeyWord func(word string) bool) string {
 	}
 
 	return result.String()
-}
-
-// StrSlice2Map convert string slice to map
-func StrSlice2Map(s []string) (res map[string]struct{}) {
-	res = make(map[string]struct{})
-	for _, e := range s {
-		res[e] = struct{}{}
-	}
-	return res
-}
-
-func rawFieldNames(in any, pg bool) []string {
-	v := reflect.ValueOf(in)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	// we only accept structs
-	if v.Kind() != reflect.Struct {
-		panic(fmt.Errorf("ToMap only accepts structs; got %T", v))
-	}
-
-	out := make([]string, 0, v.NumField())
-
-	typ := v.Type()
-	for i := 0; i < v.NumField(); i++ {
-		// gets us a StructField
-		fi := typ.Field(i)
-		tagv := fi.Tag.Get(DefaultModelTag)
-		switch tagv {
-		case "-":
-			continue
-		case "":
-			if pg {
-				out = append(out, fi.Name)
-			} else {
-				out = append(out, fmt.Sprintf("`%s`", fi.Name))
-			}
-		default:
-			// get tag name with the tag option, e.g.:
-			// `db:"id"`
-			// `db:"id,type=char,length=16"`
-			// `db:",type=char,length=16"`
-			// `db:"-,type=char,length=16"`
-			if strings.Contains(tagv, ",") {
-				tagv = strings.TrimSpace(strings.Split(tagv, ",")[0])
-			}
-			if tagv == "-" {
-				continue
-			}
-			if len(tagv) == 0 {
-				tagv = fi.Name
-			}
-			if pg {
-				out = append(out, tagv)
-			} else {
-				out = append(out, fmt.Sprintf("`%s`", tagv))
-			}
-		}
-	}
-
-	return out
-}
-
-// shiftName shift name like DevicePolicyMap to device_policy_map
-func shiftName(s string) string {
-	res := ""
-	for i, c := range s {
-		if c >= 'A' && c <= 'Z' {
-			if i != 0 {
-				res += "_"
-			}
-			res += string(c + 32)
-		} else {
-			res += string(c)
-		}
-	}
-	return "`" + res + "`"
 }

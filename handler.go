@@ -102,7 +102,7 @@ func NewController(conn any, op Operator, m any) func(ctx context.Context) Contr
 	}
 
 	mPtr, mSlicePtr := CreatePointerAndSlice(m)
-	fieldNameSlice := rawFieldNames(m, true)
+	fieldNameSlice := rawFieldNames(m, DefaultModelTag, true)
 
 	return func(ctx context.Context) Controller {
 		if ctx == nil {
@@ -115,9 +115,9 @@ func NewController(conn any, op Operator, m any) func(ctx context.Context) Contr
 			modelSlice:     mSlicePtr,
 			operator:       op,
 			tableName:      shiftName(t.Name()),
-			fieldNameMap:   StrSlice2Map(fieldNameSlice),
+			fieldNameMap:   strSlice2Map(fieldNameSlice),
 			fieldNameSlice: fieldNameSlice,
-			fieldRows:      strings.Join(rawFieldNames(m, false), ","),
+			fieldRows:      strings.Join(rawFieldNames(m, DefaultModelTag, false), ","),
 			mTag:           DefaultModelTag,
 			qs:             NewQuerySet(op),
 			called:         0,
@@ -355,7 +355,7 @@ func (m *Impl) InsertModel(model any) (id int64, err error) {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Insert")
 	}
 
-	return m.Insert(Struct2Map(model, m.mTag))
+	return m.Insert(struct2Map(model, m.mTag))
 }
 
 func (m *Impl) BulkInsert(data []map[string]any) (err error) {
@@ -390,7 +390,7 @@ func (m *Impl) BulkInsert(data []map[string]any) (err error) {
 }
 
 func (m *Impl) BulkInsertModel(modelSlice []any) (err error) {
-	return m.BulkInsert(StructSlice2MapSlice(modelSlice, m.mTag))
+	return m.BulkInsert(structSlice2MapSlice(modelSlice, m.mTag))
 }
 
 func (m *Impl) Remove() (num int64, err error) {
@@ -478,13 +478,13 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 	query += m.qs.GetOrderBySQL()
 	query += " LIMIT 1"
 
-	res, _ := DeepCopy(m.model)
+	res, _ := deepCopy(m.model)
 
 	err = m.operator.FindOne(m.ctx(), m.conn, res, query, filterArgs...)
 
 	switch {
 	case err == nil:
-		return Struct2Map(res, m.mTag), nil
+		return struct2Map(res, m.mTag), nil
 	case errors.Is(err, ErrNotFound):
 		return map[string]any{}, nil
 	default:
@@ -538,13 +538,13 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 	query += m.qs.GetOrderBySQL()
 	query += m.qs.GetLimitSQL()
 
-	res, _ := DeepCopy(m.modelSlice)
+	res, _ := deepCopy(m.modelSlice)
 
 	err = m.operator.FindAll(m.ctx(), m.conn, res, query, filterArgs...)
 
 	switch {
 	case err == nil:
-		return StructSlice2MapSlice(res, m.mTag), nil
+		return structSlice2MapSlice(res, m.mTag), nil
 	case errors.Is(err, ErrNotFound):
 		return []map[string]any{}, nil
 	default:
@@ -673,14 +673,14 @@ func (m *Impl) GetC2CMap(column1, column2 string) (res map[any]any, err error) {
 	query += m.qs.GetOrderBySQL()
 	query += m.qs.GetLimitSQL()
 
-	result, _ := DeepCopy(m.modelSlice)
+	result, _ := deepCopy(m.modelSlice)
 
 	if err = m.operator.FindAll(m.ctx(), m.conn, res, query, filterArgs...); err != nil {
 		return res, err
 	}
 
 	res = make(map[any]any)
-	for _, v := range StructSlice2MapSlice(result, m.mTag) {
+	for _, v := range structSlice2MapSlice(result, m.mTag) {
 		res[v[column1]] = v[column2]
 	}
 
