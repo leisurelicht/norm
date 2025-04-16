@@ -44,3 +44,5 @@ func EachOR[T Cond | AND | OR](conditions T) T {
 	}
 	return conditions
 }
+
+var Struct2Map = modelStruct2Map

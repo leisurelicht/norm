@@ -85,8 +85,8 @@ func strSlice2Map(s []string) (res map[string]struct{}) {
 	return res
 }
 
-// struct2Map convert struct to map, tag is the tag name of struct
-func struct2Map(obj any, tag string) map[string]any {
+// modelStruct2Map convert struct to map, tag is the tag name of struct
+func modelStruct2Map(obj any, tag string) map[string]any {
 	t := reflect.TypeOf(obj)
 	v := reflect.ValueOf(obj)
 	if t.Kind() == reflect.Ptr {
@@ -97,65 +97,80 @@ func struct2Map(obj any, tag string) map[string]any {
 	data := make(map[string]any, t.NumField())
 
 	for i := 0; i < t.NumField(); i++ {
-		// Skip if no tag or field is unexported
-		if t.Field(i).Tag.Get(tag) == "" || !v.Field(i).CanInterface() {
+		if t.Field(i).Tag.Get(tag) == "" || t.Field(i).Tag.Get(tag) == "-" {
+			// skip empty tag
+			// skip "-" tag
 			continue
 		}
 
-		fieldValue := v.Field(i)
-		fieldType := t.Field(i)
-		tagName := fieldType.Tag.Get(tag)
-
-		// Handle struct type, but not sql.Null* types which we'll handle separately
-		if fieldValue.Kind() == reflect.Struct &&
-			!strings.HasPrefix(fieldType.Type.String(), "sql.Null") {
-			// Option to process embedded structs here if needed
-			// For now we'll skip struct fields
-			continue
+		if v.Field(i).Kind() != reflect.Struct {
+			data[t.Field(i).Tag.Get(tag)] = v.Field(i).Interface()
 		}
 
-		// Get the value and handle sql.Null* types
-		value := fieldValue.Interface()
-		switch v := value.(type) {
-		case sql.NullString:
-			if v.Valid {
-				value = v.String
+		value := v.Field(i).Interface()
+		switch reflect.TypeOf(value) {
+		case reflect.TypeOf(sql.NullByte{}):
+			if value.(sql.NullByte).Valid {
+				value = value.(sql.NullByte).Byte
 			} else {
 				value = nil
 			}
-		case sql.NullInt64:
-			if v.Valid {
-				value = v.Int64
+		case reflect.TypeOf(sql.NullBool{}):
+			if value.(sql.NullBool).Valid {
+				value = value.(sql.NullBool).Bool
 			} else {
 				value = nil
 			}
-		case sql.NullFloat64:
-			if v.Valid {
-				value = v.Float64
+		case reflect.TypeOf(sql.NullFloat64{}):
+			if value.(sql.NullFloat64).Valid {
+				value = value.(sql.NullFloat64).Float64
 			} else {
 				value = nil
 			}
-		case sql.NullBool:
-			if v.Valid {
-				value = v.Bool
+		case reflect.TypeOf(sql.NullInt16{}):
+			if value.(sql.NullInt16).Valid {
+				value = value.(sql.NullInt16).Int16
 			} else {
 				value = nil
 			}
-		case sql.NullTime:
-			if v.Valid {
-				value = v.Time
+		case reflect.TypeOf(sql.NullInt32{}):
+			if value.(sql.NullInt32).Valid {
+				value = value.(sql.NullInt32).Int32
+			} else {
+				value = nil
+			}
+		case reflect.TypeOf(sql.NullInt64{}):
+			if value.(sql.NullInt64).Valid {
+				value = value.(sql.NullInt64).Int64
+			} else {
+				value = nil
+			}
+		case reflect.TypeOf(sql.NullString{}):
+			if value.(sql.NullString).Valid {
+				value = value.(sql.NullString).String
+			} else {
+				value = nil
+			}
+		case reflect.TypeOf(sql.NullInt64{}):
+			if value.(sql.NullInt64).Valid {
+				value = value.(sql.NullInt64).Int64
+			} else {
+				value = nil
+			}
+		case reflect.TypeOf(sql.NullTime{}):
+			if value.(sql.NullTime).Valid {
+				value = value.(sql.NullTime).Time
 			} else {
 				value = nil
 			}
 		}
-
-		data[tagName] = value
+		data[t.Field(i).Tag.Get(tag)] = value
 	}
 	return data
 }
 
-// structSlice2MapSlice convert struct slice to map slice, tag is the tag name of struct
-func structSlice2MapSlice(obj any, tag string) []map[string]any {
+// modelStructSlice2MapSlice convert struct slice to map slice, tag is the tag name of struct
+func modelStructSlice2MapSlice(obj any, tag string) []map[string]any {
 	t := reflect.TypeOf(obj)
 	v := reflect.ValueOf(obj)
 	if t.Kind() == reflect.Ptr {
@@ -165,12 +180,12 @@ func structSlice2MapSlice(obj any, tag string) []map[string]any {
 	data := make([]map[string]any, 0, v.Len())
 
 	for i := 0; i < v.Len(); i++ {
-		data = append(data, struct2Map(v.Index(i).Interface(), tag))
+		data = append(data, modelStruct2Map(v.Index(i).Interface(), tag))
 	}
 	return data
 }
 
-func CreatePointerAndSlice(input any) (any, any) {
+func createModelPointerAndSlice(input any) (any, any) {
 	// 获取输入值的反射值
 	inputValue := reflect.ValueOf(input)
 
@@ -242,6 +257,10 @@ func genStrListValueLikeSQL(p *QuerySetImpl, filterConditions map[string]*cond, 
 }
 
 func joinSQL(filterSql *string, filterArgs *[]any, index int, condition *cond) {
+	if filterSql == nil || filterArgs == nil || condition == nil {
+		return
+	}
+	fmt.Printf("joinSQL index: %d, condition: %+v, filterSql: %s, filterArgs: %+v\n", index, condition, *filterSql, *filterArgs)
 	if index == 0 {
 		*filterSql += condition.SQL
 	} else {

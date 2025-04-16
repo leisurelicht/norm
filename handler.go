@@ -101,7 +101,7 @@ func NewController(conn any, op Operator, m any) func(ctx context.Context) Contr
 		return nil
 	}
 
-	mPtr, mSlicePtr := CreatePointerAndSlice(m)
+	mPtr, mSlicePtr := createModelPointerAndSlice(m)
 	fieldNameSlice := rawFieldNames(m, DefaultModelTag, true)
 
 	return func(ctx context.Context) Controller {
@@ -355,7 +355,7 @@ func (m *Impl) InsertModel(model any) (id int64, err error) {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Insert")
 	}
 
-	return m.Insert(struct2Map(model, m.mTag))
+	return m.Insert(modelStruct2Map(model, m.mTag))
 }
 
 func (m *Impl) BulkInsert(data []map[string]any) (err error) {
@@ -390,7 +390,7 @@ func (m *Impl) BulkInsert(data []map[string]any) (err error) {
 }
 
 func (m *Impl) BulkInsertModel(modelSlice []any) (err error) {
-	return m.BulkInsert(structSlice2MapSlice(modelSlice, m.mTag))
+	return m.BulkInsert(modelStructSlice2MapSlice(modelSlice, m.mTag))
 }
 
 func (m *Impl) Remove() (num int64, err error) {
@@ -484,7 +484,7 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 
 	switch {
 	case err == nil:
-		return struct2Map(res, m.mTag), nil
+		return modelStruct2Map(res, m.mTag), nil
 	case errors.Is(err, ErrNotFound):
 		return map[string]any{}, nil
 	default:
@@ -544,7 +544,7 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 
 	switch {
 	case err == nil:
-		return structSlice2MapSlice(res, m.mTag), nil
+		return modelStructSlice2MapSlice(res, m.mTag), nil
 	case errors.Is(err, ErrNotFound):
 		return []map[string]any{}, nil
 	default:
@@ -680,7 +680,7 @@ func (m *Impl) GetC2CMap(column1, column2 string) (res map[any]any, err error) {
 	}
 
 	res = make(map[any]any)
-	for _, v := range structSlice2MapSlice(result, m.mTag) {
+	for _, v := range modelStructSlice2MapSlice(result, m.mTag) {
 		res[v[column1]] = v[column2]
 	}
 
