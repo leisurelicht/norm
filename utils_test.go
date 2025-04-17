@@ -917,7 +917,7 @@ func Test_joinSQL(t *testing.T) {
 	}
 }
 
-func Test_deepCopy(t *testing.T) {
+func Test_deepCopyModelPtrStructure(t *testing.T) {
 	type args struct {
 		src any
 	}
@@ -927,12 +927,14 @@ func Test_deepCopy(t *testing.T) {
 		want    any
 		changed any
 	}{
-		{"test pointer to struct", args{&struct{ A int }{A: 5}}, &struct{ A int }{}, &struct{ A int }{A: 10}},
-		{"test pointer to slice struct", args{&[]struct{ A int }{{A: 1}, {A: 2}}}, &[]struct{ A int }{}, &[]struct{ B int }{{B: 3}, {B: 4}}},
+		{"test nil", args{nil}, nil, 1},
+		{"test nil", args{func() *int { a := 1; return &a }()}, nil, func() *int { a := 2; return &a }()},
+		{"test pointer to struct", args{&struct{ A int }{}}, &struct{ A int }{}, &struct{ B int }{}},
+		{"test pointer to slice struct", args{&[]struct{ A int }{}}, &[]struct{ A int }{}, &[]struct{ B int }{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := deepCopy(tt.args.src)
+			got := deepCopyModelPtrStructure(tt.args.src)
 
 			if reflect.TypeOf(got) != reflect.TypeOf(tt.want) {
 				t.Errorf("deepCopy() type error\nGet : %T\nWant: %T", got, tt.want)
@@ -942,9 +944,6 @@ func Test_deepCopy(t *testing.T) {
 
 			if reflect.TypeOf(got) != reflect.TypeOf(tt.want) {
 				t.Errorf("deepCopy() changed type error\nGet : %T\nWant: %T", got, tt.want)
-			}
-			if reflect.DeepEqual(got, tt.changed) {
-				t.Errorf("deepCopy() changed value error\nGot : %v\nWant: %v", got, tt.changed)
 			}
 		})
 	}

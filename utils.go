@@ -268,49 +268,40 @@ func joinSQL(filterSql *string, filterArgs *[]any, index int, condition *cond) {
 	*filterArgs = append(*filterArgs, condition.Args...)
 }
 
-// deepCopy deep copy
-func deepCopy(src any) any {
+// deepCopyModelPtrStructure deep copy pointer struct model and pointer slice model
+// the input must be a pointer to a struct or a pointer to a slice of structs, if not, all return nil
+func deepCopyModelPtrStructure(src any) any {
 	srcValue := reflect.ValueOf(src)
 
-	// If src is not a pointer or interface, simply return the original value
-	if srcValue.Kind() != reflect.Ptr && srcValue.Kind() != reflect.Interface {
+	if srcValue.Kind() != reflect.Ptr {
 		return src
 	}
 
-	// If src is a nil pointer or interface, return a nil copy
-	if srcValue.IsNil() {
-		return nil
-	}
-
-	// Insert a new value of the same type as src
+	// create a new value of the same type as src
 	dest := reflect.New(srcValue.Elem().Type()).Interface()
 
 	// If src is a slice, perform a deep copy of the slice elements
-	if srcValue.Elem().Kind() == reflect.Slice {
+	switch srcValue.Elem().Kind() {
+	case reflect.Struct:
+		for i := range srcValue.Elem().NumField() {
+			field := srcValue.Elem().Field(i)
+			// Deep copy each struct field
+			deepCopyModelPtrStructure(field.Interface())
+		}
+		return dest
+	case reflect.Slice:
 		srcSlice := srcValue.Elem()
 		destSlice := reflect.ValueOf(dest).Elem()
 
 		for i := 0; i < srcSlice.Len(); i++ {
-			elem := deepCopy(srcSlice.Index(i).Interface())
+			elem := deepCopyModelPtrStructure(srcSlice.Index(i).Interface())
 			destSlice = reflect.Append(destSlice, reflect.ValueOf(elem))
 		}
 		return dest
+	default:
+		return nil
 	}
 
-	// If src is a struct, perform a deep copy of the struct fields
-	if srcValue.Elem().Kind() == reflect.Struct {
-		for i := 0; i < srcValue.Elem().NumField(); i++ {
-			field := srcValue.Elem().Field(i)
-			// Deep copy each struct field
-			deepCopyField := reflect.New(field.Type()).Interface()
-			deepCopy(field.Interface())
-			reflect.ValueOf(dest).Elem().Field(i).Set(reflect.ValueOf(deepCopyField).Elem())
-		}
-		return dest
-	}
-
-	// For other types, return the original value
-	return src
 }
 
 // 用反引号包裹字段

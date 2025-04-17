@@ -478,7 +478,7 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 	query += m.qs.GetOrderBySQL()
 	query += " LIMIT 1"
 
-	res := deepCopy(m.modelPtr)
+	res := deepCopyModelPtrStructure(m.modelPtr)
 
 	err = m.operator.FindOne(m.ctx(), m.conn, res, query, filterArgs...)
 
@@ -538,7 +538,7 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 	query += m.qs.GetOrderBySQL()
 	query += m.qs.GetLimitSQL()
 
-	res := deepCopy(m.modelSlicePtr)
+	res := deepCopyModelPtrStructure(m.modelSlicePtr)
 
 	err = m.operator.FindAll(m.ctx(), m.conn, res, query, filterArgs...)
 
@@ -673,7 +673,7 @@ func (m *Impl) GetC2CMap(column1, column2 string) (res map[any]any, err error) {
 	query += m.qs.GetOrderBySQL()
 	query += m.qs.GetLimitSQL()
 
-	result := deepCopy(m.modelSlicePtr)
+	result := deepCopyModelPtrStructure(m.modelSlicePtr)
 
 	if err = m.operator.FindAll(m.ctx(), m.conn, res, query, filterArgs...); err != nil {
 		return res, err
