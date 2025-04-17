@@ -84,7 +84,7 @@ func TestQuery(t *testing.T) {
 	if res, err := ctl(nil).Filter(Cond{"id": 11}, OR{"id": 12}).FindAll(); err != nil {
 		t.Error(err)
 	} else if len(res) != 2 {
-		t.Errorf("expect 2 but got %d", len(res))
+		t.Errorf("expect 2 but got %d\ngot res: %+v", len(res), res)
 	} else if res[0]["id"].(int64) != int64(11) {
 		t.Errorf("expect 11 but got %d", res[0]["id"])
 	} else if res[1]["id"].(int64) != int64(12) {
@@ -94,13 +94,13 @@ func TestQuery(t *testing.T) {
 	if res, err := ctl(nil).Filter(Cond{"id": 11}, AND{"id": 12}).FindAll(); err != nil {
 		t.Error(err)
 	} else if len(res) != 0 {
-		t.Errorf("expect 0 but got %d", len(res))
+		t.Errorf("expect 0 but got %d\ngot res: %+v", len(res), res)
 	}
 
 	if res, err := ctl(nil).Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAll(); err != nil {
 		t.Error(err)
 	} else if len(res) != 6 {
-		t.Errorf("expect 6 but got %d", len(res))
+		t.Errorf("expect 6 but got %d\ngot res: %+v", len(res), res)
 	} else if res[0]["id"].(int64) != 11 {
 		t.Errorf("expect 11 but got %d", res[0]["id"])
 	} else if res[len(res)-1]["id"].(int64) != 23 {

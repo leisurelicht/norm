@@ -928,19 +928,26 @@ func Test_deepCopy(t *testing.T) {
 		name    string
 		args    args
 		want    any
-		wantErr bool
+		changed any
 	}{
-		// TODO: Add test cases.
+		{"test pointer to struct", args{&struct{ A int }{A: 5}}, &struct{ A int }{}, &struct{ A int }{A: 10}},
+		{"test pointer to slice struct", args{&[]struct{ A int }{{A: 1}, {A: 2}}}, &[]struct{ A int }{}, &[]struct{ B int }{{B: 3}, {B: 4}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := deepCopy(tt.args.src)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("deepCopy() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			got := deepCopy(tt.args.src)
+
+			if reflect.TypeOf(got) != reflect.TypeOf(tt.want) {
+				t.Errorf("deepCopy() type error\nGet : %T\nWant: %T", got, tt.want)
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("deepCopy() = %v, want %v", got, tt.want)
+
+			tt.args.src = tt.changed
+
+			if reflect.TypeOf(got) != reflect.TypeOf(tt.want) {
+				t.Errorf("deepCopy() changed type error\nGet : %T\nWant: %T", got, tt.want)
+			}
+			if reflect.DeepEqual(got, tt.changed) {
+				t.Errorf("deepCopy() changed value error\nGot : %v\nWant: %v", got, tt.changed)
 			}
 		})
 	}

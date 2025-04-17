@@ -269,17 +269,17 @@ func joinSQL(filterSql *string, filterArgs *[]any, index int, condition *cond) {
 }
 
 // deepCopy deep copy
-func deepCopy(src any) (any, error) {
+func deepCopy(src any) any {
 	srcValue := reflect.ValueOf(src)
 
 	// If src is not a pointer or interface, simply return the original value
 	if srcValue.Kind() != reflect.Ptr && srcValue.Kind() != reflect.Interface {
-		return src, nil
+		return src
 	}
 
 	// If src is a nil pointer or interface, return a nil copy
 	if srcValue.IsNil() {
-		return nil, nil
+		return nil
 	}
 
 	// Insert a new value of the same type as src
@@ -291,13 +291,10 @@ func deepCopy(src any) (any, error) {
 		destSlice := reflect.ValueOf(dest).Elem()
 
 		for i := 0; i < srcSlice.Len(); i++ {
-			elem, err := deepCopy(srcSlice.Index(i).Interface())
-			if err != nil {
-				return nil, err
-			}
+			elem := deepCopy(srcSlice.Index(i).Interface())
 			destSlice = reflect.Append(destSlice, reflect.ValueOf(elem))
 		}
-		return dest, nil
+		return dest
 	}
 
 	// If src is a struct, perform a deep copy of the struct fields
@@ -309,11 +306,11 @@ func deepCopy(src any) (any, error) {
 			deepCopy(field.Interface())
 			reflect.ValueOf(dest).Elem().Field(i).Set(reflect.ValueOf(deepCopyField).Elem())
 		}
-		return dest, nil
+		return dest
 	}
 
 	// For other types, return the original value
-	return src, nil
+	return src
 }
 
 // 用反引号包裹字段

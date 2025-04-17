@@ -15,7 +15,7 @@ format:
 ## test: Run code test
 .PHONY: test
 test:
-	go test .
+	go test -count=1 .
 
 ## prepare: Prepare test environment
 .PHONY: prepare

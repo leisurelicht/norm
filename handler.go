@@ -81,8 +81,8 @@ type (
 	Impl struct {
 		context        context.Context
 		conn           any
-		model          any
-		modelSlice     any
+		modelPtr       any
+		modelSlicePtr  any
 		operator       Operator
 		tableName      string
 		fieldNameMap   map[string]struct{}
@@ -111,8 +111,8 @@ func NewController(conn any, op Operator, m any) func(ctx context.Context) Contr
 		return &Impl{
 			context:        ctx,
 			conn:           conn,
-			model:          mPtr,
-			modelSlice:     mSlicePtr,
+			modelPtr:       mPtr,
+			modelSlicePtr:  mSlicePtr,
 			operator:       op,
 			tableName:      shiftName(t.Name()),
 			fieldNameMap:   strSlice2Map(fieldNameSlice),
@@ -478,7 +478,7 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 	query += m.qs.GetOrderBySQL()
 	query += " LIMIT 1"
 
-	res, _ := deepCopy(m.model)
+	res := deepCopy(m.modelPtr)
 
 	err = m.operator.FindOne(m.ctx(), m.conn, res, query, filterArgs...)
 
@@ -538,7 +538,7 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 	query += m.qs.GetOrderBySQL()
 	query += m.qs.GetLimitSQL()
 
-	res, _ := deepCopy(m.modelSlice)
+	res := deepCopy(m.modelSlicePtr)
 
 	err = m.operator.FindAll(m.ctx(), m.conn, res, query, filterArgs...)
 
@@ -673,7 +673,7 @@ func (m *Impl) GetC2CMap(column1, column2 string) (res map[any]any, err error) {
 	query += m.qs.GetOrderBySQL()
 	query += m.qs.GetLimitSQL()
 
-	result, _ := deepCopy(m.modelSlice)
+	result := deepCopy(m.modelSlicePtr)
 
 	if err = m.operator.FindAll(m.ctx(), m.conn, res, query, filterArgs...); err != nil {
 		return res, err
