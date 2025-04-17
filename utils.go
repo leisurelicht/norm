@@ -260,7 +260,6 @@ func joinSQL(filterSql *string, filterArgs *[]any, index int, condition *cond) {
 	if filterSql == nil || filterArgs == nil || condition == nil {
 		return
 	}
-	fmt.Printf("joinSQL index: %d, condition: %+v, filterSql: %s, filterArgs: %+v\n", index, condition, *filterSql, *filterArgs)
 	if index == 0 {
 		*filterSql += condition.SQL
 	} else {
