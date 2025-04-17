@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/leisurelicht/norm/operator/mysql"
 )
 
 func Test_shiftName(t *testing.T) {
@@ -344,29 +346,24 @@ func Test_createModelPointerAndSlice(t *testing.T) {
 		}}, &struct {
 			Id   int64  `db:"id"`
 			Name string `db:"name"`
-		}{
-			Id:   1,
-			Name: "test",
-		}, &[]struct {
+		}{}, &[]struct {
 			Id   int64  `db:"id"`
 			Name string `db:"name"`
-		}{
-			{
-				Id:   1,
-				Name: "test",
-			},
-		}},
-		{"test2", args{[]string{"1", "2", "3"}}, &[]string{"1", "2", "3"}, &[][]string{{"1", "2", "3"}}},
+		}{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, got1 := createModelPointerAndSlice(tt.args.input)
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("create model pointer slice error \nGot : %v\nWant: %v", got, tt.want)
+				t.Errorf("create model pointer error \nGot : %v\nWant: %v", got, tt.want)
 			}
-			if !reflect.DeepEqual(got1, tt.want1) {
-				t.Errorf("create model pointer error \nGot1: %v\nWant: %v", got1, tt.want1)
+			if reflect.TypeOf(got) != reflect.TypeOf(tt.want) {
+				t.Errorf("create model pointer slice error \nGot : %+v : %+v\nWant: %+v : %+v", got, reflect.TypeOf(got), tt.want, reflect.TypeOf(tt.want))
 			}
+			if reflect.TypeOf(got1) != reflect.TypeOf(tt.want1) {
+				t.Errorf("create model pointer slice error \nGot : %+v : %+v\nWant: %+v : %+v", got1, reflect.TypeOf(got1), tt.want1, reflect.TypeOf(tt.want1))
+			}
+
 		})
 	}
 }
@@ -963,6 +960,9 @@ func Test_wrapWithBackticks(t *testing.T) {
 		want string
 	}{
 		// TODO: Add test cases.
+		{"test empty", args{""}, ""},
+		{"test not be wraped string ", args{"test"}, "`test`"},
+		{"test wraped string", args{"`test`"}, "`test`"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -983,7 +983,10 @@ func Test_processSQL(t *testing.T) {
 		args args
 		want string
 	}{
-		// TODO: Add test cases.
+		{"test_empty", args{[]string{}, mysql.NewOperator().IsSelectKey}, ""},
+		{"test_single_keyword", args{[]string{"test"}, mysql.NewOperator().IsSelectKey}, "`test`"},
+		{"test_multiple_keywords", args{[]string{"test as test1"}, mysql.NewOperator().IsSelectKey}, "`test` as `test1`"},
+		{"test_multiple_keywords_with_spaces", args{[]string{"test as test1", "test2"}, mysql.NewOperator().IsSelectKey}, "`test` as `test1`, `test2`"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

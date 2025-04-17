@@ -194,16 +194,16 @@ func createModelPointerAndSlice(input any) (any, any) {
 
 	// 创建输入值的指针
 	inputPointer := reflect.New(inputType).Interface()
-	reflect.ValueOf(inputPointer).Elem().Set(inputValue)
+	// reflect.ValueOf(inputPointer).Elem().Set(inputValue)
 
 	// 创建一个包含输入值的切片
 	sliceType := reflect.SliceOf(inputType)
-	slice := reflect.MakeSlice(sliceType, 1, 1)
-	slice.Index(0).Set(inputValue)
+	// slice := reflect.MakeSlice(sliceType, 1, 1)
+	// slice.Index(0).Set(inputValue)
 
 	// 创建包含该切片的指针
 	slicePointer := reflect.New(sliceType).Interface()
-	reflect.ValueOf(slicePointer).Elem().Set(slice)
+	// reflect.ValueOf(slicePointer).Elem().Set(slice)
 
 	// 返回输入值的指针和包含输入值的切片指针
 	return inputPointer, slicePointer
@@ -315,6 +315,9 @@ func deepCopy(src any) any {
 
 // 用反引号包裹字段
 func wrapWithBackticks(str string) string {
+	if str == "" {
+		return str
+	}
 	// 如果已经被包裹，不做修改
 	if len(str) > 1 && str[0] == '`' && str[len(str)-1] == '`' {
 		return str
