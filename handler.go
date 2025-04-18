@@ -95,11 +95,11 @@ type (
 )
 
 func NewController(conn any, op Operator, m any) func(ctx context.Context) Controller {
-	// rawFiledNames call must be at the beginning of this function,
+	// createModelPointerAndSlice call must be at the beginning of this function,
 	// for it will check type of the m(model) is a struct
-	fieldNameSlice := rawFieldNames(m, DefaultModelTag, true)
-
 	mPtr, mSlicePtr := createModelPointerAndSlice(m)
+
+	fieldNameSlice := rawFieldNames(m, DefaultModelTag, true)
 
 	return func(ctx context.Context) Controller {
 		if ctx == nil {

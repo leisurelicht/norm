@@ -25,18 +25,9 @@ func shiftName(s string) string {
 }
 
 func rawFieldNames(in any, tag string, pg bool) []string {
-	if in == nil {
-		panic(errors.New("model is nil"))
-	}
-
 	v := reflect.ValueOf(in)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
-	}
-
-	// we only accept structs
-	if v.Kind() != reflect.Struct {
-		panic(fmt.Errorf("model only can be a struct; got %s", v.Kind()))
 	}
 
 	out := make([]string, 0, v.NumField())
@@ -185,7 +176,16 @@ func modelStructSlice2MapSlice(obj any, tag string) []map[string]any {
 }
 
 func createModelPointerAndSlice(input any) (any, any) {
+	if input == nil {
+		panic(errors.New("model is nil"))
+	}
+
 	inputType := reflect.ValueOf(input).Type()
+
+	// we only accept structs
+	if inputType.Kind() != reflect.Struct {
+		panic(fmt.Errorf("model only can be a struct; got %s", inputType.Kind()))
+	}
 
 	inputPointer := reflect.New(inputType).Interface()
 
@@ -300,4 +300,3 @@ func wrapWithBackticks(str string) string {
 	// 包裹字段
 	return "`" + str + "`"
 }
-

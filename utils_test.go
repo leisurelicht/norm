@@ -40,112 +40,77 @@ func Test_rawFieldNames(t *testing.T) {
 		pg  bool
 	}
 	tests := []struct {
-		name           string
-		args           args
-		want           []string
-		expectPanic    bool
-		expectedErrMsg string
+		name string
+		args args
+		want []string
 	}{
 		{"with_postgresql_false", args{struct {
 			Device          string `db:"device"`
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:"device_policy_map"`
-		}{}, "db", false}, []string{"`device`", "`device_policy`", "`device_policy_map`"}, false, ""},
+		}{}, "db", false}, []string{"`device`", "`device_policy`", "`device_policy_map`"}},
 		{"with_postgresql_true", args{struct {
 			Device          string `db:"device"`
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:"device_policy_map"`
-		}{}, "db", true}, []string{"device", "device_policy", "device_policy_map"}, false, ""},
+		}{}, "db", true}, []string{"device", "device_policy", "device_policy_map"}},
 		{"ignore_with_pg_false", args{struct {
 			Device          string `db:"device"`
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:"-"`
-		}{}, "db", false}, []string{"`device`", "`device_policy`"}, false, ""},
+		}{}, "db", false}, []string{"`device`", "`device_policy`"}},
 		{"ignore_with_pg_true", args{struct {
 			Device          string `db:"device"`
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:"-"`
-		}{}, "db", true}, []string{"device", "device_policy"}, false, ""},
+		}{}, "db", true}, []string{"device", "device_policy"}},
 		{"multiple_tag_with_pg_false", args{struct {
 			Device          string `db:"device, type=char, length=16"`
 			DevicePolicy    string `db:"device_policy, type=char"`
 			DevicePolicyMap string `db:"device_policy_map"`
-		}{}, "db", false}, []string{"`device`", "`device_policy`", "`device_policy_map`"}, false, ""},
+		}{}, "db", false}, []string{"`device`", "`device_policy`", "`device_policy_map`"}},
 		{"multiple_tag_with_pg_true", args{struct {
 			Device          string `db:"device, type=char, length=16"`
 			DevicePolicy    string `db:"device_policy, type=char"`
 			DevicePolicyMap string `db:"device_policy_map"`
-		}{}, "db", true}, []string{"device", "device_policy", "device_policy_map"}, false, ""},
+		}{}, "db", true}, []string{"device", "device_policy", "device_policy_map"}},
 		{"multiple_tag_pg_false_ignore", args{struct {
 			Device          string `db:"device, type=char, length=16"`
 			DevicePolicy    string `db:"device_policy, type=char"`
 			DevicePolicyMap string `db:"-"`
-		}{}, "db", false}, []string{"`device`", "`device_policy`"}, false, ""},
+		}{}, "db", false}, []string{"`device`", "`device_policy`"}},
 		{"multiple_tag_pg_true_ignore", args{struct {
 			Device          string `db:"device, type=char, length=16"`
 			DevicePolicy    string `db:"device_policy, type=char"`
 			DevicePolicyMap string `db:"-"`
-		}{}, "db", true}, []string{"device", "device_policy"}, false, ""},
+		}{}, "db", true}, []string{"device", "device_policy"}},
 		{"empty_tag_pg_false", args{struct {
 			Device          string
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:",type=char"`
-		}{}, "db", false}, []string{"`Device`", "`device_policy`", "`DevicePolicyMap`"}, false, ""},
+		}{}, "db", false}, []string{"`Device`", "`device_policy`", "`DevicePolicyMap`"}},
 		{"test with empty struct with not pg", args{struct {
 			Device          string
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:",type=char"`
-		}{}, "db", true}, []string{"Device", "device_policy", "DevicePolicyMap"}, false, ""},
+		}{}, "db", true}, []string{"Device", "device_policy", "DevicePolicyMap"}},
 		{"empty_tag_pg_false_ignore", args{struct {
 			Device          string
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:"-,type=char"`
-		}{}, "db", false}, []string{"`Device`", "`device_policy`"}, false, ""},
+		}{}, "db", false}, []string{"`Device`", "`device_policy`"}},
 		{"empty_tag_pg_true_ignore", args{struct {
 			Device          string
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:"-,type=char"`
-		}{}, "db", true}, []string{"Device", "device_policy"}, false, ""},
-		{"valid_pointer", args{&struct {
+		}{}, "db", true}, []string{"Device", "device_policy"}},
+		{"pointer_struct", args{&struct {
 			Device string `db:"device"`
-		}{}, "db", false}, []string{"`device`"}, false, ""},
-		{"invalid_not_struct", args{1, "db", false}, []string{}, true, "model only can be a struct; got int"},
-		{"invalid_nil", args{nil, "db", false}, []string{}, true, "model is nil"},
-		{"invalid_nil_pointer", args{(*struct {
-			Device string `db:"device"`
-		})(nil), "db", false}, []string{}, true, "model only can be a struct; got invalid"},
+		}{}, "db", false}, []string{"`device`"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var (
-				got      []string
-				panicked = false
-				panicMsg any
-			)
-
-			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						panicked = true
-						panicMsg = r
-					}
-				}()
-
-				got = rawFieldNames(tt.args.in, tt.args.tag, tt.args.pg)
-			}()
-
-			if tt.expectPanic != panicked {
-				t.Errorf("rawFieldNames() failed.\nGot : %+v\nWant: %+v", panicked, tt.expectPanic)
-				return
-			}
-
-			if tt.expectPanic && panicked {
-				errMsg, ok := panicMsg.(error)
-				if !ok || !strings.Contains(errMsg.Error(), tt.expectedErrMsg) {
-					t.Errorf("panic message mismatch.\nGot : %+v\nWant: %+v", errMsg, tt.expectedErrMsg)
-				}
-				return
-			}
+			got := rawFieldNames(tt.args.in, tt.args.tag, tt.args.pg)
 
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("rawFieldNames() failed.\nGot : %+v\nWant: %+v", got, tt.want)
@@ -391,10 +356,12 @@ func Test_createModelPointerAndSlice(t *testing.T) {
 		input any
 	}
 	tests := []struct {
-		name  string
-		args  args
-		want  any
-		want1 any
+		name           string
+		args           args
+		want           any
+		want1          any
+		expectPanic    bool
+		expectedErrMsg string
 	}{
 		{"test1", args{struct {
 			Id   int64  `db:"id"`
@@ -408,11 +375,44 @@ func Test_createModelPointerAndSlice(t *testing.T) {
 		}{}, &[]struct {
 			Id   int64  `db:"id"`
 			Name string `db:"name"`
-		}{}},
+		}{}, false, ""},
+		{"test_with_nil", args{nil}, nil, nil, true, "model is nil"},
+		{"test_with_int", args{1}, nil, nil, true, "model only can be a struct; got int"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1 := createModelPointerAndSlice(tt.args.input)
+
+			var (
+				got      any
+				got1     any
+				panicked = false
+				panicMsg any
+			)
+
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						panicked = true
+						panicMsg = r
+					}
+				}()
+
+				got, got1 = createModelPointerAndSlice(tt.args.input)
+			}()
+
+			if tt.expectPanic != panicked {
+				t.Errorf("rawFieldNames() failed.\nGot : %+v\nWant: %+v", panicked, tt.expectPanic)
+				return
+			}
+
+			if tt.expectPanic && panicked {
+				errMsg, ok := panicMsg.(error)
+				if !ok || !strings.Contains(errMsg.Error(), tt.expectedErrMsg) {
+					t.Errorf("panic message mismatch.\nGot : %+v\nWant: %+v", errMsg, tt.expectedErrMsg)
+				}
+				return
+			}
+
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("create model pointer error \nGot : %v\nWant: %v", got, tt.want)
 			}
