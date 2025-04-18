@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
@@ -12,6 +13,16 @@ import (
 	mysqlOp "github.com/leisurelicht/norm/operator/mysql"
 	"github.com/leisurelicht/norm/test"
 )
+
+// keys returns the sorted keys of a map
+func keys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
 
 const (
 	mysqlAddress = "root:123456@tcp(127.0.0.1:6033)/test?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
@@ -136,6 +147,34 @@ func TestQuery(t *testing.T) {
 		if v["id"] != resNotContains[i]["id"] {
 			t.Errorf("expect not equal but \ngot: resExclude: %+v\ngot: resNotContains: %+v", v, resNotContains[i])
 		}
+	}
+
+	// test select
+	sources := []test.Source{}
+	if err := ctl(ctx).Select([]string{"id", "name"}).Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAllModel(&sources); err != nil {
+		t.Error(err)
+	} else if len(sources) != 6 {
+		t.Errorf("expect 6 but got %d\ngot res: %+v", len(sources), sources)
+	}
+
+	if res, err := ctl(ctx).Select([]string{"id", "name"}).Filter(Cond{"is_deleted": true}).OrderBy("id").Limit(10, 1).FindAll(); err != nil {
+		t.Error(err)
+	} else if len(res) != 2 {
+		t.Errorf("expect 2 results but got %d\ngot res: %+v", len(res), res)
+	} else if len(res[0]) != 2 || !reflect.DeepEqual(keys(res[0]), []string{"id", "name"}) {
+		t.Errorf("expect 2 columns but got %d\ngot res: %+v", len(res), res)
+	}
+
+	if res, err := ctl(ctx).Select([]string{"id", "name"}).Filter(Cond{"is_deleted": true}).OrderBy("id").FindOne(); err != nil {
+		t.Error(err)
+	} else if len(res) != 2 || !reflect.DeepEqual(keys(res), []string{"id", "name"}) {
+		t.Errorf("expect 2 columns but got %d\ngot res: %+v", len(res), res)
+	}
+
+	if res, err := ctl(ctx).Select("id, name").Filter(Cond{"is_deleted": true}).OrderBy("id").FindOne(); err != nil {
+		t.Error(err)
+	} else if len(res) != 2 || !reflect.DeepEqual(keys(res), []string{"id", "name"}) {
+		t.Errorf("expect 2 columns but got %d\ngot res: %+v", len(res), res)
 	}
 
 }
@@ -390,12 +429,23 @@ func TestHandlerError(t *testing.T) {
 		t.Errorf("expect empty but got %+v", res)
 	}
 
+	// test select
 	if res, err := ctl(ctx).Filter(Cond{"name__contains": []string{"Ac", ""}}).OrderBy("id").Limit(10, 1).FindAll(); err != nil {
 		if err.Error() != "operator [contains] unsupported value empty" {
 			t.Error(err)
 		}
 	} else if len(res) != 5 {
 		t.Errorf("expect 5 but got %d\ngot res: %+v", len(res), res)
+	}
+
+	if err := ctl(ctx).Select([]string{}).FindOneModel(&test.Source{}); err != nil {
+		t.Error(err)
+	}
+
+	if err := ctl(ctx).Select([]int{1}).FindOneModel(&test.Source{}); err != nil {
+		if err.Error() != "Select type should be string or string slice" {
+			t.Error(err)
+		}
 	}
 
 }

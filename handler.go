@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"reflect"
 	"strings"
 )
@@ -352,7 +351,7 @@ func (m *Impl) InsertModel(model any) (id int64, err error) {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Insert")
 	}
 
-	return m.Insert(modelStruct2Map(model, m.mTag))
+	return m.Insert(modelStruct2Map(model, m.mTag, nil))
 }
 
 func (m *Impl) BulkInsert(data []map[string]any) (err error) {
@@ -387,7 +386,7 @@ func (m *Impl) BulkInsert(data []map[string]any) (err error) {
 }
 
 func (m *Impl) BulkInsertModel(modelSlice []any) (err error) {
-	return m.BulkInsert(modelStructSlice2MapSlice(modelSlice, m.mTag))
+	return m.BulkInsert(modelStructSlice2MapSlice(modelSlice, m.mTag, nil))
 }
 
 func (m *Impl) Remove() (num int64, err error) {
@@ -455,7 +454,7 @@ func (m *Impl) Count() (num int64, err error) {
 }
 
 func (m *Impl) FindOne() (result map[string]any, err error) {
-	if methods, called := m.checkCalled(ctlSelect, ctlHaving); called {
+	if methods, called := m.checkCalled(ctlHaving); called {
 		return result, fmt.Errorf(UnsupportedControllerError, methods, "FindOne")
 	}
 
@@ -463,15 +462,24 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 		return result, err
 	}
 
-	filterSQL, filterArgs := m.qs.GetQuerySet()
-
 	query := SelectTemp
-	query = fmt.Sprintf(query, m.fieldRows, m.tableName)
+
+	selectRows, rawSelectcolumns := m.qs.GetSelectSQL()
+	if selectRows != Asterisk {
+		query = fmt.Sprintf(query, selectRows, m.tableName)
+	} else {
+		query = fmt.Sprintf(query, m.fieldRows, m.tableName)
+	}
+
+	filterSQL, filterArgs := m.qs.GetQuerySet()
 	query += filterSQL
+
 	query += m.qs.GetGroupBySQL()
+
 	havingSQL, havingArgs := m.qs.GetHavingSQL()
 	query += havingSQL
 	filterArgs = append(filterArgs, havingArgs...)
+
 	query += m.qs.GetOrderBySQL()
 	query += " LIMIT 1"
 
@@ -481,7 +489,10 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 
 	switch {
 	case err == nil:
-		return modelStruct2Map(res, m.mTag), nil
+		if selectRows != Asterisk {
+			return modelStruct2Map(res, m.mTag, rawSelectcolumns), nil
+		}
+		return modelStruct2Map(res, m.mTag, nil), nil
 	case errors.Is(err, ErrNotFound):
 		return map[string]any{}, nil
 	default:
@@ -496,8 +507,8 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 
 	query := SelectTemp
 
-	selectRows := m.qs.GetSelectSQL()
-	if selectRows != "*" {
+	selectRows, _ := m.qs.GetSelectSQL()
+	if selectRows != Asterisk {
 		query = fmt.Sprintf(query, selectRows, m.tableName)
 	} else {
 		query = fmt.Sprintf(query, m.fieldRows, m.tableName)
@@ -517,7 +528,7 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 }
 
 func (m *Impl) FindAll() (result []map[string]any, err error) {
-	if methods, called := m.checkCalled(ctlSelect, ctlHaving); called {
+	if methods, called := m.checkCalled(ctlHaving); called {
 		return result, fmt.Errorf(UnsupportedControllerError, methods, "FindAll")
 	}
 
@@ -525,10 +536,17 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 		return result, err
 	}
 
+	query := SelectTemp
+
+	selectRows, rawSelectcolumns := m.qs.GetSelectSQL()
+	if selectRows != Asterisk {
+		query = fmt.Sprintf(query, selectRows, m.tableName)
+	} else {
+		query = fmt.Sprintf(query, m.fieldRows, m.tableName)
+	}
+
 	filterSQL, filterArgs := m.qs.GetQuerySet()
 
-	query := SelectTemp
-	query = fmt.Sprintf(query, m.fieldRows, m.tableName)
 	query += filterSQL
 
 	query += m.qs.GetGroupBySQL()
@@ -541,7 +559,10 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 
 	switch {
 	case err == nil:
-		return modelStructSlice2MapSlice(res, m.mTag), nil
+		if selectRows != Asterisk {
+			return modelStructSlice2MapSlice(res, m.mTag, rawSelectcolumns), nil
+		}
+		return modelStructSlice2MapSlice(res, m.mTag, nil), nil
 	case errors.Is(err, ErrNotFound):
 		return []map[string]any{}, nil
 	default:
@@ -556,8 +577,8 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 
 	query := SelectTemp
 
-	selectRows := m.qs.GetSelectSQL()
-	if selectRows != "*" {
+	selectRows, _ := m.qs.GetSelectSQL()
+	if selectRows != Asterisk {
 		query = fmt.Sprintf(query, selectRows, m.tableName)
 	} else {
 		query = fmt.Sprintf(query, m.fieldRows, m.tableName)
@@ -677,7 +698,7 @@ func (m *Impl) GetC2CMap(column1, column2 string) (res map[any]any, err error) {
 	}
 
 	res = make(map[any]any)
-	for _, v := range modelStructSlice2MapSlice(result, m.mTag) {
+	for _, v := range modelStructSlice2MapSlice(result, m.mTag, nil) {
 		res[v[column1]] = v[column2]
 	}
 

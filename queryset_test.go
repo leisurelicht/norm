@@ -703,14 +703,14 @@ func TestSelect(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewQuerySet(mysqlOp.NewOperator())
 
-			sql := p.GetSelectSQL()
+			sql, _ := p.GetSelectSQL()
 			if sql != "*" {
 				t.Errorf("TestSelect SQL Gen Error -> sql : %v", sql)
 				t.Errorf("TestSelect SQL Gen Error -> want: %v", "*")
 			}
 
 			p.SelectToSQL(tt.args.selects)
-			sql = p.GetSelectSQL()
+			sql, _ = p.GetSelectSQL()
 
 			if sql != tt.want.sql {
 				t.Errorf("TestSelect SQL Gen Error -> sql : %v", sql)
@@ -748,14 +748,14 @@ func TestSelectError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewQuerySet(mysqlOp.NewOperator())
 
-			sql := p.GetSelectSQL()
+			sql, _ := p.GetSelectSQL()
 			if sql != "*" {
 				t.Errorf("TestSelectError SQL Gen Error -> sql : %v", sql)
 				t.Errorf("TestSelectError SQL Gen Error -> want: %v", "*")
 			}
 
 			p.SelectToSQL(tt.args.selects)
-			sql = p.GetSelectSQL()
+			sql, _ = p.GetSelectSQL()
 
 			if p.Error() != nil {
 				if p.Error().Error() != tt.want.err.Error() {
@@ -1115,7 +1115,7 @@ func TestFilterResetAndError(t *testing.T) {
 	if p.Error() != nil {
 		t.Errorf("Error should be nil after Reset, got: %v", p.Error())
 	}
-	if p.GetSelectSQL() != "*" {
+	if s, _ := p.GetSelectSQL(); s != "*" {
 		t.Errorf("SelectToSQL should be reset to default")
 	}
 	if p.GetOrderBySQL() != "" {

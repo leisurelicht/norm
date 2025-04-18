@@ -126,7 +126,7 @@ type QuerySet interface {
 	GetQuerySet() (string, []any)
 	FilterToSQL(notTag int, filter ...any) QuerySet
 	WhereToSQL(cond string, args ...any) QuerySet
-	GetSelectSQL() string
+	GetSelectSQL() (string, []string)
 	SelectToSQL(columns any) QuerySet
 	StrSelectToSQL(columns string) QuerySet
 	SliceSelectToSQL(columns []string) QuerySet
@@ -146,16 +146,17 @@ type QuerySet interface {
 
 type QuerySetImpl struct {
 	Operator
-	selectColumn  string
-	whereCond     cond
-	filterConds   [][]cond
-	filterConjTag []int
-	orderBySQL    string
-	limitSQL      string
-	groupSQL      string
-	havingSQL     cond
-	err           error
-	called        callFlag
+	selectColumn     string
+	rawSelectcolumns []string
+	whereCond        cond
+	filterConds      [][]cond
+	filterConjTag    []int
+	orderBySQL       string
+	limitSQL         string
+	groupSQL         string
+	havingSQL        cond
+	err              error
+	called           callFlag
 }
 
 var _ QuerySet = (*QuerySetImpl)(nil)
@@ -572,8 +573,8 @@ func (p *QuerySetImpl) WhereToSQL(cond string, args ...any) QuerySet {
 	return p
 }
 
-func (p *QuerySetImpl) GetSelectSQL() string {
-	return p.selectColumn
+func (p *QuerySetImpl) GetSelectSQL() (string, []string) {
+	return p.selectColumn, p.rawSelectcolumns
 }
 
 func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
@@ -595,6 +596,7 @@ func (p *QuerySetImpl) StrSelectToSQL(columns string) QuerySet {
 	p.setCalled(callSelect)
 
 	p.selectColumn = columns
+	p.rawSelectcolumns = strings.Split(columns, ",")
 	return p
 }
 
@@ -605,7 +607,8 @@ func (p *QuerySetImpl) SliceSelectToSQL(columns []string) QuerySet {
 		return p
 	}
 
-	p.selectColumn = processSQL(columns, p.IsSelectKey)
+	// TODO handle like A as B
+	p.selectColumn, p.rawSelectcolumns = processSQL(columns, p.IsSelectKey)
 	return p
 }
 

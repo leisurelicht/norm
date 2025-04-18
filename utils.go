@@ -91,7 +91,7 @@ func strSlice2Map(s []string) (res map[string]struct{}) {
 }
 
 // modelStruct2Map convert struct to map, tag is the tag name of struct
-func modelStruct2Map(obj any, tag string) map[string]any {
+func modelStruct2Map(obj any, tag string, selectColumns []string) map[string]any {
 	t := reflect.TypeOf(obj)
 	v := reflect.ValueOf(obj)
 	if t.Kind() == reflect.Ptr {
@@ -99,10 +99,22 @@ func modelStruct2Map(obj any, tag string) map[string]any {
 		v = v.Elem()
 	}
 
+	var selectMap map[string]struct{}
+	if selectColumns != nil {
+		selectMap = strSlice2Map(selectColumns)
+	}
+
 	data := make(map[string]any, t.NumField())
 
 	for i := 0; i < t.NumField(); i++ {
-		if t.Field(i).Tag.Get(tag) == "" || t.Field(i).Tag.Get(tag) == "-" {
+		filedTag := t.Field(i).Tag.Get(tag)
+		if len(selectMap) > 0 {
+			if _, ok := selectMap[filedTag]; !ok {
+				// skip not selected tag
+				continue
+			}
+		}
+		if filedTag == "" || filedTag == "-" {
 			// skip empty tag
 			// skip "-" tag
 			continue
@@ -169,7 +181,7 @@ func modelStruct2Map(obj any, tag string) map[string]any {
 }
 
 // modelStructSlice2MapSlice convert struct slice to map slice, tag is the tag name of struct
-func modelStructSlice2MapSlice(obj any, tag string) []map[string]any {
+func modelStructSlice2MapSlice(obj any, tag string, selectColumns []string) []map[string]any {
 	t := reflect.TypeOf(obj)
 	v := reflect.ValueOf(obj)
 	if t.Kind() == reflect.Ptr {
@@ -179,7 +191,7 @@ func modelStructSlice2MapSlice(obj any, tag string) []map[string]any {
 	data := make([]map[string]any, 0, v.Len())
 
 	for i := 0; i < v.Len(); i++ {
-		data = append(data, modelStruct2Map(v.Index(i).Interface(), tag))
+		data = append(data, modelStruct2Map(v.Index(i).Interface(), tag, selectColumns))
 	}
 	return data
 }
@@ -287,8 +299,13 @@ func wrapWithBackticks(str string) string {
 	return "`" + str + "`"
 }
 
-func processSQL(sqlParts []string, isKeyWord func(word string) bool) string {
+func processSQL(sqlParts []string, isKeyWord func(word string) bool) (string, []string) {
+	if len(sqlParts) == 0 {
+		return "", []string{}
+	}
+
 	var result strings.Builder
+	var columns []string
 
 	// 遍历每个子字符串
 	for i, part := range sqlParts {
@@ -309,6 +326,10 @@ func processSQL(sqlParts []string, isKeyWord func(word string) bool) string {
 			if j < len(words)-1 {
 				result.WriteString(" ")
 			}
+
+			if j == len(words)-1 {
+				columns = append(columns, word)
+			}
 		}
 
 		// 如果不是最后一个部分，添加逗号和空格
@@ -317,5 +338,5 @@ func processSQL(sqlParts []string, isKeyWord func(word string) bool) string {
 		}
 	}
 
-	return result.String()
+	return result.String(), columns
 }

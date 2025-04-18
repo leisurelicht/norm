@@ -298,7 +298,7 @@ func Test_modelStruct2Map(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := modelStruct2Map(tt.args.obj, tt.args.tag)
+			got := modelStruct2Map(tt.args.obj, tt.args.tag, nil)
 
 			// Check map length first
 			if len(got) != len(tt.want) {
@@ -379,7 +379,7 @@ func Test_modelStructSlice2MapSlice(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := modelStructSlice2MapSlice(tt.args.obj, tt.args.tag); !reflect.DeepEqual(got, tt.want) {
+			if got := modelStructSlice2MapSlice(tt.args.obj, tt.args.tag, nil); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("modelStructSlice2MapSlice() failed \nGot : %v\nWant: %v", got, tt.want)
 			}
 		})
@@ -1271,19 +1271,25 @@ func Test_processSQL(t *testing.T) {
 		isKeyWord func(word string) bool
 	}
 	tests := []struct {
-		name string
-		args args
-		want string
+		name        string
+		args        args
+		want        string
+		wantColumns []string
 	}{
-		{"test_empty", args{[]string{}, mysql.NewOperator().IsSelectKey}, ""},
-		{"test_single_keyword", args{[]string{"test"}, mysql.NewOperator().IsSelectKey}, "`test`"},
-		{"test_multiple_keywords", args{[]string{"test as test1"}, mysql.NewOperator().IsSelectKey}, "`test` as `test1`"},
-		{"test_multiple_keywords_with_spaces", args{[]string{"test as test1", "test2"}, mysql.NewOperator().IsSelectKey}, "`test` as `test1`, `test2`"},
+		{"test_empty", args{[]string{}, mysql.NewOperator().IsSelectKey}, "", []string{}},
+		{"test_single", args{[]string{"test"}, mysql.NewOperator().IsSelectKey}, "`test`", []string{"test"}},
+		{"test_single_keyword", args{[]string{"test"}, mysql.NewOperator().IsSelectKey}, "`test`", []string{"test"}},
+		{"test_multiple_keywords", args{[]string{"test as test1"}, mysql.NewOperator().IsSelectKey}, "`test` as `test1`", []string{"test1"}},
+		{"test_multiple_keywords_with_spaces", args{[]string{"test as test1", "test2"}, mysql.NewOperator().IsSelectKey}, "`test` as `test1`, `test2`", []string{"test1", "test2"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := processSQL(tt.args.sqlParts, tt.args.isKeyWord); got != tt.want {
+			got, gotColumns := processSQL(tt.args.sqlParts, tt.args.isKeyWord)
+			if got != tt.want {
 				t.Errorf("processSQL() = %v, want %v", got, tt.want)
+			}
+			if !reflect.DeepEqual(gotColumns, tt.wantColumns) {
+				t.Errorf("processSQL() columns = %+v, want %+v", gotColumns, tt.wantColumns)
 			}
 		})
 	}
