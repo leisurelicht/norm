@@ -20,9 +20,9 @@ func Test_shiftName(t *testing.T) {
 		args args
 		want string
 	}{
-		{"test1", args{"DevicePolicyMap"}, "`device_policy_map`"},
-		{"test2", args{"DevicePolicy"}, "`device_policy`"},
-		{"test3", args{"Device"}, "`device`"},
+		{"camel_to_snake_compound", args{"DevicePolicyMap"}, "`device_policy_map`"},
+		{"camel_to_snake_two_words", args{"DevicePolicy"}, "`device_policy`"},
+		{"camel_to_snake_single", args{"Device"}, "`device`"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -46,47 +46,47 @@ func Test_rawFieldNames(t *testing.T) {
 		expectPanic    bool
 		expectedErrMsg string
 	}{
-		{"test pg", args{struct {
+		{"with_postgresql_false", args{struct {
 			Device          string `db:"device"`
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:"device_policy_map"`
 		}{}, "db", false}, []string{"`device`", "`device_policy`", "`device_policy_map`"}, false, ""},
-		{"test not pg", args{struct {
+		{"with_postgresql_true", args{struct {
 			Device          string `db:"device"`
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:"device_policy_map"`
 		}{}, "db", true}, []string{"device", "device_policy", "device_policy_map"}, false, ""},
-		{"test ignore with pg", args{struct {
+		{"ignore_with_pg_false", args{struct {
 			Device          string `db:"device"`
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:"-"`
 		}{}, "db", false}, []string{"`device`", "`device_policy`"}, false, ""},
-		{"test ignore with not pg", args{struct {
+		{"ignore_with_pg_true", args{struct {
 			Device          string `db:"device"`
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:"-"`
 		}{}, "db", true}, []string{"device", "device_policy"}, false, ""},
-		{"test with multiple tag with pg", args{struct {
+		{"multiple_tag_with_pg_false", args{struct {
 			Device          string `db:"device, type=char, length=16"`
 			DevicePolicy    string `db:"device_policy, type=char"`
 			DevicePolicyMap string `db:"device_policy_map"`
 		}{}, "db", false}, []string{"`device`", "`device_policy`", "`device_policy_map`"}, false, ""},
-		{"test with multiple tag with not pg", args{struct {
+		{"multiple_tag_with_pg_true", args{struct {
 			Device          string `db:"device, type=char, length=16"`
 			DevicePolicy    string `db:"device_policy, type=char"`
 			DevicePolicyMap string `db:"device_policy_map"`
 		}{}, "db", true}, []string{"device", "device_policy", "device_policy_map"}, false, ""},
-		{"test with multiple tag with pg and ignore", args{struct {
+		{"multiple_tag_pg_false_ignore", args{struct {
 			Device          string `db:"device, type=char, length=16"`
 			DevicePolicy    string `db:"device_policy, type=char"`
 			DevicePolicyMap string `db:"-"`
 		}{}, "db", false}, []string{"`device`", "`device_policy`"}, false, ""},
-		{"test with multiple tag with not pg and ignore", args{struct {
+		{"multiple_tag_pg_true_ignore", args{struct {
 			Device          string `db:"device, type=char, length=16"`
 			DevicePolicy    string `db:"device_policy, type=char"`
 			DevicePolicyMap string `db:"-"`
 		}{}, "db", true}, []string{"device", "device_policy"}, false, ""},
-		{"test with empty tag", args{struct {
+		{"empty_tag_pg_false", args{struct {
 			Device          string
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:",type=char"`
@@ -96,22 +96,22 @@ func Test_rawFieldNames(t *testing.T) {
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:",type=char"`
 		}{}, "db", true}, []string{"Device", "device_policy", "DevicePolicyMap"}, false, ""},
-		{"test with empty struct with pg and ignore", args{struct {
+		{"empty_tag_pg_false_ignore", args{struct {
 			Device          string
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:"-,type=char"`
 		}{}, "db", false}, []string{"`Device`", "`device_policy`"}, false, ""},
-		{"test with empty struct with not pg and ignore", args{struct {
+		{"empty_tag_pg_true_ignore", args{struct {
 			Device          string
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:"-,type=char"`
 		}{}, "db", true}, []string{"Device", "device_policy"}, false, ""},
-		{"test pointer", args{&struct {
+		{"valid_pointer", args{&struct {
 			Device string `db:"device"`
 		}{}, "db", false}, []string{"`device`"}, false, ""},
-		{"test not struct", args{1, "db", false}, []string{}, true, "model only can be a struct; got int"},
-		{"test nil", args{nil, "db", false}, []string{}, true, "model is nil"},
-		{"test nil pointer", args{(*struct {
+		{"invalid_not_struct", args{1, "db", false}, []string{}, true, "model only can be a struct; got int"},
+		{"invalid_nil", args{nil, "db", false}, []string{}, true, "model is nil"},
+		{"invalid_nil_pointer", args{(*struct {
 			Device string `db:"device"`
 		})(nil), "db", false}, []string{}, true, "model only can be a struct; got invalid"},
 	}
@@ -164,11 +164,11 @@ func Test_strSlice2Map(t *testing.T) {
 		args    args
 		wantRes map[string]struct{}
 	}{
-		{"test0", args{[]string{}}, map[string]struct{}{}},
-		{"test1", args{[]string{"a", "b", "c"}}, map[string]struct{}{"a": {}, "b": {}, "c": {}}},
-		{"test2", args{[]string{"a", "b", "c", "a"}}, map[string]struct{}{"a": {}, "b": {}, "c": {}}},
-		{"test3", args{[]string{"a", "b", "c", "a", "b"}}, map[string]struct{}{"a": {}, "b": {}, "c": {}}},
-		{"test4", args{[]string{"a", "b", "c", "a", "b", "c"}}, map[string]struct{}{"a": {}, "b": {}, "c": {}}},
+		{"empty_slice", args{[]string{}}, map[string]struct{}{}},
+		{"distinct_strings", args{[]string{"a", "b", "c"}}, map[string]struct{}{"a": {}, "b": {}, "c": {}}},
+		{"duplicate_one_string", args{[]string{"a", "b", "c", "a"}}, map[string]struct{}{"a": {}, "b": {}, "c": {}}},
+		{"duplicate_two_strings", args{[]string{"a", "b", "c", "a", "b"}}, map[string]struct{}{"a": {}, "b": {}, "c": {}}},
+		{"duplicate_all_strings", args{[]string{"a", "b", "c", "a", "b", "c"}}, map[string]struct{}{"a": {}, "b": {}, "c": {}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1251,10 +1251,9 @@ func Test_wrapWithBackticks(t *testing.T) {
 		args args
 		want string
 	}{
-		// TODO: Add test cases.
-		{"test empty", args{""}, ""},
-		{"test not be wraped string ", args{"test"}, "`test`"},
-		{"test wraped string", args{"`test`"}, "`test`"},
+		{"empty_string", args{""}, ""},
+		{"unwrapped_string", args{"test"}, "`test`"},
+		{"already_wrapped_string", args{"`test`"}, "`test`"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

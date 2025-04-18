@@ -212,7 +212,7 @@ func TestMultipleCallFilter(t *testing.T) {
 		want want
 	}{
 		// multiple call
-		{"double call", []args{{isFilter, []any{Cond{"test1": 1}}}, {0, []any{Cond{"test2": 1}}}}, want{" WHERE (`test1` = ?) AND (`test2` = ?)", []any{1, 1}}},
+		{"double_call", []args{{isFilter, []any{Cond{"test1": 1}}}, {0, []any{Cond{"test2": 1}}}}, want{" WHERE (`test1` = ?) AND (`test2` = ?)", []any{1, 1}}},
 
 		// meet by accident
 		{"meet1", []args{{isFilter, []any{Cond{SortKey: []string{"delete_flag", "devise_sn"}, "delete_flag": 0, "devise_sn__len": 22}}}, {0, []any{Cond{SortKey: []string{"device_name", "devise_sn", "belong_to_company"}, "device_name__icontains": "test", "devise_sn__icontains": "test", "belong_to_company__icontains": "test"}}}}, want{" WHERE (`delete_flag` = ? AND LENGTH(`devise_sn`) = ?) AND (`device_name` LIKE ? AND `devise_sn` LIKE ? AND `belong_to_company` LIKE ?)", []any{0, 22, "%test%", "%test%", "%test%"}}},
@@ -611,8 +611,8 @@ func TestWhereError(t *testing.T) {
 		args args
 		want want
 	}{
-		{"args num mismatch", args{"test = ? AND test2 = ? AND test3 = ?", []any{1, 2}}, want{"", []any{}, errors.New(argsLenError)}},
-		{"args num mismatch1", args{"test = ? AND test2 = ? AND test3 = ?", []any{1, 2, 3, 4}}, want{"", []any{}, errors.New(argsLenError)}},
+		{"args_num_mismatch", args{"test = ? AND test2 = ? AND test3 = ?", []any{1, 2}}, want{"", []any{}, errors.New(argsLenError)}},
+		{"args_num_mismatch1", args{"test = ? AND test2 = ? AND test3 = ?", []any{1, 2, 3, 4}}, want{"", []any{}, errors.New(argsLenError)}},
 	}
 
 	for _, tt := range tests {
@@ -691,13 +691,13 @@ func TestSelect(t *testing.T) {
 		args args
 		want want
 	}{
-		{"blank string", args{""}, want{""}},
+		{"blank_string", args{""}, want{""}},
 		{"string", args{"test, test2 as test3"}, want{"test, test2 as test3"}},
-		{"zero slice", args{[]string{}}, want{"*"}},
-		{"one slice", args{[]string{"test"}}, want{"`test`"}},
-		{"two slice", args{[]string{"test", "test2"}}, want{"`test`, `test2`"}},
-		{"three slice", args{[]string{"test", "test2", "test3"}}, want{"`test`, `test2`, `test3`"}},
-		{"four slice", args{[]string{"test", "test2", "test3", "test4"}}, want{"`test`, `test2`, `test3`, `test4`"}},
+		{"zero_slice", args{[]string{}}, want{"*"}},
+		{"one_slice", args{[]string{"test"}}, want{"`test`"}},
+		{"two_slice", args{[]string{"test", "test2"}}, want{"`test`, `test2`"}},
+		{"three_slice", args{[]string{"test", "test2", "test3"}}, want{"`test`, `test2`, `test3`"}},
+		{"four_slice", args{[]string{"test", "test2", "test3", "test4"}}, want{"`test`, `test2`, `test3`, `test4`"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -733,22 +733,22 @@ func TestSelectError(t *testing.T) {
 		args args
 		want want
 	}{
-		{"blank_string", args{""}, want{"", nil}},
+		{"empty_string", args{""}, want{"", nil}},
 		{"valid_string_input", args{"test, test2 as test3"}, want{"test, test2 as test3", nil}},
 		{"empty_string_slice", args{[]string{}}, want{"*", nil}},
 		{"single_column_slice", args{[]string{"test"}}, want{"`test`", nil}},
 		{"double_column_slice", args{[]string{"test", "test2"}}, want{"`test`, `test2`", nil}},
 		{"triple_column_slice", args{[]string{"test", "test2", "test3"}}, want{"`test`, `test2`, `test3`", nil}},
-		{"array_string_type", args{[1]string{"test"}}, want{"", errors.New(paramTypeError)}},
-		{"integer_type", args{123}, want{"", errors.New(paramTypeError)}},
-		{"int_slice_type", args{[]int{1, 2}}, want{"", errors.New(paramTypeError)}},
-		{"string_int_map_type", args{map[string]int{"test": 1}}, want{"", errors.New(paramTypeError)}},
-		{"int_string_map_type", args{map[int]string{1: "test"}}, want{"", errors.New(paramTypeError)}},
-		{"bool_string_map_type", args{map[bool]string{true: "test"}}, want{"", errors.New(paramTypeError)}},
-		{"string_bool_map_type", args{map[string]bool{"test": true}}, want{"", errors.New(paramTypeError)}},
-		{"string_any_map_type", args{map[string]any{"test": 1}}, want{"", errors.New(paramTypeError)}},
-		{"string_any_string_value", args{map[string]any{"test": "test"}}, want{"", errors.New(paramTypeError)}},
-		{"string_any_float_value", args{map[string]any{"test": 1.0}}, want{"", errors.New(paramTypeError)}},
+		{"invalid_array_string_type", args{[1]string{"test"}}, want{"", errors.New(paramTypeError)}},
+		{"invalid_integer_type", args{123}, want{"", errors.New(paramTypeError)}},
+		{"invalid_int_slice_type", args{[]int{1, 2}}, want{"", errors.New(paramTypeError)}},
+		{"invalid_string_int_map_type", args{map[string]int{"test": 1}}, want{"", errors.New(paramTypeError)}},
+		{"invalid_int_string_map_type", args{map[int]string{1: "test"}}, want{"", errors.New(paramTypeError)}},
+		{"invalid_bool_string_map_type", args{map[bool]string{true: "test"}}, want{"", errors.New(paramTypeError)}},
+		{"invalid_string_bool_map_type", args{map[string]bool{"test": true}}, want{"", errors.New(paramTypeError)}},
+		{"invalid_string_any_map_type", args{map[string]any{"test": 1}}, want{"", errors.New(paramTypeError)}},
+		{"invalid_string_any_string_value", args{map[string]any{"test": "test"}}, want{"", errors.New(paramTypeError)}},
+		{"invalid_string_any_float_value", args{map[string]any{"test": 1.0}}, want{"", errors.New(paramTypeError)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -800,73 +800,73 @@ func TestLimit(t *testing.T) {
 		{"negative2", args{10, -1}, want{"", errors.New(pageSizeORNumberError)}},
 		{"negative3", args{-1, 0}, want{"", nil}},
 
-		{"page one size ten", args{10, 1}, want{" LIMIT 10 OFFSET 0", nil}},
-		{"page two size ten", args{10, 2}, want{" LIMIT 10 OFFSET 10", nil}},
-		{"page three size ten", args{10, 3}, want{" LIMIT 10 OFFSET 20", nil}},
-		{"page four size ten", args{10, 4}, want{" LIMIT 10 OFFSET 30", nil}},
-		{"page five size ten", args{10, 5}, want{" LIMIT 10 OFFSET 40", nil}},
-		{"page six size ten", args{10, 6}, want{" LIMIT 10 OFFSET 50", nil}},
-		{"page seven size ten", args{10, 7}, want{" LIMIT 10 OFFSET 60", nil}},
-		{"page eight size ten", args{10, 8}, want{" LIMIT 10 OFFSET 70", nil}},
-		{"page nine size ten", args{10, 9}, want{" LIMIT 10 OFFSET 80", nil}},
-		{"page ten size ten", args{10, 10}, want{" LIMIT 10 OFFSET 90", nil}},
-		{"page eleven size ten", args{10, 11}, want{" LIMIT 10 OFFSET 100", nil}},
-		{"page twelve size ten", args{10, 12}, want{" LIMIT 10 OFFSET 110", nil}},
-		{"page thirteen size ten", args{10, 13}, want{" LIMIT 10 OFFSET 120", nil}},
-		{"page fourteen size eleven", args{11, 14}, want{" LIMIT 11 OFFSET 143", nil}},
-		{"page fifteen size twelve", args{12, 15}, want{" LIMIT 12 OFFSET 168", nil}},
-		{"page sixteen size thirteen", args{13, 16}, want{" LIMIT 13 OFFSET 195", nil}},
-		{"page seventeen size fourteen", args{14, 17}, want{" LIMIT 14 OFFSET 224", nil}},
-		{"page eighteen size fifteen", args{15, 18}, want{" LIMIT 15 OFFSET 255", nil}},
-		{"page nineteen size sixteen", args{16, 19}, want{" LIMIT 16 OFFSET 288", nil}},
-		{"page twenty size seventeen", args{17, 20}, want{" LIMIT 17 OFFSET 323", nil}},
-		{"page twenty one size ten", args{10, 21}, want{" LIMIT 10 OFFSET 200", nil}},
-		{"page thirty size ten", args{10, 30}, want{" LIMIT 10 OFFSET 290", nil}},
-		{"page forty size ten", args{10, 40}, want{" LIMIT 10 OFFSET 390", nil}},
-		{"page fifty size ten", args{10, 50}, want{" LIMIT 10 OFFSET 490", nil}},
-		{"page sixty size ten", args{10, 60}, want{" LIMIT 10 OFFSET 590", nil}},
-		{"page seventy size ten", args{10, 70}, want{" LIMIT 10 OFFSET 690", nil}},
-		{"page eighty size ten", args{10, 80}, want{" LIMIT 10 OFFSET 790", nil}},
-		{"page ninety size ten", args{10, 90}, want{" LIMIT 10 OFFSET 890", nil}},
-		{"page one hundred size ten", args{10, 100}, want{" LIMIT 10 OFFSET 990", nil}},
-		{"page one hundred one size ten", args{10, 101}, want{" LIMIT 10 OFFSET 1000", nil}},
+		{"page_one_size_ten", args{10, 1}, want{" LIMIT 10 OFFSET 0", nil}},
+		{"page_two_size_ten", args{10, 2}, want{" LIMIT 10 OFFSET 10", nil}},
+		{"page_three_size_ten", args{10, 3}, want{" LIMIT 10 OFFSET 20", nil}},
+		{"page_four_size_ten", args{10, 4}, want{" LIMIT 10 OFFSET 30", nil}},
+		{"page_five_size_ten", args{10, 5}, want{" LIMIT 10 OFFSET 40", nil}},
+		{"page_six_size_ten", args{10, 6}, want{" LIMIT 10 OFFSET 50", nil}},
+		{"page_seven_size_ten", args{10, 7}, want{" LIMIT 10 OFFSET 60", nil}},
+		{"page_eight_size_ten", args{10, 8}, want{" LIMIT 10 OFFSET 70", nil}},
+		{"page_nine_size_ten", args{10, 9}, want{" LIMIT 10 OFFSET 80", nil}},
+		{"page_ten_size_ten", args{10, 10}, want{" LIMIT 10 OFFSET 90", nil}},
+		{"page_eleven_size_ten", args{10, 11}, want{" LIMIT 10 OFFSET 100", nil}},
+		{"page_twelve_size_ten", args{10, 12}, want{" LIMIT 10 OFFSET 110", nil}},
+		{"page_thirteen_size_ten", args{10, 13}, want{" LIMIT 10 OFFSET 120", nil}},
+		{"page_fourteen_size_eleven", args{11, 14}, want{" LIMIT 11 OFFSET 143", nil}},
+		{"page_fifteen_size_twelve", args{12, 15}, want{" LIMIT 12 OFFSET 168", nil}},
+		{"page_sixteen_size_thirteen", args{13, 16}, want{" LIMIT 13 OFFSET 195", nil}},
+		{"page_seventeen_size_fourteen", args{14, 17}, want{" LIMIT 14 OFFSET 224", nil}},
+		{"page_eighteen_size_fifteen", args{15, 18}, want{" LIMIT 15 OFFSET 255", nil}},
+		{"page_nineteen_size_sixteen", args{16, 19}, want{" LIMIT 16 OFFSET 288", nil}},
+		{"page_twenty_size_seventeen", args{17, 20}, want{" LIMIT 17 OFFSET 323", nil}},
+		{"page_twenty_one_size_ten", args{10, 21}, want{" LIMIT 10 OFFSET 200", nil}},
+		{"page_thirty_size_ten", args{10, 30}, want{" LIMIT 10 OFFSET 290", nil}},
+		{"page_forty_size_ten", args{10, 40}, want{" LIMIT 10 OFFSET 390", nil}},
+		{"page_fifty_size_ten", args{10, 50}, want{" LIMIT 10 OFFSET 490", nil}},
+		{"page_sixty_size_ten", args{10, 60}, want{" LIMIT 10 OFFSET 590", nil}},
+		{"page_seventy_size_ten", args{10, 70}, want{" LIMIT 10 OFFSET 690", nil}},
+		{"page_eighty_size_ten", args{10, 80}, want{" LIMIT 10 OFFSET 790", nil}},
+		{"page_ninety_size_ten", args{10, 90}, want{" LIMIT 10 OFFSET 890", nil}},
+		{"page_one_hundred_size_ten", args{10, 100}, want{" LIMIT 10 OFFSET 990", nil}},
+		{"page_one_hundred_one_size_ten", args{10, 101}, want{" LIMIT 10 OFFSET 1000", nil}},
 
-		{"page one size thirty", args{30, 1}, want{" LIMIT 30 OFFSET 0", nil}},
-		{"page two size thirty", args{30, 2}, want{" LIMIT 30 OFFSET 30", nil}},
-		{"page three size thirty", args{30, 3}, want{" LIMIT 30 OFFSET 60", nil}},
-		{"page four size thirty", args{30, 4}, want{" LIMIT 30 OFFSET 90", nil}},
-		{"page five size thirty", args{30, 5}, want{" LIMIT 30 OFFSET 120", nil}},
-		{"page ten size thirty", args{30, 10}, want{" LIMIT 30 OFFSET 270", nil}},
-		{"page twenty size thirty", args{30, 20}, want{" LIMIT 30 OFFSET 570", nil}},
-		{"page thirty size thirty", args{30, 30}, want{" LIMIT 30 OFFSET 870", nil}},
-		{"page forty size thirty", args{30, 40}, want{" LIMIT 30 OFFSET 1170", nil}},
-		{"page fifty size thirty", args{30, 50}, want{" LIMIT 30 OFFSET 1470", nil}},
-		{"page one hundred size thirty", args{30, 100}, want{" LIMIT 30 OFFSET 2970", nil}},
-		{"page one hundred one size thirty", args{30, 101}, want{" LIMIT 30 OFFSET 3000", nil}},
+		{"page_one_size_thirty", args{30, 1}, want{" LIMIT 30 OFFSET 0", nil}},
+		{"page_two_size_thirty", args{30, 2}, want{" LIMIT 30 OFFSET 30", nil}},
+		{"page_three_size_thirty", args{30, 3}, want{" LIMIT 30 OFFSET 60", nil}},
+		{"page_four_size_thirty", args{30, 4}, want{" LIMIT 30 OFFSET 90", nil}},
+		{"page_five_size_thirty", args{30, 5}, want{" LIMIT 30 OFFSET 120", nil}},
+		{"page_ten_size_thirty", args{30, 10}, want{" LIMIT 30 OFFSET 270", nil}},
+		{"page_twenty_size_thirty", args{30, 20}, want{" LIMIT 30 OFFSET 570", nil}},
+		{"page_thirty_size_thirty", args{30, 30}, want{" LIMIT 30 OFFSET 870", nil}},
+		{"page_forty_size_thirty", args{30, 40}, want{" LIMIT 30 OFFSET 1170", nil}},
+		{"page_fifty_size_thirty", args{30, 50}, want{" LIMIT 30 OFFSET 1470", nil}},
+		{"page_one_hundred_size_thirty", args{30, 100}, want{" LIMIT 30 OFFSET 2970", nil}},
+		{"page_one_hundred_one_size_thirty", args{30, 101}, want{" LIMIT 30 OFFSET 3000", nil}},
 
-		{"page one size fifty", args{50, 1}, want{" LIMIT 50 OFFSET 0", nil}},
-		{"page two size fifty", args{50, 2}, want{" LIMIT 50 OFFSET 50", nil}},
-		{"page three size fifty", args{50, 3}, want{" LIMIT 50 OFFSET 100", nil}},
-		{"page four size fifty", args{50, 4}, want{" LIMIT 50 OFFSET 150", nil}},
-		{"page five size fifty", args{50, 5}, want{" LIMIT 50 OFFSET 200", nil}},
+		{"page_one_size_fifty", args{50, 1}, want{" LIMIT 50 OFFSET 0", nil}},
+		{"page_two_size_fifty", args{50, 2}, want{" LIMIT 50 OFFSET 50", nil}},
+		{"page_three_size_fifty", args{50, 3}, want{" LIMIT 50 OFFSET 100", nil}},
+		{"page_four_size_fifty", args{50, 4}, want{" LIMIT 50 OFFSET 150", nil}},
+		{"page_five_size_fifty", args{50, 5}, want{" LIMIT 50 OFFSET 200", nil}},
 
-		{"page one size one hundred", args{100, 1}, want{" LIMIT 100 OFFSET 0", nil}},
-		{"page two size one hundred", args{100, 2}, want{" LIMIT 100 OFFSET 100", nil}},
-		{"page three size one hundred", args{100, 3}, want{" LIMIT 100 OFFSET 200", nil}},
-		{"page four size one hundred", args{100, 4}, want{" LIMIT 100 OFFSET 300", nil}},
-		{"page five size one hundred", args{100, 5}, want{" LIMIT 100 OFFSET 400", nil}},
+		{"page_one_size_one_hundred", args{100, 1}, want{" LIMIT 100 OFFSET 0", nil}},
+		{"page_two_size_one_hundred", args{100, 2}, want{" LIMIT 100 OFFSET 100", nil}},
+		{"page_three_size_one_hundred", args{100, 3}, want{" LIMIT 100 OFFSET 200", nil}},
+		{"page_four_size_one_hundred", args{100, 4}, want{" LIMIT 100 OFFSET 300", nil}},
+		{"page_five_size_one_hundred", args{100, 5}, want{" LIMIT 100 OFFSET 400", nil}},
 
-		{"page one size one thousand", args{1000, 1}, want{" LIMIT 1000 OFFSET 0", nil}},
-		{"page two size one thousand", args{1000, 2}, want{" LIMIT 1000 OFFSET 1000", nil}},
-		{"page three size one thousand", args{1000, 3}, want{" LIMIT 1000 OFFSET 2000", nil}},
-		{"page four size one thousand", args{1000, 4}, want{" LIMIT 1000 OFFSET 3000", nil}},
-		{"page five size one thousand", args{1000, 5}, want{" LIMIT 1000 OFFSET 4000", nil}},
+		{"page_one_size_one_thousand", args{1000, 1}, want{" LIMIT 1000 OFFSET 0", nil}},
+		{"page_two_size_one_thousand", args{1000, 2}, want{" LIMIT 1000 OFFSET 1000", nil}},
+		{"page_three_size_one_thousand", args{1000, 3}, want{" LIMIT 1000 OFFSET 2000", nil}},
+		{"page_four_size_one_thousand", args{1000, 4}, want{" LIMIT 1000 OFFSET 3000", nil}},
+		{"page_five_size_one_thousand", args{1000, 5}, want{" LIMIT 1000 OFFSET 4000", nil}},
 
-		{"page one size ten thousand", args{10000, 1}, want{" LIMIT 10000 OFFSET 0", nil}},
-		{"page two size ten thousand", args{10000, 2}, want{" LIMIT 10000 OFFSET 10000", nil}},
-		{"page three size ten thousand", args{10000, 3}, want{" LIMIT 10000 OFFSET 20000", nil}},
-		{"page four size ten thousand", args{10000, 4}, want{" LIMIT 10000 OFFSET 30000", nil}},
-		{"page five size ten thousand", args{10000, 5}, want{" LIMIT 10000 OFFSET 40000", nil}},
+		{"page_one_size_ten_thousand", args{10000, 1}, want{" LIMIT 10000 OFFSET 0", nil}},
+		{"page_two_size_ten_thousand", args{10000, 2}, want{" LIMIT 10000 OFFSET 10000", nil}},
+		{"page_three_size_ten_thousand", args{10000, 3}, want{" LIMIT 10000 OFFSET 20000", nil}},
+		{"page_four_size_ten_thousand", args{10000, 4}, want{" LIMIT 10000 OFFSET 30000", nil}},
+		{"page_five_size_ten_thousand", args{10000, 5}, want{" LIMIT 10000 OFFSET 40000", nil}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -898,16 +898,16 @@ func TestOrderBy(t *testing.T) {
 		args args
 		want want
 	}{
-		{"one_asc ", args{[]string{}}, want{""}},
-		{"one_asc ", args{[]string{"test"}}, want{" ORDER BY `test` ASC"}},
-		{"two_asc ", args{[]string{"test", "test2"}}, want{" ORDER BY `test` ASC, `test2` ASC"}},
-		{"three_asc ", args{[]string{"test", "test2", "test3"}}, want{" ORDER BY `test` ASC, `test2` ASC, `test3` ASC"}},
-		{"one_desc ", args{[]string{"-test"}}, want{" ORDER BY `test` DESC"}},
-		{"two_desc ", args{[]string{"-test", "-test2"}}, want{" ORDER BY `test` DESC, `test2` DESC"}},
-		{"three_desc ", args{[]string{"-test", "-test2", "-test3"}}, want{" ORDER BY `test` DESC, `test2` DESC, `test3` DESC"}},
-		{"two_mix ", args{[]string{"test", "-test2"}}, want{" ORDER BY `test` ASC, `test2` DESC"}},
-		{"three_mix ", args{[]string{"test", "-test2", "test3"}}, want{" ORDER BY `test` ASC, `test2` DESC, `test3` ASC"}},
-		{"three_mix ", args{[]string{"-test", "test2", "-test3"}}, want{" ORDER BY `test` DESC, `test2` ASC, `test3` DESC"}},
+		{"one_asc", args{[]string{}}, want{""}},
+		{"one_asc", args{[]string{"test"}}, want{" ORDER BY `test` ASC"}},
+		{"two_asc", args{[]string{"test", "test2"}}, want{" ORDER BY `test` ASC, `test2` ASC"}},
+		{"three_asc", args{[]string{"test", "test2", "test3"}}, want{" ORDER BY `test` ASC, `test2` ASC, `test3` ASC"}},
+		{"one_desc", args{[]string{"-test"}}, want{" ORDER BY `test` DESC"}},
+		{"two_desc", args{[]string{"-test", "-test2"}}, want{" ORDER BY `test` DESC, `test2` DESC"}},
+		{"three_desc", args{[]string{"-test", "-test2", "-test3"}}, want{" ORDER BY `test` DESC, `test2` DESC, `test3` DESC"}},
+		{"two_mix", args{[]string{"test", "-test2"}}, want{" ORDER BY `test` ASC, `test2` DESC"}},
+		{"three_mix", args{[]string{"test", "-test2", "test3"}}, want{" ORDER BY `test` ASC, `test2` DESC, `test3` ASC"}},
+		{"three_mix", args{[]string{"-test", "test2", "-test3"}}, want{" ORDER BY `test` DESC, `test2` ASC, `test3` DESC"}},
 		{"str_one", args{"test"}, want{" ORDER BY test"}},
 		{"str_two", args{"test, test2"}, want{" ORDER BY test, test2"}},
 		{"str_three", args{"test, test2, test3"}, want{" ORDER BY test, test2, test3"}},
@@ -990,12 +990,12 @@ func TestGroupBy(t *testing.T) {
 		args args
 		want want
 	}{
-		{"blank string", args{""}, want{""}},
+		{"blank_string", args{""}, want{""}},
 		{"string", args{"test, test2"}, want{" GROUP BY test, test2"}},
-		{"zero slice", args{[]string{}}, want{""}},
-		{"one slice", args{[]string{"test"}}, want{" GROUP BY `test`"}},
-		{"two slice", args{[]string{"test", "test2"}}, want{" GROUP BY `test`, `test2`"}},
-		{"three slice", args{[]string{"test", "test2", "test3"}}, want{" GROUP BY `test`, `test2`, `test3`"}},
+		{"zero_slice", args{[]string{}}, want{""}},
+		{"one_slice", args{[]string{"test"}}, want{" GROUP BY `test`"}},
+		{"two_slice", args{[]string{"test", "test2"}}, want{" GROUP BY `test`, `test2`"}},
+		{"three_slice", args{[]string{"test", "test2", "test3"}}, want{" GROUP BY `test`, `test2`, `test3`"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1076,7 +1076,7 @@ func TestHaving(t *testing.T) {
 		args args
 		want want
 	}{
-		{"blank string", args{"", []any{}}, want{"", []any{}}},
+		{"blank_string", args{"", []any{}}, want{"", []any{}}},
 		{"string", args{"SUM(test) > ?", []any{1}}, want{" HAVING SUM(test) > ?", []any{1}}},
 		{"string", args{"SUM(test) > ? AND SUM(test2) < ?", []any{1, 2}}, want{" HAVING SUM(test) > ? AND SUM(test2) < ?", []any{1, 2}}},
 	}
