@@ -10,6 +10,7 @@ import (
 
 const (
 	DefaultModelTag = "db"
+	Asterisk        = "*"
 	SelectTemp      = "SELECT %s FROM %s"
 	InsertTemp      = "INSERT INTO %s (%s) VALUES (%s)"
 	UpdateTemp      = "UPDATE %s SET %s"
@@ -496,7 +497,7 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 	query := SelectTemp
 
 	selectRows := m.qs.GetSelectSQL()
-	if selectRows != "*" {
+	if selectRows != Asterisk {
 		query = fmt.Sprintf(query, selectRows, m.tableName)
 	} else {
 		query = fmt.Sprintf(query, m.fieldRows, m.tableName)
@@ -556,7 +557,7 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 	query := SelectTemp
 
 	selectRows := m.qs.GetSelectSQL()
-	if selectRows != "*" {
+	if selectRows != Asterisk {
 		query = fmt.Sprintf(query, selectRows, m.tableName)
 	} else {
 		query = fmt.Sprintf(query, m.fieldRows, m.tableName)
