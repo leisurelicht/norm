@@ -2,6 +2,7 @@ package norm
 
 import (
 	"database/sql"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -665,12 +666,244 @@ func Test_genStrListValueLikeSQL(t *testing.T) {
 		valueFormat      string
 	}
 	tests := []struct {
-		name string
-		args args
-	}{}
+		name      string
+		args      args
+		wantSQL   string
+		wantArgs  []any
+		wantError error
+	}{
+		{
+			name: "test contains value empty error",
+			args: args{
+				p:                &QuerySetImpl{Operator: mysql.NewOperator(), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
+				filterConditions: make(map[string]*cond),
+				fieldName:        "name",
+				valueOf:          reflect.ValueOf([]string{"", ""}),
+				notFlag:          0,
+				operator:         "contains",
+				valueFormat:      "%%v%%",
+			},
+			wantSQL:   "",
+			wantArgs:  []any{},
+			wantError: fmt.Errorf(operatorValueEmptyError, "contains"),
+		},
+		{
+			name: "test icontains value empty error",
+			args: args{
+				p:                &QuerySetImpl{Operator: mysql.NewOperator(), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
+				filterConditions: make(map[string]*cond),
+				fieldName:        "name",
+				valueOf:          reflect.ValueOf([]string{"", ""}),
+				notFlag:          0,
+				operator:         "icontains",
+				valueFormat:      "%%v%%",
+			},
+			wantSQL:   "",
+			wantArgs:  []any{},
+			wantError: fmt.Errorf(operatorValueEmptyError, "icontains"),
+		},
+		{
+			name: "test startswith value empty error",
+			args: args{
+				p:                &QuerySetImpl{Operator: mysql.NewOperator(), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
+				filterConditions: make(map[string]*cond),
+				fieldName:        "name",
+				valueOf:          reflect.ValueOf([]string{"", ""}),
+				notFlag:          0,
+				operator:         "startswith",
+				valueFormat:      "%v%%",
+			},
+			wantSQL:   "",
+			wantArgs:  []any{},
+			wantError: fmt.Errorf(operatorValueEmptyError, "startswith"),
+		},
+		{
+			name: "test istartswith value empty error",
+			args: args{
+				p:                &QuerySetImpl{Operator: mysql.NewOperator(), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
+				filterConditions: make(map[string]*cond),
+				fieldName:        "name",
+				valueOf:          reflect.ValueOf([]string{"", ""}),
+				notFlag:          0,
+				operator:         "istartswith",
+				valueFormat:      "%v%%",
+			},
+			wantSQL:   "",
+			wantArgs:  []any{},
+			wantError: fmt.Errorf(operatorValueEmptyError, "istartswith"),
+		},
+		{
+			name: "test endswitch value empty error",
+			args: args{
+				p:                &QuerySetImpl{Operator: mysql.NewOperator(), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
+				filterConditions: make(map[string]*cond),
+				fieldName:        "name",
+				valueOf:          reflect.ValueOf([]string{"", ""}),
+				notFlag:          0,
+				operator:         "endswith",
+				valueFormat:      "%%%v",
+			},
+			wantSQL:   "",
+			wantArgs:  []any{},
+			wantError: fmt.Errorf(operatorValueEmptyError, "endswith"),
+		},
+		{
+			name: "test iendswitch value empty error",
+			args: args{
+				p:                &QuerySetImpl{Operator: mysql.NewOperator(), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
+				filterConditions: make(map[string]*cond),
+				fieldName:        "name",
+				valueOf:          reflect.ValueOf([]string{"", ""}),
+				notFlag:          0,
+				operator:         "iendswith",
+				valueFormat:      "%%%v",
+			},
+			wantSQL:   "",
+			wantArgs:  []any{},
+			wantError: fmt.Errorf(operatorValueEmptyError, "iendswith"),
+		},
+		{
+			name: "test with string list not contains",
+			args: args{
+				p:                &QuerySetImpl{Operator: mysql.NewOperator()},
+				filterConditions: make(map[string]*cond),
+				fieldName:        "test_field",
+				valueOf:          reflect.ValueOf([]string{"value1", "value2"}),
+				notFlag:          1,
+				operator:         "contains",
+				valueFormat:      "%%%v%%",
+			},
+			wantSQL:  "`test_field` NOT LIKE BINARY ? AND `test_field` NOT LIKE BINARY ?",
+			wantArgs: []any{"%value1%", "%value2%"},
+		},
+		{
+			name: "test with string list startswith",
+			args: args{
+				p:                &QuerySetImpl{Operator: mysql.NewOperator()},
+				filterConditions: make(map[string]*cond),
+				fieldName:        "test_field",
+				valueOf:          reflect.ValueOf([]string{"value1", "value2"}),
+				notFlag:          0,
+				operator:         "startswith",
+				valueFormat:      "%v%%",
+			},
+			wantSQL:  "`test_field` LIKE BINARY ? OR `test_field` LIKE BINARY ?",
+			wantArgs: []any{"value1%", "value2%"},
+		},
+		{
+			name: "test with string list endswith",
+			args: args{
+				p:                &QuerySetImpl{Operator: mysql.NewOperator()},
+				filterConditions: make(map[string]*cond),
+				fieldName:        "test_field",
+				valueOf:          reflect.ValueOf([]string{"value1", "value2"}),
+				notFlag:          0,
+				operator:         "endswith",
+				valueFormat:      "%%%v",
+			},
+			wantSQL:  "`test_field` LIKE BINARY ? OR `test_field` LIKE BINARY ?",
+			wantArgs: []any{"%value1", "%value2"},
+		},
+		{
+			name: "test with single string",
+			args: args{
+				p:                &QuerySetImpl{Operator: mysql.NewOperator()},
+				filterConditions: make(map[string]*cond),
+				fieldName:        "test_field",
+				valueOf:          reflect.ValueOf([]string{"value1"}),
+				notFlag:          0,
+				operator:         "contains",
+				valueFormat:      "%%%v%%",
+			},
+			wantSQL:  "`test_field` LIKE BINARY ?",
+			wantArgs: []any{"%value1%"},
+		},
+		{
+			name: "test with icontains operator",
+			args: args{
+				p:                &QuerySetImpl{Operator: mysql.NewOperator()},
+				filterConditions: make(map[string]*cond),
+				fieldName:        "test_field",
+				valueOf:          reflect.ValueOf([]string{"value1", "value2"}),
+				notFlag:          0,
+				operator:         "icontains",
+				valueFormat:      "%%%v%%",
+			},
+			wantSQL:  "`test_field` LIKE ? OR `test_field` LIKE ?",
+			wantArgs: []any{"%value1%", "%value2%"},
+		},
+		{
+			name: "test with istartswith operator",
+			args: args{
+				p:                &QuerySetImpl{Operator: mysql.NewOperator()},
+				filterConditions: make(map[string]*cond),
+				fieldName:        "test_field",
+				valueOf:          reflect.ValueOf([]string{"value1", "value2"}),
+				notFlag:          0,
+				operator:         "istartswith",
+				valueFormat:      "%v%%",
+			},
+			wantSQL:  "`test_field` LIKE ? OR `test_field` LIKE ?",
+			wantArgs: []any{"value1%", "value2%"},
+		},
+		{
+			name: "test with iendswith operator",
+			args: args{
+				p:                &QuerySetImpl{Operator: mysql.NewOperator()},
+				filterConditions: make(map[string]*cond),
+				fieldName:        "test_field",
+				valueOf:          reflect.ValueOf([]string{"value1", "value2"}),
+				notFlag:          0,
+				operator:         "iendswith",
+				valueFormat:      "%%%v",
+			},
+			wantSQL:  "`test_field` LIKE ? OR `test_field` LIKE ?",
+			wantArgs: []any{"%value1", "%value2"},
+		},
+		{
+			name: "test contains more than 2 values",
+			args: args{
+				p:                &QuerySetImpl{Operator: mysql.NewOperator()},
+				filterConditions: make(map[string]*cond),
+				fieldName:        "test_field",
+				valueOf:          reflect.ValueOf([]string{"value1", "value2", "value3"}),
+				notFlag:          0,
+				operator:         "contains",
+				valueFormat:      "%%%v%%",
+			},
+			wantSQL:  "`test_field` LIKE BINARY ? OR `test_field` LIKE BINARY ? OR `test_field` LIKE BINARY ?",
+			wantArgs: []any{"%value1%", "%value2%", "%value3%"},
+		},
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			genStrListValueLikeSQL(tt.args.p, tt.args.filterConditions, tt.args.fieldName, tt.args.valueOf, tt.args.notFlag, tt.args.operator, tt.args.valueFormat)
+
+			if tt.wantError != nil {
+				if tt.args.p.err == nil {
+					t.Errorf("Expected error: %v, but got nil", tt.wantError)
+				} else if tt.args.p.err.Error() != tt.wantError.Error() {
+					t.Errorf("Expected error: %v, but got: %v", tt.wantError, tt.args.p.err)
+				}
+				return
+			}
+
+			// Verify the condition was created correctly
+			condition, exists := tt.args.filterConditions[tt.args.fieldName]
+			if !exists {
+				t.Errorf("No condition created for field %s", tt.args.fieldName)
+				return
+			}
+
+			// Check SQL
+			if condition.SQL != tt.wantSQL {
+				t.Errorf("SQL mismatch\nGot : %s\nWant: %s", condition.SQL, tt.wantSQL)
+			}
+
+			// Check Args
+			if !reflect.DeepEqual(condition.Args, tt.wantArgs) {
+				t.Errorf("Args mismatch\nGot : %+v\nWant: %+v", condition.Args, tt.wantArgs)
+			}
 		})
 	}
 }

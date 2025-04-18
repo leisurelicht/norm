@@ -58,6 +58,7 @@ const (
 	operatorValueLenLessError   = "operator [%s] value length must greater than [%d]"
 	operatorValueTypeError      = "operator [%s] value must be string list"
 	unsupportedFilterTypeError  = "unsupported filter type [%s], Please use be [Cond | AND | OR]"
+	operatorValueEmptyError     = "operator [%s] unsupported value empty"
 )
 
 const (

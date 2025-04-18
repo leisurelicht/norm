@@ -231,16 +231,17 @@ func isListKind(kind reflect.Kind) bool {
 }
 
 func genStrListValueLikeSQL(p *QuerySetImpl, filterConditions map[string]*cond, fieldName string, valueOf reflect.Value, notFlag int, operator, valueFormat string) {
+	// fmt.Printf("genStrListValueLikeSQL p: %+v, filterConditions: %+v, fieldName: %s, valueOf: %v, notFlag: %d, operator: %s, valueFormat: %s\n", p, filterConditions, fieldName, valueOf, notFlag, operator, valueFormat)
 	op := p.OperatorSQL(operator)
 
 	filterConditions[fieldName] = newCondByValue("", fmt.Sprintf(op, fieldName, not[notFlag]), []any{fmt.Sprintf(valueFormat, valueOf.Index(0).Interface())})
 	for i := 1; i < valueOf.Len(); i++ {
 		if valueOf.Index(i).IsZero() {
-			p.setError("operator [%s] unsupported value empty ", operator)
+			p.setError(operatorValueEmptyError, operator)
 			return
 		}
 
-		filterConditions[fieldName].SQL += fmt.Sprintf(" "+conjunctions[0]+" "+op, fieldName, not[notFlag])
+		filterConditions[fieldName].SQL += fmt.Sprintf(" "+conjunctions[notFlag^1]+" "+op, fieldName, not[notFlag])
 		filterConditions[fieldName].Args = append(filterConditions[fieldName].Args, fmt.Sprintf(valueFormat, valueOf.Index(i).Interface()))
 	}
 }
