@@ -212,10 +212,25 @@ func isStrList(v any) bool {
 	return false
 }
 
+// numericKinds is a set of all reflect.Kind values that represent numeric types
+var numericKinds = map[reflect.Kind]struct{}{
+	reflect.Int:     {},
+	reflect.Int8:    {},
+	reflect.Int16:   {},
+	reflect.Int32:   {},
+	reflect.Int64:   {},
+	reflect.Uint:    {},
+	reflect.Uint8:   {},
+	reflect.Uint16:  {},
+	reflect.Uint32:  {},
+	reflect.Uint64:  {},
+	reflect.Float32: {},
+	reflect.Float64: {},
+}
+
 func isNumericKind(kind reflect.Kind) bool {
-	return kind == reflect.Int || kind == reflect.Int8 || kind == reflect.Int16 || kind == reflect.Int32 || kind == reflect.Int64 ||
-		kind == reflect.Uint || kind == reflect.Uint8 || kind == reflect.Uint16 || kind == reflect.Uint32 || kind == reflect.Uint64 ||
-		kind == reflect.Float32 || kind == reflect.Float64
+	_, ok := numericKinds[kind]
+	return ok
 }
 
 func isStringKind(kind reflect.Kind) bool {
