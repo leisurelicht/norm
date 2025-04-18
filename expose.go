@@ -1,8 +1,6 @@
 package norm
 
 import (
-	"fmt"
-	"reflect"
 	"strings"
 
 	"github.com/leisurelicht/norm/operator"
@@ -32,46 +30,19 @@ func ToOR(key string) string {
 	return key
 }
 
-func EachOR(conds any) any {
-	switch conds.(type) {
-	case Cond:
-		conditions := conds.(Cond)
-		for k, v := range conditions {
-			if k == SortKey {
-				continue
-			}
-			if !strings.HasPrefix(k, orPrefix) {
-				delete(conditions, k)
-				conditions[orPrefix+k] = v
-			}
+// EachOR converts all keys in a condition to OR keys
+// Only accepts Cond, AND, or OR as input
+func EachOR[T Cond | AND | OR](conditions T) T {
+	for k, v := range conditions {
+		if k == SortKey {
+			continue
 		}
-		return conditions
-	case AND:
-		conditions := conds.(AND)
-		for k, v := range conditions {
-			if k == SortKey {
-				continue
-			}
-			if !strings.HasPrefix(k, orPrefix) {
-				delete(conditions, k)
-				conditions[orPrefix+k] = v
-			}
+		if !strings.HasPrefix(k, orPrefix) {
+			delete(conditions, k)
+			conditions[orPrefix+k] = v
 		}
-		return conditions
-	case OR:
-		conditions := conds.(OR)
-		for k, v := range conditions {
-			if k == SortKey {
-				continue
-			}
-			if !strings.HasPrefix(k, orPrefix) {
-				delete(conditions, k)
-				conditions[orPrefix+k] = v
-			}
-		}
-		return conditions
-	default:
-		fmt.Println(reflect.TypeOf(conds).String())
 	}
-	return conds
+	return conditions
 }
+
+var Struct2Map = modelStruct2Map

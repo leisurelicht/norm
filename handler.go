@@ -4,16 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"reflect"
 	"strings"
-
-	"github.com/zeromicro/go-zero/core/stores/builder"
-	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
 const (
 	DefaultModelTag = "db"
+	Asterisk        = "*"
 	SelectTemp      = "SELECT %s FROM %s"
 	InsertTemp      = "INSERT INTO %s (%s) VALUES (%s)"
 	UpdateTemp      = "UPDATE %s SET %s"
@@ -51,7 +48,6 @@ type (
 		validateColumns(columns []string) (validatedColumns []string, err error)
 		setError(format string, a ...any)
 		haveError() error
-		WithSession(session sqlx.Session) Controller
 		Reset() Controller
 		Filter(filter ...any) Controller
 		Exclude(exclude ...any) Controller
@@ -63,8 +59,8 @@ type (
 		Having(having string, args ...any) Controller
 		Insert(data map[string]any) (id int64, err error)
 		InsertModel(model any) (id int64, err error)
-		//BulkInsert(data []map[string]any, handler sqlx.ResultHandler) (err error)
-		//BulkInsertModel(modelSlice any, handler sqlx.ResultHandler) (err error)
+		//BulkInsert(data []map[string]any) (err error)
+		//BulkInsertModel(modelSlice []any) (err error)
 		Remove() (num int64, err error)
 		Update(data map[string]any) (num int64, err error)
 		Count() (num int64, err error)
@@ -83,61 +79,45 @@ type (
 	}
 
 	Impl struct {
-		context      context.Context
-		conn         any
-		model        any
-		modelSlice   any
-		operator     Operator
-		tableName    string
-		fieldNameMap map[string]struct{}
-		fieldRows    string
-		mTag         string
-		qs           QuerySet
-		called       callFlag
+		context        context.Context
+		conn           any
+		modelPtr       any
+		modelSlicePtr  any
+		operator       Operator
+		tableName      string
+		fieldNameMap   map[string]struct{}
+		fieldNameSlice []string
+		fieldRows      string
+		mTag           string
+		qs             QuerySet
+		called         callFlag
 	}
 )
 
-// shiftName shift name like DevicePolicyMap to device_policy_map
-func shiftName(s string) string {
-	res := ""
-	for i, c := range s {
-		if c >= 'A' && c <= 'Z' {
-			if i != 0 {
-				res += "_"
-			}
-			res += string(c + 32)
-		} else {
-			res += string(c)
-		}
-	}
-	return "`" + res + "`"
-}
-
 func NewController(conn any, op Operator, m any) func(ctx context.Context) Controller {
-	t := reflect.TypeOf(m)
-	if t.Kind() != reflect.Struct {
-		log.Panicf("model [%s] must be a struct", t.Name())
-		return nil
-	}
+	// createModelPointerAndSlice call must be at the beginning of this function,
+	// for it will check type of the m(model) is a struct
+	mPtr, mSlicePtr := createModelPointerAndSlice(m)
 
-	mPtr, mSlicePtr := CreatePointerAndSlice(m)
+	fieldNameSlice := rawFieldNames(m, DefaultModelTag, true)
 
 	return func(ctx context.Context) Controller {
 		if ctx == nil {
 			ctx = context.Background()
 		}
 		return &Impl{
-			context:      ctx,
-			conn:         conn,
-			model:        mPtr,
-			modelSlice:   mSlicePtr,
-			operator:     op,
-			tableName:    shiftName(t.Name()),
-			fieldNameMap: StrSlice2Map(builder.RawFieldNames(m, true)),
-			fieldRows:    strings.Join(builder.RawFieldNames(m), ","),
-			mTag:         DefaultModelTag,
-			qs:           NewQuerySet(op),
-			called:       0,
+			context:        ctx,
+			conn:           conn,
+			modelPtr:       mPtr,
+			modelSlicePtr:  mSlicePtr,
+			operator:       op,
+			tableName:      shiftName(reflect.TypeOf(m).Name()),
+			fieldNameMap:   strSlice2Map(fieldNameSlice),
+			fieldNameSlice: fieldNameSlice,
+			fieldRows:      strings.Join(rawFieldNames(m, DefaultModelTag, false), ","),
+			mTag:           DefaultModelTag,
+			qs:             NewQuerySet(op),
+			called:         0,
 		}
 	}
 }
@@ -192,11 +172,6 @@ func (m *Impl) haveError() error {
 	return nil
 }
 
-func (m *Impl) WithSession(session sqlx.Session) Controller {
-	m.conn = sqlx.NewSqlConnFromSession(session)
-	return m
-}
-
 func (m *Impl) Reset() Controller {
 	m.qs.Reset()
 	m.called = 0
@@ -206,7 +181,7 @@ func (m *Impl) Reset() Controller {
 func (m *Impl) Filter(filter ...any) Controller {
 	m.setCalled(ctlFilter)
 
-	m.qs.FilterToSQL(0, filter...)
+	m.qs.FilterToSQL(notNot, filter...)
 
 	return m
 }
@@ -214,7 +189,7 @@ func (m *Impl) Filter(filter ...any) Controller {
 func (m *Impl) Exclude(exclude ...any) Controller {
 	m.setCalled(ctlExclude)
 
-	m.qs.FilterToSQL(1, exclude...)
+	m.qs.FilterToSQL(isNot, exclude...)
 
 	return m
 }
@@ -230,20 +205,18 @@ func (m *Impl) Where(cond string, args ...any) Controller {
 func (m *Impl) Select(selects any) Controller {
 	m.setCalled(ctlSelect)
 
-	switch selects.(type) {
+	switch sel := selects.(type) {
 	case string:
-		if selects.(string) == "" {
+		if sel == "" {
 			return m
 		}
-		m.qs.StrSelectToSQL(selects.(string))
+		m.qs.StrSelectToSQL(sel)
 	case []string:
-		selectList, _ := selects.([]string)
-
-		if len(selectList) == 0 {
+		if len(sel) == 0 {
 			return m
 		}
 
-		validatedColumns, err := m.validateColumns(selectList)
+		validatedColumns, err := m.validateColumns(sel)
 
 		if err != nil {
 			m.setError("Select columns validate error: %s", err)
@@ -270,21 +243,18 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 
 	var validatedOrderBy []string
 
-	switch orderBy.(type) {
+	switch orderByVal := orderBy.(type) {
 	case string:
-		if orderBy.(string) == "" {
+		if orderByVal == "" {
 			return m
 		}
-		m.qs.StrOrderByToSQL(orderBy.(string))
+		m.qs.StrOrderByToSQL(orderByVal)
 	case []string:
-		orderByList, _ := orderBy.([]string)
-
-		if len(orderByList) == 0 {
+		if len(orderByVal) == 0 {
 			return m
 		}
-
 		unknownColumns := []string{}
-		for _, by := range orderByList {
+		for _, by := range orderByVal {
 			needValidate := by
 			if strings.HasPrefix(by, "-") {
 				needValidate = by[1:]
@@ -313,20 +283,18 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 func (m *Impl) GroupBy(groupBy any) Controller {
 	m.setCalled(ctlGroupBy)
 
-	switch groupBy.(type) {
+	switch gb := groupBy.(type) {
 	case string:
-		if groupBy.(string) == "" {
+		if gb == "" {
 			return m
 		}
-		m.qs.StrGroupByToSQL(groupBy.(string))
+		m.qs.StrGroupByToSQL(gb)
 	case []string:
-		groupByList, _ := groupBy.([]string)
-
-		if len(groupByList) == 0 {
+		if len(gb) == 0 {
 			return m
 		}
 
-		validatedColumns, err := m.validateColumns(groupByList)
+		validatedColumns, err := m.validateColumns(gb)
 
 		if err != nil {
 			m.setError("GroupBy columns validate error: %s", err)
@@ -366,7 +334,7 @@ func (m *Impl) Insert(data map[string]any) (id int64, err error) {
 		args []any
 	)
 
-	for k := range m.fieldNameMap {
+	for _, k := range m.fieldNameSlice {
 		if _, ok := data[k]; !ok {
 			continue
 		}
@@ -384,19 +352,42 @@ func (m *Impl) InsertModel(model any) (id int64, err error) {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Insert")
 	}
 
-	return m.Insert(Struct2Map(model, m.mTag))
+	return m.Insert(modelStruct2Map(model, m.mTag))
 }
 
-func (m *Impl) BulkInsert(data []map[string]any, handler sqlx.ResultHandler) (err error) {
+func (m *Impl) BulkInsert(data []map[string]any) (err error) {
 	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlGroupBy, ctlHaving, ctlOrderBy); called {
 		return fmt.Errorf(UnsupportedControllerError, methods, "BulkInsert")
 	}
 
-	return m.operator.BulkInsert(m.ctx(), m.conn, m.tableName, data, handler)
+	if err = m.haveError(); err != nil {
+		return err
+	}
+
+	if len(data) == 0 {
+		return errors.New("insert data is empty")
+	}
+
+	var (
+		rows []string
+		args []string
+	)
+
+	for _, k := range m.fieldNameSlice {
+		if _, ok := data[0][k]; !ok {
+			continue
+		}
+		rows = append(rows, fmt.Sprintf("`%s`", k))
+		args = append(args, k)
+	}
+
+	sql := fmt.Sprintf(InsertTemp, m.tableName, strings.Join(rows, ","), strings.Repeat("?,", len(rows)-1)+"?")
+
+	return m.operator.BulkInsert(m.ctx(), m.conn, sql, args, data)
 }
 
-func (m *Impl) BulkInsertModel(modelSlice any, handler sqlx.ResultHandler) (err error) {
-	return m.BulkInsert(StructSlice2MapSlice(modelSlice, m.mTag), handler)
+func (m *Impl) BulkInsertModel(modelSlice []any) (err error) {
+	return m.BulkInsert(modelStructSlice2MapSlice(modelSlice, m.mTag))
 }
 
 func (m *Impl) Remove() (num int64, err error) {
@@ -484,13 +475,13 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 	query += m.qs.GetOrderBySQL()
 	query += " LIMIT 1"
 
-	res, _ := DeepCopy(m.model)
+	res := deepCopyModelPtrStructure(m.modelPtr)
 
 	err = m.operator.FindOne(m.ctx(), m.conn, res, query, filterArgs...)
 
 	switch {
 	case err == nil:
-		return Struct2Map(res, m.mTag), nil
+		return modelStruct2Map(res, m.mTag), nil
 	case errors.Is(err, ErrNotFound):
 		return map[string]any{}, nil
 	default:
@@ -506,7 +497,7 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 	query := SelectTemp
 
 	selectRows := m.qs.GetSelectSQL()
-	if selectRows != "*" {
+	if selectRows != Asterisk {
 		query = fmt.Sprintf(query, selectRows, m.tableName)
 	} else {
 		query = fmt.Sprintf(query, m.fieldRows, m.tableName)
@@ -544,13 +535,13 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 	query += m.qs.GetOrderBySQL()
 	query += m.qs.GetLimitSQL()
 
-	res, _ := DeepCopy(m.modelSlice)
+	res := deepCopyModelPtrStructure(m.modelSlicePtr)
 
 	err = m.operator.FindAll(m.ctx(), m.conn, res, query, filterArgs...)
 
 	switch {
 	case err == nil:
-		return StructSlice2MapSlice(res, m.mTag), nil
+		return modelStructSlice2MapSlice(res, m.mTag), nil
 	case errors.Is(err, ErrNotFound):
 		return []map[string]any{}, nil
 	default:
@@ -566,7 +557,7 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 	query := SelectTemp
 
 	selectRows := m.qs.GetSelectSQL()
-	if selectRows != "*" {
+	if selectRows != Asterisk {
 		query = fmt.Sprintf(query, selectRows, m.tableName)
 	} else {
 		query = fmt.Sprintf(query, m.fieldRows, m.tableName)
@@ -679,14 +670,14 @@ func (m *Impl) GetC2CMap(column1, column2 string) (res map[any]any, err error) {
 	query += m.qs.GetOrderBySQL()
 	query += m.qs.GetLimitSQL()
 
-	result, _ := DeepCopy(m.modelSlice)
+	result := deepCopyModelPtrStructure(m.modelSlicePtr)
 
 	if err = m.operator.FindAll(m.ctx(), m.conn, res, query, filterArgs...); err != nil {
 		return res, err
 	}
 
 	res = make(map[any]any)
-	for _, v := range StructSlice2MapSlice(result, m.mTag) {
+	for _, v := range modelStructSlice2MapSlice(result, m.mTag) {
 		res[v[column1]] = v[column2]
 	}
 
