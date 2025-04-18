@@ -138,6 +138,24 @@ func TestQuery(t *testing.T) {
 		}
 	}
 
+	sources := []test.Source{}
+	if err := ctl(ctx).Select([]string{"id", "name"}).Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAllModel(&sources); err != nil {
+		t.Error(err)
+	} else if len(sources) != 6 {
+		t.Errorf("expect 6 but got %d\ngot res: %+v", len(sources), sources)
+	}
+
+	sources1 := []test.Source{}
+	if err := ctl(ctx).Select("id, name").Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAllModel(&sources1); err != nil {
+		t.Error(err)
+	} else if len(sources1) != 6 {
+		t.Errorf("expect 6 but got %d\ngot res: %+v", len(sources1), sources1)
+	}
+
+	if !reflect.DeepEqual(sources, sources1) {
+		t.Errorf("expect not equal but \ngot: sources: %+v\ngot: sources1: %+v", sources, sources1)
+	}
+
 }
 
 func TestHandlerError(t *testing.T) {
@@ -396,6 +414,16 @@ func TestHandlerError(t *testing.T) {
 		}
 	} else if len(res) != 5 {
 		t.Errorf("expect 5 but got %d\ngot res: %+v", len(res), res)
+	}
+
+	if err := ctl(ctx).Select([]string{}).FindOneModel(&test.Source{}); err != nil {
+		t.Error(err)
+	}
+
+	if err := ctl(ctx).Select([]int{1}).FindOneModel(&test.Source{}); err != nil {
+		if err.Error() != "Select type should be string or string slice" {
+			t.Error(err)
+		}
 	}
 
 }
