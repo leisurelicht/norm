@@ -95,14 +95,11 @@ type (
 )
 
 func NewController(conn any, op Operator, m any) func(ctx context.Context) Controller {
-	t := reflect.TypeOf(m)
-	if t.Kind() != reflect.Struct {
-		log.Panicf("model [%s] must be a struct", t.Name())
-		return nil
-	}
+	// rawFiledNames call must be at the beginning of this function,
+	// for it will check type of the m(model) is a struct
+	fieldNameSlice := rawFieldNames(m, DefaultModelTag, true)
 
 	mPtr, mSlicePtr := createModelPointerAndSlice(m)
-	fieldNameSlice := rawFieldNames(m, DefaultModelTag, true)
 
 	return func(ctx context.Context) Controller {
 		if ctx == nil {
@@ -114,7 +111,7 @@ func NewController(conn any, op Operator, m any) func(ctx context.Context) Contr
 			modelPtr:       mPtr,
 			modelSlicePtr:  mSlicePtr,
 			operator:       op,
-			tableName:      shiftName(t.Name()),
+			tableName:      shiftName(reflect.TypeOf(m).Name()),
 			fieldNameMap:   strSlice2Map(fieldNameSlice),
 			fieldNameSlice: fieldNameSlice,
 			fieldRows:      strings.Join(rawFieldNames(m, DefaultModelTag, false), ","),
