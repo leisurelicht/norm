@@ -606,22 +606,12 @@ func (p *QuerySetImpl) SliceSelectToSQL(columns []string) QuerySet {
 	}
 
 	var result strings.Builder
-
-	for i, part := range columns {
-		words := strings.Fields(part)
-
-		for j, word := range words {
-			result.WriteString(wrapWithBackticks(word))
-
-			if j < len(words)-1 {
-				result.WriteString(" ")
-			}
-		}
-
-		if i < len(columns)-1 {
-			result.WriteString(", ")
-		}
+	result.Grow(len(columns) * 10) // Pre-allocate space for performance
+	for i := 0; i < len(columns)-1; i++ {
+		result.WriteString(wrapWithBackticks(columns[i]))
+		result.WriteString(", ")
 	}
+	result.WriteString(wrapWithBackticks(columns[len(columns)-1]))
 
 	p.selectColumn = result.String()
 
