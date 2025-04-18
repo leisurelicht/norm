@@ -301,31 +301,20 @@ func wrapWithBackticks(str string) string {
 	return "`" + str + "`"
 }
 
-func processSQL(sqlParts []string, isKeyWord func(word string) bool) string {
+func processSQL(sqlParts []string) string {
 	var result strings.Builder
 
-	// 遍历每个子字符串
 	for i, part := range sqlParts {
-		// 分割子字符串为单词
 		words := strings.Fields(part)
 
-		// 遍历每个单词
 		for j, word := range words {
-			// 如果是 SQL 关键字，直接输出，不包裹反引号
-			if isKeyWord(word) {
-				result.WriteString(word)
-			} else {
-				// 如果不是关键字，包裹反引号
-				result.WriteString(wrapWithBackticks(word))
-			}
+			result.WriteString(wrapWithBackticks(word))
 
-			// 添加空格分隔
 			if j < len(words)-1 {
 				result.WriteString(" ")
 			}
 		}
 
-		// 如果不是最后一个部分，添加逗号和空格
 		if i < len(sqlParts)-1 {
 			result.WriteString(", ")
 		}

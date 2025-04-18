@@ -35,11 +35,6 @@ var operators = map[string]string{
 	"is_null": "`%s` IS NULL",
 }
 
-var selectKeys = map[string]struct{}{
-	"AS": {},
-	//"DISTINCT": {},
-}
-
 type Operator struct{}
 
 func NewOperator() *Operator {
@@ -48,11 +43,6 @@ func NewOperator() *Operator {
 
 func (d *Operator) OperatorSQL(operator string) string {
 	return operators[operator]
-}
-
-func (d *Operator) IsSelectKey(word string) bool {
-	_, exists := selectKeys[strings.ToUpper(word)] // 判断关键字（区分大小写）
-	return exists
 }
 
 func (d *Operator) Insert(ctx context.Context, conn any, sql string, args ...any) (id int64, err error) {

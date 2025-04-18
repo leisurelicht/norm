@@ -605,7 +605,7 @@ func (p *QuerySetImpl) SliceSelectToSQL(columns []string) QuerySet {
 		return p
 	}
 
-	p.selectColumn = processSQL(columns, p.IsSelectKey)
+	p.selectColumn = processSQL(columns)
 	return p
 }
 
