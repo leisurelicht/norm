@@ -186,26 +186,12 @@ func modelStructSlice2MapSlice(obj any, tag string) []map[string]any {
 }
 
 func createModelPointerAndSlice(input any) (any, any) {
-	// 获取输入值的反射值
-	inputValue := reflect.ValueOf(input)
+	inputType := reflect.ValueOf(input).Type()
 
-	// 获取输入值的类型
-	inputType := inputValue.Type()
-
-	// 创建输入值的指针
 	inputPointer := reflect.New(inputType).Interface()
-	// reflect.ValueOf(inputPointer).Elem().Set(inputValue)
 
-	// 创建一个包含输入值的切片
-	sliceType := reflect.SliceOf(inputType)
-	// slice := reflect.MakeSlice(sliceType, 1, 1)
-	// slice.Index(0).Set(inputValue)
+	slicePointer := reflect.New(reflect.SliceOf(inputType)).Interface()
 
-	// 创建包含该切片的指针
-	slicePointer := reflect.New(sliceType).Interface()
-	// reflect.ValueOf(slicePointer).Elem().Set(slice)
-
-	// 返回输入值的指针和包含输入值的切片指针
 	return inputPointer, slicePointer
 }
 
