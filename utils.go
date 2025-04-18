@@ -2,6 +2,7 @@ package norm
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -24,6 +25,10 @@ func shiftName(s string) string {
 }
 
 func rawFieldNames(in any, tag string, pg bool) []string {
+	if in == nil {
+		panic(errors.New("model is nil"))
+	}
+
 	v := reflect.ValueOf(in)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -31,7 +36,7 @@ func rawFieldNames(in any, tag string, pg bool) []string {
 
 	// we only accept structs
 	if v.Kind() != reflect.Struct {
-		panic(fmt.Errorf("ToMap only accepts structs; got %T", v))
+		panic(fmt.Errorf("model only can be a struct; got %s", v.Kind()))
 	}
 
 	out := make([]string, 0, v.NumField())
@@ -151,12 +156,6 @@ func modelStruct2Map(obj any, tag string) map[string]any {
 			} else {
 				value = nil
 			}
-		case reflect.TypeOf(sql.NullInt64{}):
-			if value.(sql.NullInt64).Valid {
-				value = value.(sql.NullInt64).Int64
-			} else {
-				value = nil
-			}
 		case reflect.TypeOf(sql.NullTime{}):
 			if value.(sql.NullTime).Valid {
 				value = value.(sql.NullTime).Time
@@ -196,6 +195,10 @@ func createModelPointerAndSlice(input any) (any, any) {
 }
 
 func isStrList(v any) bool {
+	if v == nil {
+		return false
+	}
+
 	switch reflect.TypeOf(v).Kind() {
 	case reflect.Slice:
 		slice, ok := v.([]string)

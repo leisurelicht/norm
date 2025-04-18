@@ -3,6 +3,7 @@ package norm
 import (
 	"database/sql"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,66 +39,107 @@ func Test_rawFieldNames(t *testing.T) {
 		pg  bool
 	}
 	tests := []struct {
-		name string
-		args args
-		want []string
+		name           string
+		args           args
+		want           []string
+		expectPanic    bool
+		expectedErrMsg string
 	}{
 		{"test pg", args{struct {
 			Device          string `db:"device"`
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:"device_policy_map"`
-		}{}, "db", false}, []string{"`device`", "`device_policy`", "`device_policy_map`"}},
+		}{}, "db", false}, []string{"`device`", "`device_policy`", "`device_policy_map`"}, false, ""},
 		{"test not pg", args{struct {
 			Device          string `db:"device"`
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:"device_policy_map"`
-		}{}, "db", true}, []string{"device", "device_policy", "device_policy_map"}},
+		}{}, "db", true}, []string{"device", "device_policy", "device_policy_map"}, false, ""},
 		{"test ignore with pg", args{struct {
 			Device          string `db:"device"`
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:"-"`
-		}{}, "db", false}, []string{"`device`", "`device_policy`"}},
+		}{}, "db", false}, []string{"`device`", "`device_policy`"}, false, ""},
 		{"test ignore with not pg", args{struct {
 			Device          string `db:"device"`
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:"-"`
-		}{}, "db", true}, []string{"device", "device_policy"}},
+		}{}, "db", true}, []string{"device", "device_policy"}, false, ""},
 		{"test with multiple tag with pg", args{struct {
 			Device          string `db:"device, type=char, length=16"`
 			DevicePolicy    string `db:"device_policy, type=char"`
 			DevicePolicyMap string `db:"device_policy_map"`
-		}{}, "db", false}, []string{"`device`", "`device_policy`", "`device_policy_map`"}},
+		}{}, "db", false}, []string{"`device`", "`device_policy`", "`device_policy_map`"}, false, ""},
 		{"test with multiple tag with not pg", args{struct {
 			Device          string `db:"device, type=char, length=16"`
 			DevicePolicy    string `db:"device_policy, type=char"`
 			DevicePolicyMap string `db:"device_policy_map"`
-		}{}, "db", true}, []string{"device", "device_policy", "device_policy_map"}},
+		}{}, "db", true}, []string{"device", "device_policy", "device_policy_map"}, false, ""},
 		{"test with multiple tag with pg and ignore", args{struct {
 			Device          string `db:"device, type=char, length=16"`
 			DevicePolicy    string `db:"device_policy, type=char"`
 			DevicePolicyMap string `db:"-"`
-		}{}, "db", false}, []string{"`device`", "`device_policy`"}},
+		}{}, "db", false}, []string{"`device`", "`device_policy`"}, false, ""},
 		{"test with multiple tag with not pg and ignore", args{struct {
 			Device          string `db:"device, type=char, length=16"`
 			DevicePolicy    string `db:"device_policy, type=char"`
 			DevicePolicyMap string `db:"-"`
-		}{}, "db", true}, []string{"device", "device_policy"}},
+		}{}, "db", true}, []string{"device", "device_policy"}, false, ""},
 		{"test with empty tag", args{struct {
 			Device          string
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:",type=char"`
-		}{}, "db", false}, []string{"`Device`", "`device_policy`", "`DevicePolicyMap`"}},
+		}{}, "db", false}, []string{"`Device`", "`device_policy`", "`DevicePolicyMap`"}, false, ""},
 		{"test with empty struct with not pg", args{struct {
 			Device          string
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:",type=char"`
-		}{}, "db", true}, []string{"Device", "device_policy", "DevicePolicyMap"}},
+		}{}, "db", true}, []string{"Device", "device_policy", "DevicePolicyMap"}, false, ""},
+		{"test pointer", args{&struct {
+			Device string `db:"device"`
+		}{}, "db", false}, []string{"`device`"}, false, ""},
+		{"test not struct", args{1, "db", false}, []string{}, true, "model only can be a struct; got int"},
+		{"test nil", args{nil, "db", false}, []string{}, true, "model is nil"},
+		{"test nil pointer", args{(*struct {
+			Device string `db:"device"`
+		})(nil), "db", false}, []string{}, true, "model only can be a struct; got invalid"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := rawFieldNames(tt.args.in, DefaultModelTag, tt.args.pg); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("rawFieldNames() failed.\nGot : %v\nWant: %v", got, tt.want)
+			var (
+				got      []string
+				panicked = false
+				panicMsg any
+			)
+
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						panicked = true
+						panicMsg = r
+					}
+				}()
+
+				got = rawFieldNames(tt.args.in, tt.args.tag, tt.args.pg)
+			}()
+
+			if tt.expectPanic != panicked {
+				t.Errorf("rawFieldNames() failed.\nGot : %+v\nWant: %+v", panicked, tt.expectPanic)
+				return
 			}
+
+			if tt.expectPanic && panicked {
+				errMsg, ok := panicMsg.(error)
+				if !ok || !strings.Contains(errMsg.Error(), tt.expectedErrMsg) {
+					t.Errorf("panic message mismatch.\nGot : %+v\nWant: %+v", errMsg, tt.expectedErrMsg)
+				}
+				return
+			}
+
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("rawFieldNames() failed.\nGot : %+v\nWant: %+v", got, tt.want)
+			}
+
 		})
 	}
 }
@@ -164,6 +206,9 @@ func Test_modelStruct2Map(t *testing.T) {
 			TestNullString  sql.NullString  `db:"test_null_string"`
 			TestNullBool    sql.NullBool    `db:"test_null_bool"`
 			TestNullTime    sql.NullTime    `db:"test_null_time"`
+			TestEmptyTag    string
+			TestEmptyTag2   string `db:""`
+			TestIgnoreTag   string `db:"-"`
 		}{
 			Id:              1,
 			TestInt:         1,
@@ -190,6 +235,9 @@ func Test_modelStruct2Map(t *testing.T) {
 			TestNullString:  sql.NullString{String: "test", Valid: true},
 			TestNullBool:    sql.NullBool{Bool: true, Valid: true},
 			TestNullTime:    sql.NullTime{Time: timeNow, Valid: true},
+			TestEmptyTag:    "test1",
+			TestEmptyTag2:   "test2",
+			TestIgnoreTag:   "test3",
 		}, "db"}, map[string]any{
 			"id":                int64(1),
 			"test_int":          int(1),
@@ -377,6 +425,7 @@ func Test_isStrList(t *testing.T) {
 		args args
 		want bool
 	}{
+		{"test0", args{nil}, false},
 		{"test1", args{[]string{"1", "2", "3"}}, true},
 		{"test2", args{[]int{1, 2, 3}}, false},
 		{"test3", args{[]int64{1, 2, 3}}, false},
