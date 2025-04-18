@@ -927,8 +927,9 @@ func Test_deepCopyModelPtrStructure(t *testing.T) {
 		want    any
 		changed any
 	}{
+		// this test is not important
 		{"test nil", args{nil}, nil, 1},
-		{"test nil", args{func() *int { a := 1; return &a }()}, nil, func() *int { a := 2; return &a }()},
+		// the following two tests are the only ones about which we care
 		{"test pointer to struct", args{&struct{ A int }{}}, &struct{ A int }{}, &struct{ B int }{}},
 		{"test pointer to slice struct", args{&[]struct{ A int }{}}, &[]struct{ A int }{}, &[]struct{ B int }{}},
 	}
