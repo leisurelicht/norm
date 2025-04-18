@@ -733,16 +733,22 @@ func TestSelectError(t *testing.T) {
 		args args
 		want want
 	}{
-		{"array", args{[1]string{"test"}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
-		{"array", args{123}, want{sql: "`test`", err: errors.New(paramTypeError)}},
-		{"array", args{[]int{1, 2}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
-		{"array", args{map[string]int{"test": 1}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
-		{"array", args{map[int]string{1: "test"}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
-		{"array", args{map[bool]string{true: "test"}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
-		{"array", args{map[string]bool{"test": true}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
-		{"array", args{map[string]any{"test": 1}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
-		{"array", args{map[string]any{"test": "test"}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
-		{"array", args{map[string]any{"test": 1.0}}, want{sql: "`test`", err: errors.New(paramTypeError)}},
+		{"blank_string", args{""}, want{"", nil}},
+		{"valid_string_input", args{"test, test2 as test3"}, want{"test, test2 as test3", nil}},
+		{"empty_string_slice", args{[]string{}}, want{"*", nil}},
+		{"single_column_slice", args{[]string{"test"}}, want{"`test`", nil}},
+		{"double_column_slice", args{[]string{"test", "test2"}}, want{"`test`, `test2`", nil}},
+		{"triple_column_slice", args{[]string{"test", "test2", "test3"}}, want{"`test`, `test2`, `test3`", nil}},
+		{"array_string_type", args{[1]string{"test"}}, want{"", errors.New(paramTypeError)}},
+		{"integer_type", args{123}, want{"", errors.New(paramTypeError)}},
+		{"int_slice_type", args{[]int{1, 2}}, want{"", errors.New(paramTypeError)}},
+		{"string_int_map_type", args{map[string]int{"test": 1}}, want{"", errors.New(paramTypeError)}},
+		{"int_string_map_type", args{map[int]string{1: "test"}}, want{"", errors.New(paramTypeError)}},
+		{"bool_string_map_type", args{map[bool]string{true: "test"}}, want{"", errors.New(paramTypeError)}},
+		{"string_bool_map_type", args{map[string]bool{"test": true}}, want{"", errors.New(paramTypeError)}},
+		{"string_any_map_type", args{map[string]any{"test": 1}}, want{"", errors.New(paramTypeError)}},
+		{"string_any_string_value", args{map[string]any{"test": "test"}}, want{"", errors.New(paramTypeError)}},
+		{"string_any_float_value", args{map[string]any{"test": 1.0}}, want{"", errors.New(paramTypeError)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

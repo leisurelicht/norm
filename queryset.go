@@ -605,7 +605,26 @@ func (p *QuerySetImpl) SliceSelectToSQL(columns []string) QuerySet {
 		return p
 	}
 
-	p.selectColumn = processSQL(columns)
+	var result strings.Builder
+
+	for i, part := range columns {
+		words := strings.Fields(part)
+
+		for j, word := range words {
+			result.WriteString(wrapWithBackticks(word))
+
+			if j < len(words)-1 {
+				result.WriteString(" ")
+			}
+		}
+
+		if i < len(columns)-1 {
+			result.WriteString(", ")
+		}
+	}
+
+	p.selectColumn = result.String()
+
 	return p
 }
 

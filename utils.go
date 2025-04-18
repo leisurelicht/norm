@@ -301,24 +301,3 @@ func wrapWithBackticks(str string) string {
 	return "`" + str + "`"
 }
 
-func processSQL(sqlParts []string) string {
-	var result strings.Builder
-
-	for i, part := range sqlParts {
-		words := strings.Fields(part)
-
-		for j, word := range words {
-			result.WriteString(wrapWithBackticks(word))
-
-			if j < len(words)-1 {
-				result.WriteString(" ")
-			}
-		}
-
-		if i < len(sqlParts)-1 {
-			result.WriteString(", ")
-		}
-	}
-
-	return result.String()
-}

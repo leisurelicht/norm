@@ -1264,27 +1264,3 @@ func Test_wrapWithBackticks(t *testing.T) {
 		})
 	}
 }
-
-func Test_processSQL(t *testing.T) {
-	type args struct {
-		sqlParts []string
-	}
-	tests := []struct {
-		name string
-		args args
-		want string
-	}{
-		{"test_empty", args{[]string{}}, ""},
-		{"test_single_keyword", args{[]string{"test"}}, "`test`"},
-		{"test_multiple_keywords", args{[]string{"test", "example"}}, "`test`, `example`"},
-		{"test_special_characters", args{[]string{"test@123", "example#456"}}, "`test@123`, `example#456`"},
-		{"test_numeric_keywords", args{[]string{"123", "456"}}, "`123`, `456`"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := processSQL(tt.args.sqlParts); got != tt.want {
-				t.Errorf("processSQL() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
