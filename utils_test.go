@@ -95,6 +95,16 @@ func Test_rawFieldNames(t *testing.T) {
 			DevicePolicy    string `db:"device_policy"`
 			DevicePolicyMap string `db:",type=char"`
 		}{}, "db", true}, []string{"Device", "device_policy", "DevicePolicyMap"}, false, ""},
+		{"test with empty struct with pg and ignore", args{struct {
+			Device          string
+			DevicePolicy    string `db:"device_policy"`
+			DevicePolicyMap string `db:"-,type=char"`
+		}{}, "db", false}, []string{"`Device`", "`device_policy`"}, false, ""},
+		{"test with empty struct with not pg and ignore", args{struct {
+			Device          string
+			DevicePolicy    string `db:"device_policy"`
+			DevicePolicyMap string `db:"-,type=char"`
+		}{}, "db", true}, []string{"Device", "device_policy"}, false, ""},
 		{"test pointer", args{&struct {
 			Device string `db:"device"`
 		}{}, "db", false}, []string{"`device`"}, false, ""},

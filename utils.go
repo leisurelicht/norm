@@ -42,7 +42,7 @@ func rawFieldNames(in any, tag string, pg bool) []string {
 	out := make([]string, 0, v.NumField())
 
 	typ := v.Type()
-	for i := 0; i < v.NumField(); i++ {
+	for i := range v.NumField() {
 		// gets us a StructField
 		fi := typ.Field(i)
 		tagv := fi.Tag.Get(tag)
