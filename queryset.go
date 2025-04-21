@@ -62,14 +62,14 @@ const (
 )
 
 const (
-	callFilter callFlag = 1 << iota
-	callExclude
-	callWhere
-	callOrderBy
-	callLimit
-	callSelect
-	callGroupBy
-	callHaving
+	qsFilter callFlag = 1 << iota
+	qsExclude
+	qsWhere
+	qsOrderBy
+	qsLimit
+	qsSelect
+	qsGroupBy
+	qsHaving
 )
 
 const (
@@ -120,6 +120,8 @@ func newCondByValue(conj, sql string, args []any) *cond {
 }
 
 type QuerySet interface {
+	setCalled(f callFlag)
+	hasCalled(f callFlag) bool
 	setError(format string, a ...any)
 	Error() error
 	Reset()
@@ -478,11 +480,11 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 }
 
 func (p *QuerySetImpl) FilterToSQL(state int, filter ...any) QuerySet {
-	if !p.hasCalled(callWhere) {
+	if !p.hasCalled(qsWhere) {
 		if state == isFilter {
-			p.setCalled(callFilter)
+			p.setCalled(qsFilter)
 		} else if state == isExclude {
-			p.setCalled(callExclude)
+			p.setCalled(qsExclude)
 		} else {
 			p.setError(isNotValueError)
 			return p
@@ -551,12 +553,12 @@ func (p *QuerySetImpl) FilterToSQL(state int, filter ...any) QuerySet {
 }
 
 func (p *QuerySetImpl) WhereToSQL(cond string, args ...any) QuerySet {
-	if !p.hasCalled(callFilter) && !p.hasCalled(callExclude) {
-		p.setCalled(callWhere)
-	} else if p.hasCalled(callFilter) {
+	if !p.hasCalled(qsFilter) && !p.hasCalled(qsExclude) {
+		p.setCalled(qsWhere)
+	} else if p.hasCalled(qsFilter) {
 		p.setError(filterOrWhereError, filterAndExclude[isFilter])
 		return p
-	} else if p.hasCalled(callExclude) {
+	} else if p.hasCalled(qsExclude) {
 		p.setError(filterOrWhereError, filterAndExclude[isExclude])
 		return p
 	}
@@ -577,7 +579,7 @@ func (p *QuerySetImpl) GetSelectSQL() string {
 }
 
 func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
-	p.setCalled(callSelect)
+	p.setCalled(qsSelect)
 
 	switch cols := columns.(type) {
 	case string:
@@ -592,14 +594,14 @@ func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
 }
 
 func (p *QuerySetImpl) StrSelectToSQL(columns string) QuerySet {
-	p.setCalled(callSelect)
+	p.setCalled(qsSelect)
 
 	p.selectColumn = columns
 	return p
 }
 
 func (p *QuerySetImpl) SliceSelectToSQL(columns []string) QuerySet {
-	p.setCalled(callSelect)
+	p.setCalled(qsSelect)
 
 	if len(columns) == 0 {
 		return p
@@ -626,7 +628,7 @@ func (p *QuerySetImpl) GetOrderBySQL() string {
 }
 
 func (p *QuerySetImpl) OrderByToSQL(orderBy any) QuerySet {
-	p.setCalled(callOrderBy)
+	p.setCalled(qsOrderBy)
 
 	switch o := orderBy.(type) {
 	case string:
@@ -642,7 +644,7 @@ func (p *QuerySetImpl) OrderByToSQL(orderBy any) QuerySet {
 }
 
 func (p *QuerySetImpl) StrOrderByToSQL(orderBy string) QuerySet {
-	p.setCalled(callOrderBy)
+	p.setCalled(qsOrderBy)
 
 	p.orderBySQL = orderBy
 
@@ -650,7 +652,7 @@ func (p *QuerySetImpl) StrOrderByToSQL(orderBy string) QuerySet {
 }
 
 func (p *QuerySetImpl) SliceOrderByToSQL(orderBy []string) QuerySet {
-	p.setCalled(callOrderBy)
+	p.setCalled(qsOrderBy)
 
 	orderByList := orderBy
 
@@ -679,7 +681,7 @@ func (p *QuerySetImpl) GetLimitSQL() string {
 }
 
 func (p *QuerySetImpl) LimitToSQL(pageSize, pageNum int64) QuerySet {
-	p.setCalled(callLimit)
+	p.setCalled(qsLimit)
 
 	if pageSize > 0 && pageNum > 0 {
 		var offset, limit int64
@@ -715,7 +717,7 @@ func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
 }
 
 func (p *QuerySetImpl) StrGroupByToSQL(groupBy string) QuerySet {
-	p.setCalled(callGroupBy)
+	p.setCalled(qsGroupBy)
 
 	p.groupSQL = groupBy
 
@@ -723,7 +725,7 @@ func (p *QuerySetImpl) StrGroupByToSQL(groupBy string) QuerySet {
 }
 
 func (p *QuerySetImpl) SliceGroupByToSQL(groupBy []string) QuerySet {
-	p.setCalled(callGroupBy)
+	p.setCalled(qsGroupBy)
 
 	if len(groupBy) == 0 {
 		return p
@@ -752,7 +754,7 @@ func (p *QuerySetImpl) GetHavingSQL() (string, []any) {
 }
 
 func (p *QuerySetImpl) HavingToSQL(having string, args ...any) QuerySet {
-	p.setCalled(callHaving)
+	p.setCalled(qsHaving)
 
 	p.havingSQL.SetSQL(having, args)
 

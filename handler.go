@@ -18,6 +18,18 @@ const (
 )
 
 const (
+	SelectColumsValidateError   = "Select columns validate error: %s"
+	SelectColumnsTypeError      = "Select type should be string or string slice"
+	OrderByColumnsValidateError = "OrderBy columns validate error: [%s] not exist"
+	OrderByColumnsTypeError     = "OrderBy type should be string or string slice"
+	GroupByColumnsValidateError = "GroupBy columns validate error: %s"
+	GroupByColumnsTypeError     = "GroupBy type should be string or string slice"
+	InsertDataEmptyError        = "insert data is empty"
+	UpdateColumnNotExistError   = "update column [%s] not exist"
+	ColumnNotExistError         = "column [%s] not exist"
+)
+
+const (
 	UnsupportedControllerError = "%s not supported for %s"
 )
 
@@ -27,14 +39,14 @@ type controllerCall struct {
 }
 
 var (
-	ctlFilter  = controllerCall{Name: "Filter", Flag: callFilter}
-	ctlExclude = controllerCall{Name: "Exclude", Flag: callExclude}
-	ctlWhere   = controllerCall{Name: "Where", Flag: callWhere}
-	ctlSelect  = controllerCall{Name: "Select", Flag: callSelect}
-	ctlLimit   = controllerCall{Name: "Limit", Flag: callLimit}
-	ctlOrderBy = controllerCall{Name: "OrderBy", Flag: callOrderBy}
-	ctlGroupBy = controllerCall{Name: "GroupBy", Flag: callGroupBy}
-	ctlHaving  = controllerCall{Name: "Having", Flag: callHaving}
+	ctlFilter  = controllerCall{Name: "Filter", Flag: qsFilter}
+	ctlExclude = controllerCall{Name: "Exclude", Flag: qsExclude}
+	ctlWhere   = controllerCall{Name: "Where", Flag: qsWhere}
+	ctlSelect  = controllerCall{Name: "Select", Flag: qsSelect}
+	ctlLimit   = controllerCall{Name: "Limit", Flag: qsLimit}
+	ctlOrderBy = controllerCall{Name: "OrderBy", Flag: qsOrderBy}
+	ctlGroupBy = controllerCall{Name: "GroupBy", Flag: qsGroupBy}
+	ctlHaving  = controllerCall{Name: "Having", Flag: qsHaving}
 )
 
 var _ Controller = (*Impl)(nil)
@@ -43,7 +55,6 @@ type (
 	Controller interface {
 		ctx() context.Context
 		setCalled(f controllerCall)
-		hasCalled(f controllerCall) bool
 		checkCalled(f ...controllerCall) ([]string, bool)
 		validateColumns(columns []string) (validatedColumns []string, err error)
 		setError(format string, a ...any)
@@ -130,10 +141,6 @@ func (m *Impl) setCalled(f controllerCall) {
 	m.called = m.called | f.Flag
 }
 
-func (m *Impl) hasCalled(f controllerCall) bool {
-	return m.called&f.Flag == f.Flag
-}
-
 func (m *Impl) checkCalled(f ...controllerCall) ([]string, bool) {
 	var calledMethod []string
 	for _, v := range f {
@@ -217,15 +224,14 @@ func (m *Impl) Select(selects any) Controller {
 		}
 
 		validatedColumns, err := m.validateColumns(sel)
-
 		if err != nil {
-			m.setError("Select columns validate error: %s", err)
+			m.setError(SelectColumsValidateError, err)
 			return m
 		}
 
 		m.qs.SliceSelectToSQL(validatedColumns)
 	default:
-		m.setError("Select type should be string or string slice")
+		m.setError(SelectColumnsTypeError)
 	}
 
 	return m
@@ -268,13 +274,13 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 		}
 
 		if len(unknownColumns) > 0 {
-			m.setError("OrderBy columns validate error: [%s] not exist", strings.Join(unknownColumns, "; "))
+			m.setError(OrderByColumnsValidateError, strings.Join(unknownColumns, "; "))
 			return m
 		}
 
 		m.qs.OrderByToSQL(validatedOrderBy)
 	default:
-		m.setError("OrderBy type should be string or string slice")
+		m.setError(OrderByColumnsTypeError)
 	}
 
 	return m
@@ -295,15 +301,14 @@ func (m *Impl) GroupBy(groupBy any) Controller {
 		}
 
 		validatedColumns, err := m.validateColumns(gb)
-
 		if err != nil {
-			m.setError("GroupBy columns validate error: %s", err)
+			m.setError(GroupByColumnsValidateError, err)
 			return m
 		}
 
 		m.qs.SliceGroupByToSQL(validatedColumns)
 	default:
-		m.setError("GroupBy type should be string or string slice")
+		m.setError(GroupByColumnsTypeError)
 		return m
 	}
 
@@ -321,12 +326,12 @@ func (m *Impl) Insert(data map[string]any) (id int64, err error) {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Insert")
 	}
 
-	if err = m.haveError(); err != nil {
-		return 0, err
-	}
+	// if err = m.haveError(); err != nil {
+	// 	return 0, err
+	// }
 
 	if len(data) == 0 {
-		return 0, errors.New("insert data is empty")
+		return 0, errors.New(InsertDataEmptyError)
 	}
 
 	var (
@@ -365,7 +370,7 @@ func (m *Impl) BulkInsert(data []map[string]any) (err error) {
 	}
 
 	if len(data) == 0 {
-		return errors.New("insert data is empty")
+		return errors.New(InsertDataEmptyError)
 	}
 
 	var (
@@ -424,7 +429,7 @@ func (m *Impl) Update(data map[string]any) (num int64, err error) {
 
 	for k, v := range data {
 		if _, ok := m.fieldNameMap[k]; !ok {
-			return 0, errors.New("update column [" + k + "] not exist")
+			return 0, fmt.Errorf(UpdateColumnNotExistError, k)
 		}
 		updateRows = append(updateRows, "`"+k+"`")
 		updateArgs = append(updateArgs, v)
@@ -655,10 +660,10 @@ func (m *Impl) GetC2CMap(column1, column2 string) (res map[any]any, err error) {
 	}
 
 	if _, ok := m.fieldNameMap[column1]; !ok {
-		return res, fmt.Errorf("column [%s] not exist", column1)
+		return res, fmt.Errorf(ColumnNotExistError, column1)
 	}
 	if _, ok := m.fieldNameMap[column2]; !ok {
-		return res, fmt.Errorf("column [%s] not exist", column2)
+		return res, fmt.Errorf(ColumnNotExistError, column2)
 	}
 
 	query := fmt.Sprintf("SELECT `%s`,`%s` FROM %s ", column1, column2, m.tableName)

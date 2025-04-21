@@ -1151,27 +1151,27 @@ func TestMultipleCallFlags(t *testing.T) {
 	p := NewQuerySet(mysqlOp.NewOperator()).(*QuerySetImpl)
 
 	// Test initial state
-	if p.hasCalled(callFilter) || p.hasCalled(callExclude) || p.hasCalled(callWhere) {
+	if p.hasCalled(qsFilter) || p.hasCalled(qsExclude) || p.hasCalled(qsWhere) {
 		t.Errorf("Initial call flags should be unset")
 	}
 
 	// Test filter flag
 	p.FilterToSQL(notNot, Cond{"test": 1})
-	if !p.hasCalled(callFilter) {
+	if !p.hasCalled(qsFilter) {
 		t.Errorf("callFilter flag should be set")
 	}
 
 	// Reset and test exclude flag
 	p.Reset()
 	p.FilterToSQL(isNot, Cond{"test": 1})
-	if !p.hasCalled(callExclude) {
+	if !p.hasCalled(qsExclude) {
 		t.Errorf("callExclude flag should be set")
 	}
 
 	// Reset and test where flag
 	p.Reset()
 	p.WhereToSQL("test = ?", 1)
-	if !p.hasCalled(callWhere) {
+	if !p.hasCalled(qsWhere) {
 		t.Errorf("callWhere flag should be set")
 	}
 
@@ -1183,9 +1183,9 @@ func TestMultipleCallFlags(t *testing.T) {
 	p.GroupByToSQL("test")
 	p.HavingToSQL("test = ?", 1)
 
-	if !p.hasCalled(callSelect) || !p.hasCalled(callOrderBy) ||
-		!p.hasCalled(callLimit) || !p.hasCalled(callGroupBy) ||
-		!p.hasCalled(callHaving) {
+	if !p.hasCalled(qsSelect) || !p.hasCalled(qsOrderBy) ||
+		!p.hasCalled(qsLimit) || !p.hasCalled(qsGroupBy) ||
+		!p.hasCalled(qsHaving) {
 		t.Errorf("Multiple call flags were not set correctly")
 	}
 }

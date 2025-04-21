@@ -23,3 +23,10 @@ INSERT INTO source (id, name, type, description, is_deleted, create_time, update
 INSERT INTO source (id, name, type, description, is_deleted, create_time, update_time) VALUES (23, 'Bilibili', 3, 'B 站', 0, '2024-03-19 15:16:25', '2024-03-19 15:16:25');
 INSERT INTO source (id, name, type, description, is_deleted, create_time, update_time) VALUES (31, 'Apple', 1, '苹果', 1, '2024-05-16 17:33:22', '2024-05-16 17:33:22');
 INSERT INTO source (id, name, type, description, is_deleted, create_time, update_time) VALUES (32, 'Apple', 2, '苹果', 1, '2024-05-16 17:33:23', '2024-05-16 17:33:23');
+INSERT INTO source (id, name, type, description, is_deleted, create_time, update_time) VALUES (33, 'Apple', 3, '苹果', 1, '2024-05-16 17:33:23', '2024-05-16 17:33:23');
+INSERT INTO source (id, name, type, description, is_deleted, create_time, update_time) VALUES (41, 'Google', 1, '谷歌', 1, '2024-05-16 17:33:24', '2024-05-16 17:33:24');
+INSERT INTO source (id, name, type, description, is_deleted, create_time, update_time) VALUES (42, 'Google', 2, '谷歌', 1, '2024-05-16 17:33:24', '2024-05-16 17:33:24');
+INSERT INTO source (id, name, type, description, is_deleted, create_time, update_time) VALUES (43, 'Google', 3, '谷歌', 1, '2024-05-16 17:33:25', '2024-05-16 17:33:25');
+INSERT INTO source (id, name, type, description, is_deleted, create_time, update_time) VALUES (51, 'Microsoft', 1, '微软', 0, '2024-05-16 17:33:25', '2024-05-16 17:33:25');
+INSERT INTO source (id, name, type, description, is_deleted, create_time, update_time) VALUES (52, 'Microsoft', 2, '微软', 0, '2024-05-16 17:33:26', '2024-05-16 17:33:26');
+INSERT INTO source (id, name, type, description, is_deleted, create_time, update_time) VALUES (53, 'Microsoft', 3, '微软', 0, '2024-05-16 17:33:26', '2024-05-16 17:33:26');

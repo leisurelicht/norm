@@ -41,8 +41,8 @@ func TestQuery(t *testing.T) {
 
 	if num, err := ctl(nil).Count(); err != nil {
 		t.Error(err)
-	} else if num != 8 {
-		t.Errorf("expect 8 but got %d", num)
+	} else if num != 15 {
+		t.Errorf("expect 15 but got %d", num)
 	}
 
 	ctx := context.Background()
@@ -102,34 +102,34 @@ func TestQuery(t *testing.T) {
 
 	if res, err := ctl(ctx).Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAll(); err != nil {
 		t.Error(err)
-	} else if len(res) != 6 {
-		t.Errorf("expect 6 but got %d\ngot res: %+v", len(res), res)
+	} else if len(res) != 9 {
+		t.Errorf("expect 9 but got %d\ngot res: %+v", len(res), res)
 	} else if res[0]["id"].(int64) != 11 {
 		t.Errorf("expect 11 but got %d", res[0]["id"])
-	} else if res[len(res)-1]["id"].(int64) != 23 {
-		t.Errorf("expect 4 but got %d", res[2]["id"])
+	} else if res[len(res)-1]["id"].(int64) != 53 {
+		t.Errorf("expect 53 but got %d", res[len(res)-1]["id"])
 	}
 
 	// test multiple conditions for contains
 	if res, err := ctl(ctx).Filter(Cond{"name__contains": []string{"Ac", "Ap"}}).OrderBy("id").Limit(10, 1).FindAll(); err != nil {
 		t.Error(err)
-	} else if len(res) != 5 {
-		t.Errorf("expect 5 but got %d\ngot res: %+v", len(res), res)
+	} else if len(res) != 6 {
+		t.Errorf("expect 6 but got %d\ngot res: %+v", len(res), res)
 	}
 
 	// test not contains and exclude contains, they should be return same result
 	resNotContains, err := ctl(ctx).Filter(Cond{"name__not_contains": []string{"Ac", "Ap"}}).OrderBy("id").Limit(10, 1).FindAll()
 	if err != nil {
 		t.Error(err)
-	} else if len(resNotContains) != 3 {
-		t.Errorf("expect 3 but got %d\ngot res: %+v", len(resNotContains), resNotContains)
+	} else if len(resNotContains) != 9 {
+		t.Errorf("expect 9 but got %d\ngot res: %+v", len(resNotContains), resNotContains)
 	}
 
 	resExclude, err := ctl(ctx).Exclude(Cond{"name__contains": []string{"Ac", "Ap"}}).OrderBy("id").Limit(10, 1).FindAll()
 	if err != nil {
 		t.Error(err)
-	} else if len(resExclude) != 3 {
-		t.Errorf("expect 3 but got %d\ngot res: %+v", len(resExclude), resExclude)
+	} else if len(resExclude) != 9 {
+		t.Errorf("expect 9 but got %d\ngot res: %+v", len(resExclude), resExclude)
 	}
 
 	for i, v := range resExclude {
@@ -138,22 +138,82 @@ func TestQuery(t *testing.T) {
 		}
 	}
 
+	// Test Select
 	sources := []test.Source{}
 	if err := ctl(ctx).Select([]string{"id", "name"}).Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAllModel(&sources); err != nil {
 		t.Error(err)
-	} else if len(sources) != 6 {
-		t.Errorf("expect 6 but got %d\ngot res: %+v", len(sources), sources)
+	} else if len(sources) != 9 {
+		t.Errorf("expect 9 but got %d\ngot res: %+v", len(sources), sources)
 	}
 
 	sources1 := []test.Source{}
 	if err := ctl(ctx).Select("id, name").Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAllModel(&sources1); err != nil {
 		t.Error(err)
-	} else if len(sources1) != 6 {
-		t.Errorf("expect 6 but got %d\ngot res: %+v", len(sources1), sources1)
+	} else if len(sources1) != 9 {
+		t.Errorf("expect 9 but got %d\ngot res: %+v", len(sources1), sources1)
 	}
 
 	if !reflect.DeepEqual(sources, sources1) {
 		t.Errorf("expect not equal but \ngot: sources: %+v\ngot: sources1: %+v", sources, sources1)
+	}
+
+	// Test OrderBy
+	if _, err := ctl(ctx).OrderBy([]string{}).FindAll(); err != nil {
+		t.Error(err)
+	}
+
+	if res, err := ctl(ctx).OrderBy([]string{"-id"}).FindAll(); err != nil {
+		t.Error(err)
+	} else if res[0]["id"].(int64) != 53 {
+		t.Errorf("expect 53 but got %d", res[0]["id"])
+	}
+
+	// Test GroupBy
+	groupbyNames := []struct {
+		Name string `db:"name"`
+	}{}
+	if err := ctl(ctx).Select([]string{"name"}).GroupBy("name").FindAllModel(&groupbyNames); err != nil {
+		t.Error(err)
+	} else if len(groupbyNames) != 5 {
+		t.Errorf("expect 5 but got %d\ngot res: %+v", len(groupbyNames), groupbyNames)
+	} else {
+		for _, v := range groupbyNames {
+			if v.Name == "" {
+				t.Error("expect non-empty name but got empty")
+			}
+		}
+	}
+
+	groupbyNames1 := []struct {
+		Name string `db:"name"`
+	}{}
+	if err := ctl(ctx).Select("name").GroupBy([]string{}).FindAllModel(&groupbyNames1); err != nil {
+		t.Error(err)
+	} else if len(groupbyNames1) != 15 {
+		t.Errorf("expect 15 but got %d\ngot res: %+v", len(groupbyNames1), groupbyNames1)
+	} else {
+		for _, v := range groupbyNames1 {
+			if v.Name == "" {
+				t.Error("expect non-empty name but got empty")
+			}
+		}
+	}
+
+	// test Insert
+	if _, err := ctl(ctx).Insert(map[string]any{"id": 666, "name": "666", "description": "2333"}); err != nil {
+		t.Error(err)
+	}
+	if res, err := ctl(ctx).Filter(Cond{"id": 666}).FindOne(); err != nil {
+		t.Error(err)
+	} else if res["id"].(int64) != 666 {
+		t.Errorf("expect 666 but got %d", res["id"])
+	} else if res["name"].(string) != "666" {
+		t.Errorf("expect 666 but got %s", res["name"])
+	} else if res["description"].(string) != "2333" {
+		t.Errorf("expect 2333 but got %s", res["description"])
+	}
+	if _, err := ctl(ctx).Filter(Cond{"id": 666}).Remove(); err != nil {
+		t.Error(err)
 	}
 
 }
@@ -426,4 +486,19 @@ func TestHandlerError(t *testing.T) {
 		}
 	}
 
+	// orderBy type error
+	if _, err := ctl(ctx).OrderBy([1]string{"id"}).FindAll(); err != nil {
+		if err.Error() != OrderByColumnsTypeError {
+			t.Error(err)
+		}
+	}
+
+	// groupby type error
+	if err := ctl(ctx).Select([]string{"name"}).GroupBy([1]string{"name"}).FindAllModel(&[]struct {
+		Name string `db:"name"`
+	}{}); err != nil {
+		if err.Error() != GroupByColumnsTypeError {
+			t.Error(err)
+		}
+	}
 }
