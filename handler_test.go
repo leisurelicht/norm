@@ -187,10 +187,10 @@ func TestQuery(t *testing.T) {
 	groupbyNames1 := []struct {
 		Name string `db:"name"`
 	}{}
-	if err := ctl(ctx).Select("name").GroupBy([]string{}).FindAllModel(&groupbyNames1); err != nil {
+	if err := ctl(ctx).Select([]string{"name"}).GroupBy([]string{"name"}).FindAllModel(&groupbyNames1); err != nil {
 		t.Error(err)
-	} else if len(groupbyNames1) != 15 {
-		t.Errorf("expect 15 but got %d\ngot res: %+v", len(groupbyNames1), groupbyNames1)
+	} else if len(groupbyNames1) != 5 {
+		t.Errorf("expect 5 but got %d\ngot res: %+v", len(groupbyNames1), groupbyNames1)
 	} else {
 		for _, v := range groupbyNames1 {
 			if v.Name == "" {
@@ -198,6 +198,23 @@ func TestQuery(t *testing.T) {
 			}
 		}
 	}
+
+	groupbyNames2 := []struct {
+		Name string `db:"name"`
+	}{}
+	if err := ctl(ctx).Select("name").GroupBy([]string{}).FindAllModel(&groupbyNames2); err != nil {
+		t.Error(err)
+	} else if len(groupbyNames2) != 15 {
+		t.Errorf("expect 15 but got %d\ngot res: %+v", len(groupbyNames2), groupbyNames2)
+	} else {
+		for _, v := range groupbyNames2 {
+			if v.Name == "" {
+				t.Error("expect non-empty name but got empty")
+			}
+		}
+	}
+
+	// test having
 
 	// test Insert
 	if _, err := ctl(ctx).Insert(map[string]any{"id": 666, "name": "666", "description": "2333"}); err != nil {
