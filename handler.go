@@ -80,11 +80,10 @@ type (
 		FindAll() (result []map[string]any, err error)
 		FindAllModel(modelSlicePtr any) (err error)
 		Delete() (num int64, err error)
-		Modify(data map[string]any) (num int64, err error)
 		Exist() (exist bool, error error)
 		List() (num int64, data []map[string]any, err error)
 		GetOrCreate(data map[string]any) (result map[string]any, err error)
-		CreateOrUpdate(data map[string]any, filter ...any) (created bool, num int64, err error)
+		CreateOrUpdate(data map[string]any, filter ...any) (created bool, numOrID int64, err error)
 		GetC2CMap(column1, column2 string) (res map[any]any, err error)
 		CreateIfNotExist(data map[string]any) (id int64, created bool, err error)
 	}
@@ -112,6 +111,10 @@ func NewController(conn any, op Operator, m any) func(ctx context.Context) Contr
 
 	fieldNameSlice := rawFieldNames(m, DefaultModelTag, true)
 
+	tableName := shiftName(reflect.TypeOf(m).Name())
+
+	op.SetTableName(tableName)
+
 	return func(ctx context.Context) Controller {
 		if ctx == nil {
 			ctx = context.Background()
@@ -122,7 +125,7 @@ func NewController(conn any, op Operator, m any) func(ctx context.Context) Contr
 			modelPtr:       mPtr,
 			modelSlicePtr:  mSlicePtr,
 			operator:       op,
-			tableName:      shiftName(reflect.TypeOf(m).Name()),
+			tableName:      tableName,
 			fieldNameMap:   strSlice2Map(fieldNameSlice),
 			fieldNameSlice: fieldNameSlice,
 			fieldRows:      strings.Join(rawFieldNames(m, DefaultModelTag, false), ","),
@@ -179,9 +182,13 @@ func (m *Impl) haveError() error {
 	return nil
 }
 
-func (m *Impl) Reset() Controller {
+func (m *Impl) reset() {
 	m.qs.Reset()
 	m.called = 0
+}
+
+func (m *Impl) Reset() Controller {
+	m.reset()
 	return m
 }
 
@@ -321,15 +328,7 @@ func (m *Impl) Having(having string, args ...any) Controller {
 	return m
 }
 
-func (m *Impl) Insert(data map[string]any) (id int64, err error) {
-	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
-		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Insert")
-	}
-
-	// if err = m.haveError(); err != nil {
-	// 	return 0, err
-	// }
-
+func (m *Impl) insert(data map[string]any) (id int64, err error) {
 	if len(data) == 0 {
 		return 0, errors.New(InsertDataEmptyError)
 	}
@@ -352,12 +351,20 @@ func (m *Impl) Insert(data map[string]any) (id int64, err error) {
 	return m.operator.Insert(m.ctx(), m.conn, sql, args...)
 }
 
-func (m *Impl) InsertModel(model any) (id int64, err error) {
+func (m *Impl) Insert(data map[string]any) (id int64, err error) {
 	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Insert")
 	}
 
-	return m.Insert(modelStruct2Map(model, m.mTag))
+	return m.insert(data)
+}
+
+func (m *Impl) InsertModel(model any) (id int64, err error) {
+	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
+		return 0, fmt.Errorf(UnsupportedControllerError, methods, "InsertModel")
+	}
+
+	return m.insert(modelStruct2Map(model, m.mTag))
 }
 
 func (m *Impl) BulkInsert(data []map[string]any) (err error) {
@@ -396,7 +403,7 @@ func (m *Impl) BulkInsertModel(modelSlice []any) (err error) {
 }
 
 func (m *Impl) Remove() (num int64, err error) {
-	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving, ctlOrderBy); called {
+	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Remove")
 	}
 
@@ -413,7 +420,7 @@ func (m *Impl) Remove() (num int64, err error) {
 }
 
 func (m *Impl) Update(data map[string]any) (num int64, err error) {
-	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving, ctlOrderBy); called {
+	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Update")
 	}
 
@@ -459,15 +466,7 @@ func (m *Impl) Count() (num int64, err error) {
 	return m.operator.Count(m.ctx(), m.conn, query, filterArgs...)
 }
 
-func (m *Impl) FindOne() (result map[string]any, err error) {
-	if methods, called := m.checkCalled(ctlSelect, ctlHaving); called {
-		return result, fmt.Errorf(UnsupportedControllerError, methods, "FindOne")
-	}
-
-	if err = m.haveError(); err != nil {
-		return result, err
-	}
-
+func (m *Impl) findOne() (result map[string]any, err error) {
 	filterSQL, filterArgs := m.qs.GetQuerySet()
 
 	query := SelectTemp
@@ -492,6 +491,18 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 	default:
 		return map[string]any{}, err
 	}
+}
+
+func (m *Impl) FindOne() (result map[string]any, err error) {
+	if methods, called := m.checkCalled(ctlSelect, ctlHaving); called {
+		return result, fmt.Errorf(UnsupportedControllerError, methods, "FindOne")
+	}
+
+	if err = m.haveError(); err != nil {
+		return result, err
+	}
+
+	return m.findOne()
 }
 
 func (m *Impl) FindOneModel(modelPtr any) (err error) {
@@ -600,18 +611,14 @@ func (m *Impl) Delete() (int64, error) {
 	return m.Update(data)
 }
 
-func (m *Impl) Modify(data map[string]any) (num int64, err error) {
-	return m.Exclude(data).Update(data)
-}
-
 func (m *Impl) Exist() (exist bool, err error) {
-	if num, err := m.Count(); err != nil {
-		return false, err
-	} else if num > 0 {
-		return true, nil
+	if err = m.haveError(); err != nil {
+		return exist, err
 	}
 
-	return false, nil
+	filterSQL, filterArgs := m.qs.GetQuerySet()
+
+	return m.operator.Exist(m.ctx(), m.conn, filterSQL, filterArgs...)
 }
 
 func (m *Impl) List() (total int64, data []map[string]any, err error) {
@@ -626,20 +633,28 @@ func (m *Impl) List() (total int64, data []map[string]any, err error) {
 	return total, data, nil
 }
 
-func (m *Impl) GetOrCreate(data map[string]any) (map[string]any, error) {
-	if _, err := m.Insert(data); err != nil {
+func (m *Impl) GetOrCreate(data map[string]any) (res map[string]any, err error) {
+	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
+		return res, fmt.Errorf(UnsupportedControllerError, methods, "GetOrCreate")
+	}
+
+	if _, err := m.insert(data); err != nil {
 		if !errors.Is(err, ErrDuplicateKey) {
-			return nil, err
+			return res, err
 		}
 	}
 
-	return m.Filter(data).FindOne()
+	m.setCalled(ctlFilter)
+	m.qs.FilterToSQL(notNot, Cond(data))
+
+	return m.findOne()
 }
 
-func (m *Impl) CreateOrUpdate(data map[string]any, filter ...any) (bool, int64, error) {
+func (m *Impl) CreateOrUpdate(data map[string]any, filter ...any) (created bool, numOrID int64, err error) {
 	if exist, err := m.Filter(filter...).Exist(); err != nil {
 		return false, 0, err
 	} else if exist {
+		m.reset()
 		if num, err := m.Reset().Filter(filter...).Update(data); err != nil {
 			return false, 0, err
 		} else {
@@ -647,7 +662,8 @@ func (m *Impl) CreateOrUpdate(data map[string]any, filter ...any) (bool, int64, 
 		}
 	}
 
-	id, err := m.Reset().Insert(data)
+	m.reset()
+	id, err := m.insert(data)
 	if err != nil {
 		return false, 0, err
 	}

@@ -42,23 +42,33 @@ func TestQuery(t *testing.T) {
 	if num, err := ctl(nil).Count(); err != nil {
 		t.Error(err)
 	} else if num != 15 {
-		t.Errorf("expect 15 but got %d", num)
+		t.Errorf("Count error: Expect [count] 15 but got %d", num)
 	}
 
 	ctx := context.Background()
 
+	if exist, err := ctl(ctx).Filter(Cond{"id": 11}).Exist(); err != nil {
+		t.Error(err)
+	} else if !exist {
+		t.Error("Exist error: Expect [exist] but got [not exist]")
+	} else if exist, err := ctl(ctx).Filter(Cond{"id": 12345}).Exist(); err != nil {
+		t.Error(err)
+	} else if exist {
+		t.Error("Exist error: Expect [not exist] but got [exist]")
+	}
+
 	if res, err := ctl(ctx).Filter(Cond{"id": 11}).FindOne(); err != nil {
 		t.Error(err)
 	} else if reflect.DeepEqual(res, map[string]any{}) {
-		t.Error("expect not nil")
+		t.Error("Expect [not nil]")
 	} else if res["id"].(int64) != int64(11) {
-		t.Errorf("expect 11 but got %d", res["id"])
+		t.Errorf("Expect [ID] 11 but got %d", res["id"])
 	}
 
 	if res, err := ctl(ctx).Filter(Cond{"is_deleted": false}).FindOne(); err != nil {
 		t.Error(err)
 	} else if res["name"].(string) != "Acfun" {
-		t.Errorf("expect Acfun but got %s", res["name"])
+		t.Errorf("Expect [Name] Acfun but got %s", res["name"])
 	}
 
 	created, _ := time.ParseInLocation("2006-01-02 15:04:05", "2024-03-19 15:16:23", time.Local)
@@ -69,52 +79,61 @@ func TestQuery(t *testing.T) {
 	if err := ctl(ctx).Filter(Cond{"id": 11}).FindOneModel(&source2); err != nil {
 		t.Error(err)
 	} else if source1.Id != source2.Id {
-		t.Errorf("expect 11 but got %d", source2.Id)
+		t.Errorf("Expect [ID] 11 but got %d", source2.Id)
 	} else if source1.Name != source2.Name {
-		t.Errorf("expect Acfun but got %s", source2.Name)
+		t.Errorf("Expect [Name] Acfun but got %s", source2.Name)
 	} else if source1.Type != source2.Type {
-		t.Errorf("expect 1 but got %d", source2.Type)
+		t.Errorf("Expect [Type] 1 but got %d", source2.Type)
 	} else if source1.Description != source2.Description {
-		t.Errorf("expect A 站 but got %s", source2.Description)
+		t.Errorf("Expect [Description] A 站 but got %s", source2.Description)
 	} else if source1.IsDeleted != source2.IsDeleted {
-		t.Errorf("expect false but got %t", source2.IsDeleted)
+		t.Errorf("Expect [IsDeleted] false but got %t", source2.IsDeleted)
 	} else if source1.CreateTime.Format("2006-01-02 15:04:05") != source2.CreateTime.Format("2006-01-02 15:04:05") {
-		t.Errorf("expect %s but got %s", source1.CreateTime, source2.CreateTime)
+		t.Errorf("Expect [CreateTime] %s but got %s", source1.CreateTime, source2.CreateTime)
 	} else if source1.UpdateTime.Format("2006-01-02 15:04:05") != source2.UpdateTime.Format("2006-01-02 15:04:05") {
-		t.Errorf("expect %s but got %s", source1.UpdateTime, source2.UpdateTime)
+		t.Errorf("Expect [Updatetime] %s but got %s", source1.UpdateTime, source2.UpdateTime)
 	}
 
 	if res, err := ctl(ctx).Filter(Cond{"id": 11}, OR{"id": 12}).FindAll(); err != nil {
 		t.Error(err)
 	} else if len(res) != 2 {
-		t.Errorf("expect 2 but got %d\ngot res: %+v", len(res), res)
+		t.Errorf("Expect [Count] 2 but got %d\ngot res: %+v", len(res), res)
 	} else if res[0]["id"].(int64) != int64(11) {
-		t.Errorf("expect 11 but got %d", res[0]["id"])
+		t.Errorf("Expect [ID] 11 but got %d", res[0]["id"])
 	} else if res[1]["id"].(int64) != int64(12) {
-		t.Errorf("expect 12 but got %d", res[1]["id"])
+		t.Errorf("Expect [ID] 12 but got %d", res[1]["id"])
 	}
 
-	if res, err := ctl(ctx).Filter(Cond{"id": 11}, AND{"id": 12}).FindAll(); err != nil {
+	sources := []test.Source{}
+	if err := ctl(ctx).Filter(Cond{"id": 11}, AND{"id": 12}).FindAllModel(&sources); err != nil {
 		t.Error(err)
-	} else if len(res) != 0 {
-		t.Errorf("expect 0 but got %d\ngot res: %+v", len(res), res)
+	} else if len(sources) != 0 {
+		t.Errorf("Expect [count] 0 but got %d\ngot res: %+v", len(sources), sources)
 	}
 
 	if res, err := ctl(ctx).Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAll(); err != nil {
 		t.Error(err)
 	} else if len(res) != 9 {
-		t.Errorf("expect 9 but got %d\ngot res: %+v", len(res), res)
+		t.Errorf("Expect [count] 9 but got %d\ngot res: %+v", len(res), res)
 	} else if res[0]["id"].(int64) != 11 {
-		t.Errorf("expect 11 but got %d", res[0]["id"])
+		t.Errorf("Expect [ID] 11 but got %d", res[0]["id"])
 	} else if res[len(res)-1]["id"].(int64) != 53 {
-		t.Errorf("expect 53 but got %d", res[len(res)-1]["id"])
+		t.Errorf("Expect [ID] 53 but got %d", res[len(res)-1]["id"])
+	}
+
+	if res, err := ctl(ctx).Filter(Cond{"id": 12345}).FindAll(); err != nil {
+		t.Error(err)
+	} else if len(res) != 0 {
+		t.Errorf("Expect [count] 0 but got %d\ngot res: %+v", len(res), res)
+	} else if reflect.DeepEqual(res, map[string]any{}) {
+		t.Error("Expect [empty]")
 	}
 
 	// test multiple conditions for contains
 	if res, err := ctl(ctx).Filter(Cond{"name__contains": []string{"Ac", "Ap"}}).OrderBy("id").Limit(10, 1).FindAll(); err != nil {
 		t.Error(err)
 	} else if len(res) != 6 {
-		t.Errorf("expect 6 but got %d\ngot res: %+v", len(res), res)
+		t.Errorf("Expect [count] 6 but got %d\ngot res: %+v", len(res), res)
 	}
 
 	// test not contains and exclude contains, they should be return same result
@@ -122,42 +141,51 @@ func TestQuery(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	} else if len(resNotContains) != 9 {
-		t.Errorf("expect 9 but got %d\ngot res: %+v", len(resNotContains), resNotContains)
+		t.Errorf("Expect [count] 9 but got %d\ngot res: %+v", len(resNotContains), resNotContains)
 	}
 
 	resExclude, err := ctl(ctx).Exclude(Cond{"name__contains": []string{"Ac", "Ap"}}).OrderBy("id").Limit(10, 1).FindAll()
 	if err != nil {
 		t.Error(err)
 	} else if len(resExclude) != 9 {
-		t.Errorf("expect 9 but got %d\ngot res: %+v", len(resExclude), resExclude)
+		t.Errorf("Expect [count] 9 but got %d\ngot res: %+v", len(resExclude), resExclude)
 	}
 
 	for i, v := range resExclude {
 		if v["id"] != resNotContains[i]["id"] {
-			t.Errorf("expect not equal but \ngot: resExclude: %+v\ngot: resNotContains: %+v", v, resNotContains[i])
+			t.Errorf("Expect [not equal] but \ngot: resExclude: %+v\ngot: resNotContains: %+v", v, resNotContains[i])
 		}
 	}
 
-	// Test Select
-	sources := []test.Source{}
-	if err := ctl(ctx).Select([]string{"id", "name"}).Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAllModel(&sources); err != nil {
+	// test Select
+	selectSources := []test.Source{}
+	if err := ctl(ctx).Select([]string{"id", "name"}).Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAllModel(&selectSources); err != nil {
 		t.Error(err)
-	} else if len(sources) != 9 {
-		t.Errorf("expect 9 but got %d\ngot res: %+v", len(sources), sources)
+	} else if len(selectSources) != 9 {
+		t.Errorf("Select error:\nExpect [count] 9 but got %d\ngot res: %+v", len(selectSources), selectSources)
 	}
 
-	sources1 := []test.Source{}
-	if err := ctl(ctx).Select("id, name").Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAllModel(&sources1); err != nil {
+	selectSources1 := []test.Source{}
+	if err := ctl(ctx).Select("id, name").Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAllModel(&selectSources1); err != nil {
 		t.Error(err)
-	} else if len(sources1) != 9 {
-		t.Errorf("expect 9 but got %d\ngot res: %+v", len(sources1), sources1)
+	} else if len(selectSources1) != 9 {
+		t.Errorf("Select error:\nExpect [count] 9 but got %d\ngot res: %+v", len(selectSources1), selectSources1)
 	}
 
-	if !reflect.DeepEqual(sources, sources1) {
-		t.Errorf("expect not equal but \ngot: sources: %+v\ngot: sources1: %+v", sources, sources1)
+	if !reflect.DeepEqual(selectSources, selectSources1) {
+		t.Errorf("Select error:\nExpect [not equal] but \ngot: sources: %+v\ngot: sources1: %+v", selectSources, selectSources1)
 	}
 
-	// Test OrderBy
+	selectSource := test.Source{}
+	if err := ctl(ctx).Select("id, name").Filter(Cond{"is_deleted": false}).OrderBy("id").FindOneModel(&selectSource); err != nil {
+		t.Error(err)
+	} else if selectSource.Id != 11 {
+		t.Errorf("Select error:\nExpect [ID] 11 but got %d", selectSource.Id)
+	} else if selectSource.Name != "Acfun" {
+		t.Errorf("Select error:\nExpect [Name] Acfun but got %s", selectSource.Name)
+	}
+
+	// test OrderBy
 	if _, err := ctl(ctx).OrderBy([]string{}).FindAll(); err != nil {
 		t.Error(err)
 	}
@@ -165,21 +193,21 @@ func TestQuery(t *testing.T) {
 	if res, err := ctl(ctx).OrderBy([]string{"-id"}).FindAll(); err != nil {
 		t.Error(err)
 	} else if res[0]["id"].(int64) != 53 {
-		t.Errorf("expect 53 but got %d", res[0]["id"])
+		t.Errorf("Select error:\nExpect [53] but got %d", res[0]["id"])
 	}
 
-	// Test GroupBy
+	// test GroupBy
 	groupbyNames := []struct {
 		Name string `db:"name"`
 	}{}
 	if err := ctl(ctx).Select([]string{"name"}).GroupBy("name").FindAllModel(&groupbyNames); err != nil {
 		t.Error(err)
 	} else if len(groupbyNames) != 5 {
-		t.Errorf("expect 5 but got %d\ngot res: %+v", len(groupbyNames), groupbyNames)
+		t.Errorf("GroupBy error:\nExpect [count] 5 but got %d\ngot res: %+v", len(groupbyNames), groupbyNames)
 	} else {
 		for _, v := range groupbyNames {
 			if v.Name == "" {
-				t.Error("expect non-empty name but got empty")
+				t.Error("GroupBy error:\nExpect [non-empty name] but got empty")
 			}
 		}
 	}
@@ -190,11 +218,11 @@ func TestQuery(t *testing.T) {
 	if err := ctl(ctx).Select([]string{"name"}).GroupBy([]string{"name"}).FindAllModel(&groupbyNames1); err != nil {
 		t.Error(err)
 	} else if len(groupbyNames1) != 5 {
-		t.Errorf("expect 5 but got %d\ngot res: %+v", len(groupbyNames1), groupbyNames1)
+		t.Errorf("GroupBy error:\nExpect [count] 5 but got %d\ngot res: %+v", len(groupbyNames1), groupbyNames1)
 	} else {
 		for _, v := range groupbyNames1 {
 			if v.Name == "" {
-				t.Error("expect non-empty name but got empty")
+				t.Error("GroupBy error:\nExpect [non-empty name] but got empty")
 			}
 		}
 	}
@@ -205,32 +233,190 @@ func TestQuery(t *testing.T) {
 	if err := ctl(ctx).Select("name").GroupBy([]string{}).FindAllModel(&groupbyNames2); err != nil {
 		t.Error(err)
 	} else if len(groupbyNames2) != 15 {
-		t.Errorf("expect 15 but got %d\ngot res: %+v", len(groupbyNames2), groupbyNames2)
+		t.Errorf("GroupBy error:\nExpect [15] but got %d\ngot res: %+v", len(groupbyNames2), groupbyNames2)
 	} else {
 		for _, v := range groupbyNames2 {
 			if v.Name == "" {
-				t.Error("expect non-empty name but got empty")
+				t.Error("GroupBy error:\nExpect [non-empty name] but got empty")
 			}
 		}
 	}
 
 	// test having
 
-	// test Insert
+	// Insert, update, delete, remove
 	if _, err := ctl(ctx).Insert(map[string]any{"id": 666, "name": "666", "description": "2333"}); err != nil {
-		t.Error(err)
-	}
-	if res, err := ctl(ctx).Filter(Cond{"id": 666}).FindOne(); err != nil {
+		t.Errorf("Insert error: %s", err)
+	} else if res, err := ctl(ctx).Filter(Cond{"id": 666}).FindOne(); err != nil {
 		t.Error(err)
 	} else if res["id"].(int64) != 666 {
-		t.Errorf("expect 666 but got %d", res["id"])
+		t.Errorf("Insert error: \nexpect 666 but got %d", res["id"])
 	} else if res["name"].(string) != "666" {
-		t.Errorf("expect 666 but got %s", res["name"])
+		t.Errorf("Insert error: \nexpect 666 but got %s", res["name"])
 	} else if res["description"].(string) != "2333" {
-		t.Errorf("expect 2333 but got %s", res["description"])
+		t.Errorf("Insert error: \nexpect 2333 but got %s", res["description"])
 	}
-	if _, err := ctl(ctx).Filter(Cond{"id": 666}).Remove(); err != nil {
+	if res, err := ctl(ctx).Filter(Cond{"id": 666}).Update(map[string]any{"name": "test"}); err != nil {
+		t.Errorf("Update error: %s", err)
+	} else if res != 1 {
+		t.Errorf("Update error: \nexpect 1 but got %d", res)
+	} else if res, err := ctl(ctx).Filter(Cond{"id": 666}).FindOne(); err != nil {
+		t.Errorf("FindOne error: %s", err)
+	} else if res["name"].(string) != "test" {
+		t.Errorf("Update error: \nexpect test but got %s", res["name"])
+	} else if res["description"].(string) != "2333" {
+		t.Errorf("Update error: \nexpect 2333 but got %s", res["description"])
+	}
+
+	if num, err := ctl(ctx).Filter(Cond{"id": 666}).Delete(); err != nil {
+		t.Errorf("Delete error: %s", err)
+	} else if num != 1 {
+		t.Errorf("Delete error: \nexpect 1 but got %d", num)
+	} else if res, err := ctl(ctx).Filter(Cond{"id": 666, "is_deleted": true}).FindOne(); err != nil {
+		t.Errorf("FindOne error: %s", err)
+	} else if res["id"].(int64) != 666 && res["is_deleted"].(bool) != true {
+		t.Errorf("Delete error: \nexpect 666 but got %d\nexpect true but got %t", res["id"], res["is_deleted"])
+	} else if res["name"].(string) != "test" {
+		t.Errorf("Delete error: \nexpect test but got %s", res["name"])
+	}
+
+	if _, err := ctl(ctx).Filter(Cond{"id": 666, "is_deleted": true}).Remove(); err != nil {
+		t.Errorf("Error error: %v", err)
+	} else if res, err := ctl(ctx).Filter(Cond{"id": 666}).FindOne(); err != nil {
+		t.Errorf("FindOne error: %s", err)
+	} else if len(res) != 0 {
+		t.Errorf("Remove error: \nexpect 0 but got %d\nexpect empty but got %+v\n", len(res), res)
+	}
+
+	if _, err := ctl(ctx).InsertModel(&test.Source{Id: 777, Name: "777", Description: "2333", IsDeleted: false, CreateTime: time.Now(), UpdateTime: time.Now()}); err != nil {
+		t.Errorf("InsertModel error: %s", err)
+	} else if res, err := ctl(ctx).Filter(Cond{"id": 777, "is_deleted": false}).FindOne(); err != nil {
 		t.Error(err)
+	} else if res["id"].(int64) != 777 {
+		t.Errorf("InsertModel error: \nexpect 777 but got %d", res["id"])
+	} else if res["name"].(string) != "777" {
+		t.Errorf("InsertModel error: \nexpect 777 but got %s", res["name"])
+	} else if res["description"].(string) != "2333" {
+		t.Errorf("InsertModel error: \nexpect 2333 but got %s", res["description"])
+	}
+
+	if _, err := ctl(ctx).Filter(Cond{"id": 777}).Remove(); err != nil {
+		t.Errorf("Remove error: %s", err)
+	} else if res, err := ctl(ctx).Filter(Cond{"id": 777}).FindOne(); err != nil {
+		t.Errorf("FindOne error: %s", err)
+	} else if len(res) != 0 {
+		t.Errorf("Remove error: \nexpect 0 but got %d\nexpect empty but got %+v\n", len(res), res)
+	}
+
+	// test List
+	if num, res, err := ctl(ctx).Filter(Cond{"id__in": []int64{11, 12, 13}}).OrderBy("-id").List(); err != nil {
+		t.Errorf("List error: %s", err)
+	} else if num != 3 {
+		t.Errorf("List num error: \nexpect 3 but got %d", num)
+	} else if len(res) != 3 {
+		t.Errorf("List res length error: \nexpect 3 but got %d", len(res))
+	} else if res[0]["id"].(int64) != 13 {
+		t.Errorf("List res[0] error: \nexpect 13 but got %d", res[0]["id"])
+	} else if res[1]["id"].(int64) != 12 {
+		t.Errorf("List res[1] error: \nexpect 12 but got %d", res[1]["id"])
+	} else if res[2]["id"].(int64) != 11 {
+		t.Errorf("List res[2] error: \nexpect 11 but got %d", res[2]["id"])
+	}
+
+	// test GetOrCreate
+	if res, err := ctl(ctx).GetOrCreate(map[string]any{"id": 11, "description": "A 站"}); err != nil {
+		t.Errorf("GetOrCreate error: %s", err)
+	} else if res["id"].(int64) != 11 {
+		t.Errorf("GetOrCreate error: \nexpect [id] 11 but got %d", res["id"])
+	} else if res["name"].(string) != "Acfun" {
+		t.Errorf("GetOrCreate error: \nexpect [name] Acfun but got %s", res["name"])
+	}
+
+	if res, err := ctl(ctx).GetOrCreate(map[string]any{"id": 12345, "name": "12345", "description": "12345"}); err != nil {
+		t.Errorf("GetOrCreate error: %s", err)
+	} else if res["name"].(string) != "12345" {
+		t.Errorf("GetOrCreate error: \nexpect 12345 but got %s", res["name"])
+	} else if res, err := ctl(ctx).Filter(Cond{"id": 12345}).FindOne(); err != nil {
+		t.Errorf("FindOne error: %s", err)
+	} else if res["id"].(int64) != 12345 {
+		t.Errorf("GetOrCreate error: \nexpect 12345 but got %d", res["id"])
+	} else if res["name"].(string) != "12345" {
+		t.Errorf("GetOrCreate error: \nexpect 12345 but got %s", res["name"])
+	} else if _, err := ctl(ctx).Filter(Cond{"id": 12345}).Remove(); err != nil {
+		t.Errorf("Remove error: %s", err)
+	}
+
+	// test CreateOrUpdate
+	if created, num, err := ctl(ctx).CreateOrUpdate(map[string]any{"id": 23456, "description": "Test23456"}, Cond{"id": 23456}); err != nil {
+		t.Errorf("CreateOrUpdate error: %s", err)
+	} else if !created {
+		t.Errorf("CreateOrUpdate error: \nexpect [created] but got [not created]")
+	} else if num != 0 {
+		t.Errorf("CreateOrUpdate error: \nexpect 0 but got %d", num)
+	} else if res, err := ctl(ctx).Filter(Cond{"id": 23456}).FindOne(); err != nil {
+		t.Errorf("FindOne error: %s", err)
+	} else if res["id"].(int64) != 23456 {
+		t.Errorf("CreateOrUpdate error: \nexpect 23456 but got %d", res["id"])
+	} else if res["description"].(string) != "Test23456" {
+		t.Errorf("CreateOrUpdate error: \nexpect Test23456 but got %s", res["description"])
+	} else if res["name"].(string) != "" {
+		t.Errorf("CreateOrUpdate error: \nexpect empty but got %s", res["name"])
+	}
+
+	if created, num, err := ctl(ctx).CreateOrUpdate(map[string]any{"id": 23456, "name": "test65432", "description": "Test65432"}, Cond{"id": 23456}); err != nil {
+		t.Errorf("CreateOrUpdate error: %s", err)
+	} else if created {
+		t.Errorf("CreateOrUpdate error: \nexpect [not created] but got [created]")
+	} else if num != 1 {
+		t.Errorf("CreateOrUpdate error: \nexpect 1 but got %d", num)
+	} else if res, err := ctl(ctx).Filter(Cond{"id": 23456}).FindOne(); err != nil {
+		t.Errorf("FindOne error: %s", err)
+	} else if res["id"].(int64) != 23456 {
+		t.Errorf("CreateOrUpdate error: \nexpect 23456 but got %d", res["id"])
+	} else if res["description"].(string) != "Test65432" {
+		t.Errorf("CreateOrUpdate error: \nexpect Test65432 but got %s", res["description"])
+	} else if res["name"].(string) != "test65432" {
+		t.Errorf("CreateOrUpdate error: \nexpect test65432 but got %s", res["name"])
+	}
+
+	if _, err := ctl(ctx).Filter(Cond{"id": 23456}).Remove(); err != nil {
+		t.Errorf("Remove error: %s", err)
+	}
+
+	cliTmp := NewController(sqlx.NewMysql(mysqlAddress), mysqlOp.NewOperator(), test.Property{})
+	filter := Cond{"source_id": 11}
+	bakTmp, err := cliTmp(ctx).Filter(filter).FindAll()
+	if err != nil {
+		t.Errorf("FindAll error: %s", err)
+	}
+	if created, num, err := cliTmp(ctx).CreateOrUpdate(map[string]any{"column_name": "test65432", "description": "Test65432"}, filter); err != nil {
+		t.Errorf("CreateOrUpdate error: %s", err)
+	} else if created {
+		t.Errorf("CreateOrUpdate error: \nexpect [not created] but got [created]")
+	} else if num != 3 {
+		t.Errorf("CreateOrUpdate error: \nexpect 3 but got %d", num)
+	} else if res, err := cliTmp(ctx).Filter(Cond{"source_id": 11}).FindAll(); err != nil {
+		t.Errorf("FindAll error: %s", err)
+	} else if len(res) != 3 {
+		t.Errorf("CreateOrUpdate error: \nexpect 3 but got %d", len(res))
+	} else if res[0]["column_name"].(string) != "test65432" {
+		t.Errorf("CreateOrUpdate error: \nexpect test65432 but got %s", res[0]["column_name"])
+	} else if res[0]["description"].(string) != "Test65432" {
+		t.Errorf("CreateOrUpdate error: \nexpect Test65432 but got %s", res[0]["description"])
+	} else if res[1]["column_name"].(string) != "test65432" {
+		t.Errorf("CreateOrUpdate error: \nexpect test65432 but got %s", res[1]["column_name"])
+	} else if res[1]["description"].(string) != "Test65432" {
+		t.Errorf("CreateOrUpdate error: \nexpect Test65432 but got %s", res[1]["description"])
+	} else if res[2]["column_name"].(string) != "test65432" {
+		t.Errorf("CreateOrUpdate error: \nexpect test65432 but got %s", res[2]["column_name"])
+	} else if res[2]["description"].(string) != "Test65432" {
+		t.Errorf("CreateOrUpdate error: \nexpect Test65432 but got %s", res[2]["description"])
+	}
+
+	for _, v := range bakTmp {
+		if _, err := cliTmp(ctx).Filter(Cond{"id": v["id"]}).Update(v); err != nil {
+			t.Errorf("Update error: %s", err)
+		}
 	}
 
 }
@@ -305,6 +491,36 @@ func TestHandlerError(t *testing.T) {
 		t.Error(err)
 	}
 
+	if id, err := ctl(ctx).Filter(Cond{}).InsertModel(&test.Source{}); id != 0 {
+		t.Errorf("expect 0 but got %d", id)
+	} else if err != nil && err.Error() != "[Filter] not supported for InsertModel" {
+		t.Error(err)
+	}
+
+	if id, err := ctl(ctx).Filter(Cond{}).Where("").InsertModel(&test.Source{}); id != 0 {
+		t.Errorf("expect 0 but got %d", id)
+	} else if err != nil && err.Error() != "[Filter Where] not supported for InsertModel" {
+		t.Error(err)
+	}
+
+	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").InsertModel(&test.Source{}); id != 0 {
+		t.Errorf("expect 0 but got %d", id)
+	} else if err != nil && err.Error() != "[Filter Where OrderBy] not supported for InsertModel" {
+		t.Error(err)
+	}
+
+	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").InsertModel(&test.Source{}); id != 0 {
+		t.Errorf("expect 0 but got %d", id)
+	} else if err != nil && err.Error() != "[Filter Where OrderBy GroupBy] not supported for InsertModel" {
+		t.Error(err)
+	}
+
+	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Select("").InsertModel(&test.Source{}); id != 0 {
+		t.Errorf("expect 0 but got %d", id)
+	} else if err != nil && err.Error() != "[Filter Where Select OrderBy GroupBy] not supported for InsertModel" {
+		t.Error(err)
+	}
+
 	// Update unsupported operations
 	if num, err := ctl(ctx).GroupBy("").Update(map[string]any{}); num != 0 {
 		t.Errorf("expect 0 but got %d", num)
@@ -318,11 +534,11 @@ func TestHandlerError(t *testing.T) {
 		t.Error(err)
 	}
 
-	if num, err := ctl(ctx).GroupBy("").Select("").OrderBy("").Update(map[string]any{}); num != 0 {
-		t.Errorf("expect 0 but got %d", num)
-	} else if err != nil && err.Error() != "[Select GroupBy OrderBy] not supported for Update" {
-		t.Error(err)
-	}
+	// if num, err := ctl(ctx).GroupBy("").Select("").OrderBy("").Update(map[string]any{}); num != 0 {
+	// 	t.Errorf("expect 0 but got %d", num)
+	// } else if err != nil && err.Error() != "[Select GroupBy OrderBy] not supported for Update" {
+	// 	t.Error(err)
+	// }
 
 	// Remove unsupported operations
 	if num, err := ctl(ctx).GroupBy("").Remove(); num != 0 {
@@ -337,12 +553,6 @@ func TestHandlerError(t *testing.T) {
 		t.Error(err)
 	}
 
-	if num, err := ctl(ctx).GroupBy("").Select("").OrderBy("").Remove(); num != 0 {
-		t.Errorf("expect 0 but got %d", num)
-	} else if err != nil && err.Error() != "[Select GroupBy OrderBy] not supported for Remove" {
-		t.Error(err)
-	}
-
 	// Delete unsupported operations
 	if num, err := ctl(ctx).GroupBy("").Delete(); num != 0 {
 		t.Errorf("expect 0 but got %d", num)
@@ -353,12 +563,6 @@ func TestHandlerError(t *testing.T) {
 	if num, err := ctl(ctx).GroupBy("").Select("").Delete(); num != 0 {
 		t.Errorf("expect 0 but got %d", num)
 	} else if err != nil && err.Error() != "[GroupBy Select] not supported for Delete" {
-		t.Error(err)
-	}
-
-	if num, err := ctl(ctx).GroupBy("").Select("").OrderBy("").Delete(); num != 0 {
-		t.Errorf("expect 0 but got %d", num)
-	} else if err != nil && err.Error() != "[GroupBy Select OrderBy] not supported for Delete" {
 		t.Error(err)
 	}
 
@@ -515,6 +719,41 @@ func TestHandlerError(t *testing.T) {
 		Name string `db:"name"`
 	}{}); err != nil {
 		if err.Error() != GroupByColumnsTypeError {
+			t.Error(err)
+		}
+	}
+
+	// have error before remove
+	if _, err := ctl(ctx).Filter(Cond{"id": 1}).OrderBy([1]string{"-id"}).Remove(); err != nil {
+		if err.Error() != OrderByColumnsTypeError {
+			t.Error(err)
+		}
+	}
+
+	// have error before update
+	if _, err := ctl(ctx).Filter(Cond{"id": 1}).OrderBy([1]string{"-id"}).Update(map[string]any{}); err != nil {
+		if err.Error() != OrderByColumnsTypeError {
+			t.Error(err)
+		}
+	}
+
+	// have error before count
+	if _, err := ctl(ctx).Filter(nil).Count(); err != nil {
+		if err.Error() != fmt.Errorf(unsupportedFilterTypeError, "nil").Error() {
+			t.Error(err)
+		}
+	}
+
+	// have error before exist
+	if _, err := ctl(ctx).Filter(nil).Exist(); err != nil {
+		if err.Error() != fmt.Errorf(unsupportedFilterTypeError, "nil").Error() {
+			t.Error(err)
+		}
+	}
+
+	// have not exist column in update
+	if _, err := ctl(ctx).Filter(Cond{"id": 11}).Update(map[string]any{"name": "test", "age": 18}); err != nil {
+		if err.Error() != fmt.Errorf(UpdateColumnNotExistError, "age").Error() {
 			t.Error(err)
 		}
 	}

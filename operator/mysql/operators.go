@@ -35,10 +35,16 @@ var operators = map[string]string{
 	"is_null": "`%s` IS NULL",
 }
 
-type Operator struct{}
+type Operator struct {
+	tableName string
+}
 
 func NewOperator() *Operator {
 	return &Operator{}
+}
+
+func (d *Operator) SetTableName(tableName string) {
+	d.tableName = tableName
 }
 
 func (d *Operator) OperatorSQL(operator string) string {
@@ -140,6 +146,23 @@ func (d *Operator) Count(ctx context.Context, conn any, sql string, args ...any)
 	default:
 		logc.Errorf(ctx, "Count error: %+v. ", err)
 		return 0, err
+	}
+}
+
+func (d *Operator) Exist(ctx context.Context, conn any, sql string, args ...any) (bool, error) {
+	query := "SELECT count(1) FROM " + d.tableName + sql
+
+	var num int64
+	err := conn.(sqlx.SqlConn).QueryRowCtx(ctx, &num, query, args...)
+
+	switch {
+	case err == nil:
+		return num > 0, nil
+	case errors.Is(err, sqlx.ErrNotFound):
+		return false, nil
+	default:
+		logc.Errorf(ctx, "Exist error: %+v", err)
+		return false, err
 	}
 }
 
