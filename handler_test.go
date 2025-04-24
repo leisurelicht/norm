@@ -37,9 +37,10 @@ func TestCharacterEncoding(t *testing.T) {
 }
 
 func TestQuery(t *testing.T) {
-	ctl := NewController(sqlx.NewMysql(mysqlAddress), mysqlOp.NewOperator(), test.Source{})
+	sourceCli := NewController(sqlx.NewMysql(mysqlAddress), mysqlOp.NewOperator(), test.Source{})
+	propertyCli := NewController(sqlx.NewMysql(mysqlAddress), mysqlOp.NewOperator(), test.Property{})
 
-	if num, err := ctl(nil).Count(); err != nil {
+	if num, err := sourceCli(nil).Count(); err != nil {
 		t.Error(err)
 	} else if num != 15 {
 		t.Errorf("Count error: Expect [count] 15 but got %d", num)
@@ -47,17 +48,17 @@ func TestQuery(t *testing.T) {
 
 	ctx := context.Background()
 
-	if exist, err := ctl(ctx).Filter(Cond{"id": 11}).Exist(); err != nil {
+	if exist, err := sourceCli(ctx).Filter(Cond{"id": 11}).Exist(); err != nil {
 		t.Error(err)
 	} else if !exist {
 		t.Error("Exist error: Expect [exist] but got [not exist]")
-	} else if exist, err := ctl(ctx).Filter(Cond{"id": 12345}).Exist(); err != nil {
+	} else if exist, err := sourceCli(ctx).Filter(Cond{"id": 12345}).Exist(); err != nil {
 		t.Error(err)
 	} else if exist {
 		t.Error("Exist error: Expect [not exist] but got [exist]")
 	}
 
-	if res, err := ctl(ctx).Filter(Cond{"id": 11}).FindOne(); err != nil {
+	if res, err := sourceCli(ctx).Filter(Cond{"id": 11}).FindOne(); err != nil {
 		t.Error(err)
 	} else if reflect.DeepEqual(res, map[string]any{}) {
 		t.Error("Expect [not nil]")
@@ -65,7 +66,7 @@ func TestQuery(t *testing.T) {
 		t.Errorf("Expect [ID] 11 but got %d", res["id"])
 	}
 
-	if res, err := ctl(ctx).Filter(Cond{"is_deleted": false}).FindOne(); err != nil {
+	if res, err := sourceCli(ctx).Filter(Cond{"is_deleted": false}).FindOne(); err != nil {
 		t.Error(err)
 	} else if res["name"].(string) != "Acfun" {
 		t.Errorf("Expect [Name] Acfun but got %s", res["name"])
@@ -76,7 +77,7 @@ func TestQuery(t *testing.T) {
 	source1 := test.Source{Id: 11, Name: "Acfun", Type: 1, Description: "A 站", IsDeleted: false, CreateTime: created, UpdateTime: updated}
 	source2 := test.Source{}
 
-	if err := ctl(ctx).Filter(Cond{"id": 11}).FindOneModel(&source2); err != nil {
+	if err := sourceCli(ctx).Filter(Cond{"id": 11}).FindOneModel(&source2); err != nil {
 		t.Error(err)
 	} else if source1.Id != source2.Id {
 		t.Errorf("Expect [ID] 11 but got %d", source2.Id)
@@ -94,7 +95,7 @@ func TestQuery(t *testing.T) {
 		t.Errorf("Expect [Updatetime] %s but got %s", source1.UpdateTime, source2.UpdateTime)
 	}
 
-	if res, err := ctl(ctx).Filter(Cond{"id": 11}, OR{"id": 12}).FindAll(); err != nil {
+	if res, err := sourceCli(ctx).Filter(Cond{"id": 11}, OR{"id": 12}).FindAll(); err != nil {
 		t.Error(err)
 	} else if len(res) != 2 {
 		t.Errorf("Expect [Count] 2 but got %d\ngot res: %+v", len(res), res)
@@ -105,13 +106,13 @@ func TestQuery(t *testing.T) {
 	}
 
 	sources := []test.Source{}
-	if err := ctl(ctx).Filter(Cond{"id": 11}, AND{"id": 12}).FindAllModel(&sources); err != nil {
+	if err := sourceCli(ctx).Filter(Cond{"id": 11}, AND{"id": 12}).FindAllModel(&sources); err != nil {
 		t.Error(err)
 	} else if len(sources) != 0 {
 		t.Errorf("Expect [count] 0 but got %d\ngot res: %+v", len(sources), sources)
 	}
 
-	if res, err := ctl(ctx).Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAll(); err != nil {
+	if res, err := sourceCli(ctx).Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAll(); err != nil {
 		t.Error(err)
 	} else if len(res) != 9 {
 		t.Errorf("Expect [count] 9 but got %d\ngot res: %+v", len(res), res)
@@ -121,7 +122,7 @@ func TestQuery(t *testing.T) {
 		t.Errorf("Expect [ID] 53 but got %d", res[len(res)-1]["id"])
 	}
 
-	if res, err := ctl(ctx).Filter(Cond{"id": 12345}).FindAll(); err != nil {
+	if res, err := sourceCli(ctx).Filter(Cond{"id": 12345}).FindAll(); err != nil {
 		t.Error(err)
 	} else if len(res) != 0 {
 		t.Errorf("Expect [count] 0 but got %d\ngot res: %+v", len(res), res)
@@ -130,21 +131,21 @@ func TestQuery(t *testing.T) {
 	}
 
 	// test multiple conditions for contains
-	if res, err := ctl(ctx).Filter(Cond{"name__contains": []string{"Ac", "Ap"}}).OrderBy("id").Limit(10, 1).FindAll(); err != nil {
+	if res, err := sourceCli(ctx).Filter(Cond{"name__contains": []string{"Ac", "Ap"}}).OrderBy("id").Limit(10, 1).FindAll(); err != nil {
 		t.Error(err)
 	} else if len(res) != 6 {
 		t.Errorf("Expect [count] 6 but got %d\ngot res: %+v", len(res), res)
 	}
 
 	// test not contains and exclude contains, they should be return same result
-	resNotContains, err := ctl(ctx).Filter(Cond{"name__not_contains": []string{"Ac", "Ap"}}).OrderBy("id").Limit(10, 1).FindAll()
+	resNotContains, err := sourceCli(ctx).Filter(Cond{"name__not_contains": []string{"Ac", "Ap"}}).OrderBy("id").Limit(10, 1).FindAll()
 	if err != nil {
 		t.Error(err)
 	} else if len(resNotContains) != 9 {
 		t.Errorf("Expect [count] 9 but got %d\ngot res: %+v", len(resNotContains), resNotContains)
 	}
 
-	resExclude, err := ctl(ctx).Exclude(Cond{"name__contains": []string{"Ac", "Ap"}}).OrderBy("id").Limit(10, 1).FindAll()
+	resExclude, err := sourceCli(ctx).Exclude(Cond{"name__contains": []string{"Ac", "Ap"}}).OrderBy("id").Limit(10, 1).FindAll()
 	if err != nil {
 		t.Error(err)
 	} else if len(resExclude) != 9 {
@@ -159,14 +160,14 @@ func TestQuery(t *testing.T) {
 
 	// test Select
 	selectSources := []test.Source{}
-	if err := ctl(ctx).Select([]string{"id", "name"}).Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAllModel(&selectSources); err != nil {
+	if err := sourceCli(ctx).Select([]string{"id", "name"}).Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAllModel(&selectSources); err != nil {
 		t.Error(err)
 	} else if len(selectSources) != 9 {
 		t.Errorf("Select error:\nExpect [count] 9 but got %d\ngot res: %+v", len(selectSources), selectSources)
 	}
 
 	selectSources1 := []test.Source{}
-	if err := ctl(ctx).Select("id, name").Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAllModel(&selectSources1); err != nil {
+	if err := sourceCli(ctx).Select("id, name").Filter(Cond{"is_deleted": false}).OrderBy("id").Limit(10, 1).FindAllModel(&selectSources1); err != nil {
 		t.Error(err)
 	} else if len(selectSources1) != 9 {
 		t.Errorf("Select error:\nExpect [count] 9 but got %d\ngot res: %+v", len(selectSources1), selectSources1)
@@ -177,7 +178,7 @@ func TestQuery(t *testing.T) {
 	}
 
 	selectSource := test.Source{}
-	if err := ctl(ctx).Select("id, name").Filter(Cond{"is_deleted": false}).OrderBy("id").FindOneModel(&selectSource); err != nil {
+	if err := sourceCli(ctx).Select("id, name").Filter(Cond{"is_deleted": false}).OrderBy("id").FindOneModel(&selectSource); err != nil {
 		t.Error(err)
 	} else if selectSource.Id != 11 {
 		t.Errorf("Select error:\nExpect [ID] 11 but got %d", selectSource.Id)
@@ -186,11 +187,11 @@ func TestQuery(t *testing.T) {
 	}
 
 	// test OrderBy
-	if _, err := ctl(ctx).OrderBy([]string{}).FindAll(); err != nil {
+	if _, err := sourceCli(ctx).OrderBy([]string{}).FindAll(); err != nil {
 		t.Error(err)
 	}
 
-	if res, err := ctl(ctx).OrderBy([]string{"-id"}).FindAll(); err != nil {
+	if res, err := sourceCli(ctx).OrderBy([]string{"-id"}).FindAll(); err != nil {
 		t.Error(err)
 	} else if res[0]["id"].(int64) != 53 {
 		t.Errorf("Select error:\nExpect [53] but got %d", res[0]["id"])
@@ -200,7 +201,7 @@ func TestQuery(t *testing.T) {
 	groupbyNames := []struct {
 		Name string `db:"name"`
 	}{}
-	if err := ctl(ctx).Select([]string{"name"}).GroupBy("name").FindAllModel(&groupbyNames); err != nil {
+	if err := sourceCli(ctx).Select([]string{"name"}).GroupBy("name").FindAllModel(&groupbyNames); err != nil {
 		t.Error(err)
 	} else if len(groupbyNames) != 5 {
 		t.Errorf("GroupBy error:\nExpect [count] 5 but got %d\ngot res: %+v", len(groupbyNames), groupbyNames)
@@ -215,7 +216,7 @@ func TestQuery(t *testing.T) {
 	groupbyNames1 := []struct {
 		Name string `db:"name"`
 	}{}
-	if err := ctl(ctx).Select([]string{"name"}).GroupBy([]string{"name"}).FindAllModel(&groupbyNames1); err != nil {
+	if err := sourceCli(ctx).Select([]string{"name"}).GroupBy([]string{"name"}).FindAllModel(&groupbyNames1); err != nil {
 		t.Error(err)
 	} else if len(groupbyNames1) != 5 {
 		t.Errorf("GroupBy error:\nExpect [count] 5 but got %d\ngot res: %+v", len(groupbyNames1), groupbyNames1)
@@ -230,7 +231,7 @@ func TestQuery(t *testing.T) {
 	groupbyNames2 := []struct {
 		Name string `db:"name"`
 	}{}
-	if err := ctl(ctx).Select("name").GroupBy([]string{}).FindAllModel(&groupbyNames2); err != nil {
+	if err := sourceCli(ctx).Select("name").GroupBy([]string{}).FindAllModel(&groupbyNames2); err != nil {
 		t.Error(err)
 	} else if len(groupbyNames2) != 15 {
 		t.Errorf("GroupBy error:\nExpect [15] but got %d\ngot res: %+v", len(groupbyNames2), groupbyNames2)
@@ -245,9 +246,9 @@ func TestQuery(t *testing.T) {
 	// test having
 
 	// Insert, update, delete, remove
-	if _, err := ctl(ctx).Insert(map[string]any{"id": 666, "name": "666", "description": "2333"}); err != nil {
+	if _, err := sourceCli(ctx).Insert(map[string]any{"id": 666, "name": "666", "description": "2333"}); err != nil {
 		t.Errorf("Insert error: %s", err)
-	} else if res, err := ctl(ctx).Filter(Cond{"id": 666}).FindOne(); err != nil {
+	} else if res, err := sourceCli(ctx).Filter(Cond{"id": 666}).FindOne(); err != nil {
 		t.Error(err)
 	} else if res["id"].(int64) != 666 {
 		t.Errorf("Insert error: \nexpect 666 but got %d", res["id"])
@@ -256,11 +257,11 @@ func TestQuery(t *testing.T) {
 	} else if res["description"].(string) != "2333" {
 		t.Errorf("Insert error: \nexpect 2333 but got %s", res["description"])
 	}
-	if res, err := ctl(ctx).Filter(Cond{"id": 666}).Update(map[string]any{"name": "test"}); err != nil {
+	if res, err := sourceCli(ctx).Filter(Cond{"id": 666}).Update(map[string]any{"name": "test"}); err != nil {
 		t.Errorf("Update error: %s", err)
 	} else if res != 1 {
 		t.Errorf("Update error: \nexpect 1 but got %d", res)
-	} else if res, err := ctl(ctx).Filter(Cond{"id": 666}).FindOne(); err != nil {
+	} else if res, err := sourceCli(ctx).Filter(Cond{"id": 666}).FindOne(); err != nil {
 		t.Errorf("FindOne error: %s", err)
 	} else if res["name"].(string) != "test" {
 		t.Errorf("Update error: \nexpect test but got %s", res["name"])
@@ -268,11 +269,11 @@ func TestQuery(t *testing.T) {
 		t.Errorf("Update error: \nexpect 2333 but got %s", res["description"])
 	}
 
-	if num, err := ctl(ctx).Filter(Cond{"id": 666}).Delete(); err != nil {
+	if num, err := sourceCli(ctx).Filter(Cond{"id": 666}).Delete(); err != nil {
 		t.Errorf("Delete error: %s", err)
 	} else if num != 1 {
 		t.Errorf("Delete error: \nexpect 1 but got %d", num)
-	} else if res, err := ctl(ctx).Filter(Cond{"id": 666, "is_deleted": true}).FindOne(); err != nil {
+	} else if res, err := sourceCli(ctx).Filter(Cond{"id": 666, "is_deleted": true}).FindOne(); err != nil {
 		t.Errorf("FindOne error: %s", err)
 	} else if res["id"].(int64) != 666 && res["is_deleted"].(bool) != true {
 		t.Errorf("Delete error: \nexpect 666 but got %d\nexpect true but got %t", res["id"], res["is_deleted"])
@@ -280,17 +281,17 @@ func TestQuery(t *testing.T) {
 		t.Errorf("Delete error: \nexpect test but got %s", res["name"])
 	}
 
-	if _, err := ctl(ctx).Filter(Cond{"id": 666, "is_deleted": true}).Remove(); err != nil {
+	if _, err := sourceCli(ctx).Filter(Cond{"id": 666, "is_deleted": true}).Remove(); err != nil {
 		t.Errorf("Error error: %v", err)
-	} else if res, err := ctl(ctx).Filter(Cond{"id": 666}).FindOne(); err != nil {
+	} else if res, err := sourceCli(ctx).Filter(Cond{"id": 666}).FindOne(); err != nil {
 		t.Errorf("FindOne error: %s", err)
 	} else if len(res) != 0 {
 		t.Errorf("Remove error: \nexpect 0 but got %d\nexpect empty but got %+v\n", len(res), res)
 	}
 
-	if _, err := ctl(ctx).InsertModel(&test.Source{Id: 777, Name: "777", Description: "2333", IsDeleted: false, CreateTime: time.Now(), UpdateTime: time.Now()}); err != nil {
+	if _, err := sourceCli(ctx).InsertModel(&test.Source{Id: 777, Name: "777", Description: "2333", IsDeleted: false, CreateTime: time.Now(), UpdateTime: time.Now()}); err != nil {
 		t.Errorf("InsertModel error: %s", err)
-	} else if res, err := ctl(ctx).Filter(Cond{"id": 777, "is_deleted": false}).FindOne(); err != nil {
+	} else if res, err := sourceCli(ctx).Filter(Cond{"id": 777, "is_deleted": false}).FindOne(); err != nil {
 		t.Error(err)
 	} else if res["id"].(int64) != 777 {
 		t.Errorf("InsertModel error: \nexpect 777 but got %d", res["id"])
@@ -300,16 +301,16 @@ func TestQuery(t *testing.T) {
 		t.Errorf("InsertModel error: \nexpect 2333 but got %s", res["description"])
 	}
 
-	if _, err := ctl(ctx).Filter(Cond{"id": 777}).Remove(); err != nil {
+	if _, err := sourceCli(ctx).Filter(Cond{"id": 777}).Remove(); err != nil {
 		t.Errorf("Remove error: %s", err)
-	} else if res, err := ctl(ctx).Filter(Cond{"id": 777}).FindOne(); err != nil {
+	} else if res, err := sourceCli(ctx).Filter(Cond{"id": 777}).FindOne(); err != nil {
 		t.Errorf("FindOne error: %s", err)
 	} else if len(res) != 0 {
 		t.Errorf("Remove error: \nexpect 0 but got %d\nexpect empty but got %+v\n", len(res), res)
 	}
 
 	// test List
-	if num, res, err := ctl(ctx).Filter(Cond{"id__in": []int64{11, 12, 13}}).OrderBy("-id").List(); err != nil {
+	if num, res, err := sourceCli(ctx).Filter(Cond{"id__in": []int64{11, 12, 13}}).OrderBy("-id").List(); err != nil {
 		t.Errorf("List error: %s", err)
 	} else if num != 3 {
 		t.Errorf("List num error: \nexpect 3 but got %d", num)
@@ -324,7 +325,7 @@ func TestQuery(t *testing.T) {
 	}
 
 	// test GetOrCreate
-	if res, err := ctl(ctx).GetOrCreate(map[string]any{"id": 11, "description": "A 站"}); err != nil {
+	if res, err := sourceCli(ctx).GetOrCreate(map[string]any{"id": 11, "description": "A 站"}); err != nil {
 		t.Errorf("GetOrCreate error: %s", err)
 	} else if res["id"].(int64) != 11 {
 		t.Errorf("GetOrCreate error: \nexpect [id] 11 but got %d", res["id"])
@@ -332,28 +333,28 @@ func TestQuery(t *testing.T) {
 		t.Errorf("GetOrCreate error: \nexpect [name] Acfun but got %s", res["name"])
 	}
 
-	if res, err := ctl(ctx).GetOrCreate(map[string]any{"id": 12345, "name": "12345", "description": "12345"}); err != nil {
+	if res, err := sourceCli(ctx).GetOrCreate(map[string]any{"id": 12345, "name": "12345", "description": "12345"}); err != nil {
 		t.Errorf("GetOrCreate error: %s", err)
 	} else if res["name"].(string) != "12345" {
 		t.Errorf("GetOrCreate error: \nexpect 12345 but got %s", res["name"])
-	} else if res, err := ctl(ctx).Filter(Cond{"id": 12345}).FindOne(); err != nil {
+	} else if res, err := sourceCli(ctx).Filter(Cond{"id": 12345}).FindOne(); err != nil {
 		t.Errorf("FindOne error: %s", err)
 	} else if res["id"].(int64) != 12345 {
 		t.Errorf("GetOrCreate error: \nexpect 12345 but got %d", res["id"])
 	} else if res["name"].(string) != "12345" {
 		t.Errorf("GetOrCreate error: \nexpect 12345 but got %s", res["name"])
-	} else if _, err := ctl(ctx).Filter(Cond{"id": 12345}).Remove(); err != nil {
+	} else if _, err := sourceCli(ctx).Filter(Cond{"id": 12345}).Remove(); err != nil {
 		t.Errorf("Remove error: %s", err)
 	}
 
 	// test CreateOrUpdate
-	if created, num, err := ctl(ctx).Filter(Cond{"id": 23456}).CreateOrUpdate(map[string]any{"id": 23456, "description": "Test23456"}); err != nil {
+	if created, num, err := sourceCli(ctx).Filter(Cond{"id": 23456}).CreateOrUpdate(map[string]any{"id": 23456, "description": "Test23456"}); err != nil {
 		t.Errorf("CreateOrUpdate error: %s", err)
 	} else if !created {
 		t.Errorf("CreateOrUpdate error: \nexpect [created] but got [not created]")
 	} else if num != 0 {
 		t.Errorf("CreateOrUpdate error: \nexpect 0 but got %d", num)
-	} else if res, err := ctl(ctx).Filter(Cond{"id": 23456}).FindOne(); err != nil {
+	} else if res, err := sourceCli(ctx).Filter(Cond{"id": 23456}).FindOne(); err != nil {
 		t.Errorf("FindOne error: %s", err)
 	} else if res["id"].(int64) != 23456 {
 		t.Errorf("CreateOrUpdate error: \nexpect 23456 but got %d", res["id"])
@@ -363,13 +364,13 @@ func TestQuery(t *testing.T) {
 		t.Errorf("CreateOrUpdate error: \nexpect empty but got %s", res["name"])
 	}
 
-	if created, num, err := ctl(ctx).Filter(Cond{"id": 23456}).CreateOrUpdate(map[string]any{"id": 23456, "name": "test65432", "description": "Test65432"}); err != nil {
+	if created, num, err := sourceCli(ctx).Filter(Cond{"id": 23456}).CreateOrUpdate(map[string]any{"id": 23456, "name": "test65432", "description": "Test65432"}); err != nil {
 		t.Errorf("CreateOrUpdate error: %s", err)
 	} else if created {
 		t.Errorf("CreateOrUpdate error: \nexpect [not created] but got [created]")
 	} else if num != 1 {
 		t.Errorf("CreateOrUpdate error: \nexpect 1 but got %d", num)
-	} else if res, err := ctl(ctx).Filter(Cond{"id": 23456}).FindOne(); err != nil {
+	} else if res, err := sourceCli(ctx).Filter(Cond{"id": 23456}).FindOne(); err != nil {
 		t.Errorf("FindOne error: %s", err)
 	} else if res["id"].(int64) != 23456 {
 		t.Errorf("CreateOrUpdate error: \nexpect 23456 but got %d", res["id"])
@@ -379,23 +380,22 @@ func TestQuery(t *testing.T) {
 		t.Errorf("CreateOrUpdate error: \nexpect test65432 but got %s", res["name"])
 	}
 
-	if _, err := ctl(ctx).Filter(Cond{"id": 23456}).Remove(); err != nil {
+	if _, err := sourceCli(ctx).Filter(Cond{"id": 23456}).Remove(); err != nil {
 		t.Errorf("Remove error: %s", err)
 	}
 
-	cliTmp := NewController(sqlx.NewMysql(mysqlAddress), mysqlOp.NewOperator(), test.Property{})
 	filter := Cond{"source_id": 11}
-	bakTmp, err := cliTmp(ctx).Filter(filter).FindAll()
+	bakTmp, err := propertyCli(ctx).Filter(filter).FindAll()
 	if err != nil {
 		t.Errorf("FindAll error: %s", err)
 	}
-	if created, num, err := cliTmp(ctx).Filter(filter).CreateOrUpdate(map[string]any{"column_name": "test65432", "description": "Test65432"}); err != nil {
+	if created, num, err := propertyCli(ctx).Filter(filter).CreateOrUpdate(map[string]any{"column_name": "test65432", "description": "Test65432"}); err != nil {
 		t.Errorf("CreateOrUpdate error: %s", err)
 	} else if created {
 		t.Errorf("CreateOrUpdate error: \nexpect [not created] but got [created]")
 	} else if num != 3 {
 		t.Errorf("CreateOrUpdate error: \nexpect 3 but got %d", num)
-	} else if res, err := cliTmp(ctx).Filter(Cond{"source_id": 11}).FindAll(); err != nil {
+	} else if res, err := propertyCli(ctx).Filter(Cond{"source_id": 11}).FindAll(); err != nil {
 		t.Errorf("FindAll error: %s", err)
 	} else if len(res) != 3 {
 		t.Errorf("CreateOrUpdate error: \nexpect 3 but got %d", len(res))
@@ -414,9 +414,47 @@ func TestQuery(t *testing.T) {
 	}
 
 	for _, v := range bakTmp {
-		if _, err := cliTmp(ctx).Filter(Cond{"id": v["id"]}).Update(v); err != nil {
+		if _, err := propertyCli(ctx).Filter(Cond{"id": v["id"]}).Update(v); err != nil {
 			t.Errorf("Update error: %s", err)
 		}
+	}
+
+	// CreateIfNotExists
+	if res, err := sourceCli(ctx).Filter(Cond{"id": 11111, "name": "test11111"}).FindOne(); err != nil {
+		t.Errorf("FindOne error: %s", err)
+	} else if len(res) != 0 {
+		t.Errorf("FindOne error: \nexpect 0 but got %d\ngot res: %+v", len(res), res)
+	}
+
+	if id, created, err := sourceCli(ctx).CreateIfNotExist(map[string]any{"id": 11111, "name": "test11111", "description": "Test11111"}); err != nil {
+		t.Errorf("CreateIfNotExist error: %s", err)
+	} else if !created {
+		t.Errorf("CreateIfNotExist error: \nexpect [created] but got [not created]")
+	} else if id != 0 {
+		t.Errorf("CreateIfNotExist error: \nexpect 0 but got %d", id)
+	}
+
+	if res, err := sourceCli(ctx).Filter(Cond{"id": 11111, "name": "test11111"}).FindOne(); err != nil {
+		t.Errorf("FindOne error: %s", err)
+	} else if len(res) != 7 {
+		t.Errorf("FindOne error: \nexpect 7 but got %d\ngot res: %+v", len(res), res)
+	} else if res["id"].(int64) != 11111 && res["description"].(string) != "Test11111" {
+		t.Errorf("FindOne error: \nexpect 11111 but got %d\nexpect Test11111 but got %s", res["id"], res["description"])
+	} else if res["name"].(string) != "test11111" {
+		t.Errorf("FindOne error: \nexpect test11111 but got %s", res["name"])
+	}
+
+	if _, err := sourceCli(ctx).Filter(Cond{"id": 11111}).Remove(); err != nil {
+		t.Errorf("Remove error: %s", err)
+	}
+
+	if id, err := propertyCli(ctx).Insert(map[string]any{"source_id": 11111, "column_name": "test11111", "description": "Test11111"}); err != nil {
+		t.Errorf("Create error: %s", err)
+	} else if id != 46 {
+		t.Errorf("Create error: \nexpect 46 but got %d", id)
+	}
+	if _, err := propertyCli(ctx).Filter(Cond{"id": 46}).Remove(); err != nil {
+		t.Errorf("Remove error: %s", err)
 	}
 
 }
@@ -540,12 +578,6 @@ func TestHandlerError(t *testing.T) {
 		t.Error(err)
 	}
 
-	// if num, err := ctl(ctx).GroupBy("").Select("").OrderBy("").Update(map[string]any{}); num != 0 {
-	// 	t.Errorf("expect 0 but got %d", num)
-	// } else if err != nil && err.Error() != "[Select GroupBy OrderBy] not supported for Update" {
-	// 	t.Error(err)
-	// }
-
 	// Remove unsupported operations
 	if num, err := ctl(ctx).GroupBy("").Remove(); num != 0 {
 		t.Errorf("expect 0 but got %d", num)
@@ -570,6 +602,44 @@ func TestHandlerError(t *testing.T) {
 		t.Errorf("expect 0 but got %d", num)
 	} else if err != nil && err.Error() != "[GroupBy Select] not supported for Delete" {
 		t.Error(err)
+	}
+
+	// Exist unsupported operations
+	if _, err := ctl(ctx).GroupBy("").Exist(); err != nil {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlGroupBy.Name}, "Exist").Error() {
+			t.Error(err)
+		}
+	}
+
+	if _, err := ctl(ctx).Select("").Exist(); err != nil {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlSelect.Name}, "Exist").Error() {
+			t.Error(err)
+		}
+	}
+
+	// GetOrCreate unsupported operations
+	if _, err := ctl(ctx).GroupBy("").Having("").GetOrCreate(map[string]any{}); err != nil {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlGroupBy.Name, ctlHaving.Name}, "GetOrCreate").Error() {
+			t.Error(err)
+		}
+	}
+
+	if _, err := ctl(ctx).Select("").GetOrCreate(map[string]any{}); err != nil {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlSelect.Name}, "GetOrCreate").Error() {
+			t.Error(err)
+		}
+	}
+
+	// CreateOrUpdate unsupported operations
+	if _, _, err := ctl(ctx).GroupBy("").Having("").CreateOrUpdate(map[string]any{}); err != nil {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlGroupBy.Name, ctlHaving.Name}, "CreateOrUpdate").Error() {
+			t.Error(err)
+		}
+	}
+	if _, _, err := ctl(ctx).Select("").CreateOrUpdate(map[string]any{}); err != nil {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlSelect.Name}, "CreateOrUpdate").Error() {
+			t.Error(err)
+		}
 	}
 
 	// send not exist columns to Select

@@ -86,8 +86,7 @@ type (
 		Exist() (exist bool, error error)
 		List() (num int64, data []map[string]any, err error)
 		GetOrCreate(data map[string]any) (result map[string]any, err error)
-		CreateOrUpdate(data map[string]any, filter ...any) (created bool, numOrID int64, err error)
-		GetC2CMap(column1, column2 string) (res map[any]any, err error)
+		CreateOrUpdate(data map[string]any) (created bool, numOrID int64, err error)
 		CreateIfNotExist(data map[string]any) (id int64, created bool, err error)
 	}
 
@@ -717,49 +716,29 @@ func (m *Impl) CreateOrUpdate(data map[string]any) (created bool, numOrID int64,
 	return true, id, nil
 }
 
-func (m *Impl) GetC2CMap(column1, column2 string) (res map[any]any, err error) {
-	if err = m.haveError(); err != nil {
-		return res, err
-	}
-
-	if _, ok := m.fieldNameMap[column1]; !ok {
-		return res, fmt.Errorf(ColumnNotExistError, column1)
-	}
-	if _, ok := m.fieldNameMap[column2]; !ok {
-		return res, fmt.Errorf(ColumnNotExistError, column2)
-	}
-
-	query := fmt.Sprintf("SELECT `%s`,`%s` FROM %s ", column1, column2, m.tableName)
-
-	filterSQL, filterArgs := m.qs.GetQuerySet()
-
-	query += filterSQL
-	query += m.qs.GetGroupBySQL()
-	query += m.qs.GetOrderBySQL()
-	query += m.qs.GetLimitSQL()
-
-	result := deepCopyModelPtrStructure(m.modelSlicePtr)
-
-	if err = m.operator.FindAll(m.ctx(), m.conn, res, query, filterArgs...); err != nil {
-		return res, err
-	}
-
-	res = make(map[any]any)
-	for _, v := range modelStructSlice2MapSlice(result, m.mTag) {
-		res[v[column1]] = v[column2]
-	}
-
-	return res, nil
-}
-
 func (m *Impl) CreateIfNotExist(data map[string]any) (id int64, created bool, err error) {
-	if exist, err := m.Filter(data).Exist(); err != nil {
+	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
+		return 0, false, fmt.Errorf(UnsupportedControllerError, methods, "CreateOrUpdate")
+	}
+
+	if err = m.haveError(); err != nil {
+		return 0, false, err
+	}
+
+	if len(data) == 0 {
+		return 0, false, errors.New(DataEmptyError)
+	}
+
+	m.setCalled(ctlFilter)
+	m.qs.FilterToSQL(notNot, Cond(data))
+
+	if exist, err := m.exist(); err != nil {
 		return 0, false, err
 	} else if exist {
 		return 0, false, nil
 	}
 
-	id, err = m.Insert(data)
+	id, err = m.insert(data)
 	if err != nil {
 		return 0, false, err
 	}
