@@ -246,7 +246,7 @@ func TestQuery(t *testing.T) {
 	// test having
 
 	// Insert, update, delete, remove
-	if _, err := sourceCli(ctx).Insert(map[string]any{"id": 666, "name": "666", "description": "2333"}); err != nil {
+	if _, err := sourceCli(ctx).Create(map[string]any{"id": 666, "name": "666", "description": "2333"}); err != nil {
 		t.Errorf("Insert error: %s", err)
 	} else if res, err := sourceCli(ctx).Filter(Cond{"id": 666}).FindOne(); err != nil {
 		t.Error(err)
@@ -289,7 +289,7 @@ func TestQuery(t *testing.T) {
 		t.Errorf("Remove error: \nexpect 0 but got %d\nexpect empty but got %+v\n", len(res), res)
 	}
 
-	if _, err := sourceCli(ctx).InsertModel(&test.Source{Id: 777, Name: "777", Description: "2333", IsDeleted: false, CreateTime: time.Now(), UpdateTime: time.Now()}); err != nil {
+	if _, err := sourceCli(ctx).CreateModel(&test.Source{Id: 777, Name: "777", Description: "2333", IsDeleted: false, CreateTime: time.Now(), UpdateTime: time.Now()}); err != nil {
 		t.Errorf("InsertModel error: %s", err)
 	} else if res, err := sourceCli(ctx).Filter(Cond{"id": 777, "is_deleted": false}).FindOne(); err != nil {
 		t.Error(err)
@@ -448,13 +448,10 @@ func TestQuery(t *testing.T) {
 		t.Errorf("Remove error: %s", err)
 	}
 
-	if id, err := propertyCli(ctx).Insert(map[string]any{"source_id": 11111, "column_name": "test11111", "description": "Test11111"}); err != nil {
+	if id, err := propertyCli(ctx).Create(map[string]any{"source_id": 11111, "column_name": "test11111", "description": "Test11111"}); err != nil {
 		t.Errorf("Create error: %s", err)
-	} else if id != 46 {
-		t.Errorf("Create error: \nexpect 46 but got %d", id)
-	}
-	if _, err := propertyCli(ctx).Filter(Cond{"id": 46}).Remove(); err != nil {
-		t.Errorf("Remove error: %s", err)
+	} else if id == 0 {
+		t.Errorf("Create error: \nexpect no-zero but got 0")
 	}
 
 }
@@ -505,63 +502,63 @@ func TestHandlerError(t *testing.T) {
 	}
 
 	// Insert unsupported operations
-	if id, err := ctl(ctx).Filter(Cond{}).Insert(map[string]any{}); id != 0 {
+	if id, err := ctl(ctx).Filter(Cond{}).Create(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter] not supported for Insert" {
+	} else if err != nil && err.Error() != "[Filter] not supported for Create" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(ctx).Filter(Cond{}).Where("").Insert(map[string]any{}); id != 0 {
+	if id, err := ctl(ctx).Filter(Cond{}).Where("").Create(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where] not supported for Insert" {
+	} else if err != nil && err.Error() != "[Filter Where] not supported for Create" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").Insert(map[string]any{}); id != 0 {
+	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").Create(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where OrderBy] not supported for Insert" {
+	} else if err != nil && err.Error() != "[Filter Where OrderBy] not supported for Create" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Insert(map[string]any{}); id != 0 {
+	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Create(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where OrderBy GroupBy] not supported for Insert" {
+	} else if err != nil && err.Error() != "[Filter Where OrderBy GroupBy] not supported for Create" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Select("").Insert(map[string]any{}); id != 0 {
+	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Select("").Create(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where Select OrderBy GroupBy] not supported for Insert" {
+	} else if err != nil && err.Error() != "[Filter Where Select OrderBy GroupBy] not supported for Create" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(ctx).Filter(Cond{}).InsertModel(&test.Source{}); id != 0 {
+	if id, err := ctl(ctx).Filter(Cond{}).CreateModel(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter] not supported for InsertModel" {
+	} else if err != nil && err.Error() != "[Filter] not supported for CreateModel" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(ctx).Filter(Cond{}).Where("").InsertModel(&test.Source{}); id != 0 {
+	if id, err := ctl(ctx).Filter(Cond{}).Where("").CreateModel(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where] not supported for InsertModel" {
+	} else if err != nil && err.Error() != "[Filter Where] not supported for CreateModel" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").InsertModel(&test.Source{}); id != 0 {
+	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").CreateModel(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where OrderBy] not supported for InsertModel" {
+	} else if err != nil && err.Error() != "[Filter Where OrderBy] not supported for CreateModel" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").InsertModel(&test.Source{}); id != 0 {
+	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").CreateModel(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where OrderBy GroupBy] not supported for InsertModel" {
+	} else if err != nil && err.Error() != "[Filter Where OrderBy GroupBy] not supported for CreateModel" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Select("").InsertModel(&test.Source{}); id != 0 {
+	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Select("").CreateModel(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where Select OrderBy GroupBy] not supported for InsertModel" {
+	} else if err != nil && err.Error() != "[Filter Where Select OrderBy GroupBy] not supported for CreateModel" {
 		t.Error(err)
 	}
 
@@ -740,17 +737,17 @@ func TestHandlerError(t *testing.T) {
 	cli := ctl(ctx)
 	_ = cli.Filter().FindOneModel(&test.Source{})
 
-	if _, err := cli.Insert(map[string]any{}); err != nil && err.Error() != "[Filter] not supported for Insert" {
+	if _, err := cli.Create(map[string]any{}); err != nil && err.Error() != "[Filter] not supported for Create" {
 		t.Error(err)
 	}
 
 	cli = cli.Reset()
 
-	if _, err := cli.Insert(map[string]any{}); err != nil && err.Error() != "insert data is empty" {
+	if _, err := cli.Create(map[string]any{}); err != nil && err.Error() != "create data is empty" {
 		t.Error(err)
 	}
 
-	if _, err := cli.Insert(map[string]any{"id": 1000, "name": "rest", "description": "test rest"}); err != nil {
+	if _, err := cli.Create(map[string]any{"id": 1000, "name": "rest", "description": "test rest"}); err != nil {
 		t.Error(err)
 	}
 

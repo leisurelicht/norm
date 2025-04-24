@@ -24,7 +24,7 @@ const (
 	OrderByColumnsTypeError     = "OrderBy type should be string or string slice"
 	GroupByColumnsValidateError = "GroupBy columns validate error: %s"
 	GroupByColumnsTypeError     = "GroupBy type should be string or string slice"
-	InsertDataEmptyError        = "insert data is empty"
+	CreateDataEmptyError        = "create data is empty"
 	UpdateDataEmptyError        = "update data is empty"
 	DataEmptyError              = "data is empty"
 	UpdateColumnNotExistError   = "update column [%s] not exist"
@@ -71,8 +71,8 @@ type (
 		OrderBy(orderBy any) Controller
 		GroupBy(groupBy any) Controller
 		Having(having string, args ...any) Controller
-		Insert(data map[string]any) (id int64, err error)
-		InsertModel(model any) (id int64, err error)
+		Create(data map[string]any) (id int64, err error)
+		CreateModel(model any) (id int64, err error)
 		//BulkInsert(data []map[string]any) (err error)
 		//BulkInsertModel(modelSlice []any) (err error)
 		Remove() (num int64, err error)
@@ -341,7 +341,7 @@ func (m *Impl) Having(having string, args ...any) Controller {
 
 func (m *Impl) insert(data map[string]any) (id int64, err error) {
 	if len(data) == 0 {
-		return 0, errors.New(InsertDataEmptyError)
+		return 0, errors.New(CreateDataEmptyError)
 	}
 
 	var (
@@ -362,17 +362,17 @@ func (m *Impl) insert(data map[string]any) (id int64, err error) {
 	return m.operator.Insert(m.ctx(), m.conn, sql, args...)
 }
 
-func (m *Impl) Insert(data map[string]any) (id int64, err error) {
+func (m *Impl) Create(data map[string]any) (id int64, err error) {
 	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
-		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Insert")
+		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Create")
 	}
 
 	return m.insert(data)
 }
 
-func (m *Impl) InsertModel(model any) (id int64, err error) {
+func (m *Impl) CreateModel(model any) (id int64, err error) {
 	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
-		return 0, fmt.Errorf(UnsupportedControllerError, methods, "InsertModel")
+		return 0, fmt.Errorf(UnsupportedControllerError, methods, "CreateModel")
 	}
 
 	return m.insert(modelStruct2Map(model, m.mTag))
@@ -388,7 +388,7 @@ func (m *Impl) BulkInsert(data []map[string]any) (err error) {
 	}
 
 	if len(data) == 0 {
-		return errors.New(InsertDataEmptyError)
+		return errors.New(CreateDataEmptyError)
 	}
 
 	var (
