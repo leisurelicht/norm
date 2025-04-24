@@ -347,7 +347,7 @@ func TestQuery(t *testing.T) {
 	}
 
 	// test CreateOrUpdate
-	if created, num, err := ctl(ctx).CreateOrUpdate(map[string]any{"id": 23456, "description": "Test23456"}, Cond{"id": 23456}); err != nil {
+	if created, num, err := ctl(ctx).Filter(Cond{"id": 23456}).CreateOrUpdate(map[string]any{"id": 23456, "description": "Test23456"}); err != nil {
 		t.Errorf("CreateOrUpdate error: %s", err)
 	} else if !created {
 		t.Errorf("CreateOrUpdate error: \nexpect [created] but got [not created]")
@@ -363,7 +363,7 @@ func TestQuery(t *testing.T) {
 		t.Errorf("CreateOrUpdate error: \nexpect empty but got %s", res["name"])
 	}
 
-	if created, num, err := ctl(ctx).CreateOrUpdate(map[string]any{"id": 23456, "name": "test65432", "description": "Test65432"}, Cond{"id": 23456}); err != nil {
+	if created, num, err := ctl(ctx).Filter(Cond{"id": 23456}).CreateOrUpdate(map[string]any{"id": 23456, "name": "test65432", "description": "Test65432"}); err != nil {
 		t.Errorf("CreateOrUpdate error: %s", err)
 	} else if created {
 		t.Errorf("CreateOrUpdate error: \nexpect [not created] but got [created]")
@@ -389,7 +389,7 @@ func TestQuery(t *testing.T) {
 	if err != nil {
 		t.Errorf("FindAll error: %s", err)
 	}
-	if created, num, err := cliTmp(ctx).CreateOrUpdate(map[string]any{"column_name": "test65432", "description": "Test65432"}, filter); err != nil {
+	if created, num, err := cliTmp(ctx).Filter(filter).CreateOrUpdate(map[string]any{"column_name": "test65432", "description": "Test65432"}); err != nil {
 		t.Errorf("CreateOrUpdate error: %s", err)
 	} else if created {
 		t.Errorf("CreateOrUpdate error: \nexpect [not created] but got [created]")

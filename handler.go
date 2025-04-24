@@ -686,8 +686,8 @@ func (m *Impl) GetOrCreate(data map[string]any) (res map[string]any, err error) 
 	return m.findOne()
 }
 
-func (m *Impl) CreateOrUpdate(data map[string]any, filter ...any) (created bool, numOrID int64, err error) {
-	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
+func (m *Impl) CreateOrUpdate(data map[string]any) (created bool, numOrID int64, err error) {
+	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
 		return false, 0, fmt.Errorf(UnsupportedControllerError, methods, "CreateOrUpdate")
 	}
 
@@ -698,9 +698,6 @@ func (m *Impl) CreateOrUpdate(data map[string]any, filter ...any) (created bool,
 	if len(data) == 0 {
 		return false, 0, errors.New(DataEmptyError)
 	}
-
-	m.setCalled(ctlFilter)
-	m.qs.FilterToSQL(notNot, filter...)
 
 	if exist, err := m.exist(); err != nil {
 		return false, 0, err
