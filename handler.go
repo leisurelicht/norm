@@ -25,8 +25,11 @@ const (
 	GroupByColumnsValidateError = "GroupBy columns validate error: %s"
 	GroupByColumnsTypeError     = "GroupBy type should be string or string slice"
 	InsertDataEmptyError        = "insert data is empty"
+	UpdateDataEmptyError        = "update data is empty"
+	DataEmptyError              = "data is empty"
 	UpdateColumnNotExistError   = "update column [%s] not exist"
 	ColumnNotExistError         = "column [%s] not exist"
+	MustBeCalledError           = "[%s] must be called after [%s]"
 )
 
 const (
@@ -144,6 +147,10 @@ func (m *Impl) setCalled(f controllerCall) {
 	m.called = m.called | f.Flag
 }
 
+func (m *Impl) hasCalled(f controllerCall) bool {
+	return m.called&f.Flag == f.Flag
+}
+
 func (m *Impl) checkCalled(f ...controllerCall) ([]string, bool) {
 	var calledMethod []string
 	for _, v := range f {
@@ -246,6 +253,11 @@ func (m *Impl) Select(selects any) Controller {
 
 func (m *Impl) Limit(pageSize, pageNum int64) Controller {
 	m.setCalled(ctlLimit)
+
+	if !m.hasCalled(ctlOrderBy) {
+		m.setError(MustBeCalledError, "Limit", "OrderBy")
+		return m
+	}
 
 	m.qs.LimitToSQL(pageSize, pageNum)
 	return m
@@ -419,15 +431,7 @@ func (m *Impl) Remove() (num int64, err error) {
 	return m.operator.Remove(m.ctx(), m.conn, sql, filterArgs...)
 }
 
-func (m *Impl) Update(data map[string]any) (num int64, err error) {
-	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
-		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Update")
-	}
-
-	if err = m.haveError(); err != nil {
-		return num, err
-	}
-
+func (m *Impl) update(data map[string]any) (num int64, err error) {
 	var (
 		args       []any
 		updateRows []string
@@ -450,6 +454,22 @@ func (m *Impl) Update(data map[string]any) (num int64, err error) {
 	args = append(args, filterArgs...)
 
 	return m.operator.Update(m.ctx(), m.conn, sql, args...)
+}
+
+func (m *Impl) Update(data map[string]any) (num int64, err error) {
+	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
+		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Update")
+	}
+
+	if err = m.haveError(); err != nil {
+		return num, err
+	}
+
+	if len(data) == 0 {
+		return 0, errors.New(UpdateDataEmptyError)
+	}
+
+	return m.update(data)
 }
 
 func (m *Impl) Count() (num int64, err error) {
@@ -611,14 +631,22 @@ func (m *Impl) Delete() (int64, error) {
 	return m.Update(data)
 }
 
+func (m *Impl) exist() (exist bool, err error) {
+	filterSQL, filterArgs := m.qs.GetQuerySet()
+
+	return m.operator.Exist(m.ctx(), m.conn, filterSQL, filterArgs...)
+}
+
 func (m *Impl) Exist() (exist bool, err error) {
+	if methods, called := m.checkCalled(ctlGroupBy, ctlSelect); called {
+		return false, fmt.Errorf(UnsupportedControllerError, methods, "Exist")
+	}
+
 	if err = m.haveError(); err != nil {
 		return exist, err
 	}
 
-	filterSQL, filterArgs := m.qs.GetQuerySet()
-
-	return m.operator.Exist(m.ctx(), m.conn, filterSQL, filterArgs...)
+	return m.exist()
 }
 
 func (m *Impl) List() (total int64, data []map[string]any, err error) {
@@ -634,8 +662,16 @@ func (m *Impl) List() (total int64, data []map[string]any, err error) {
 }
 
 func (m *Impl) GetOrCreate(data map[string]any) (res map[string]any, err error) {
-	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
+	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
 		return res, fmt.Errorf(UnsupportedControllerError, methods, "GetOrCreate")
+	}
+
+	if err = m.haveError(); err != nil {
+		return res, err
+	}
+
+	if len(data) == 0 {
+		return res, errors.New(DataEmptyError)
 	}
 
 	if _, err := m.insert(data); err != nil {
@@ -651,11 +687,25 @@ func (m *Impl) GetOrCreate(data map[string]any) (res map[string]any, err error) 
 }
 
 func (m *Impl) CreateOrUpdate(data map[string]any, filter ...any) (created bool, numOrID int64, err error) {
-	if exist, err := m.Filter(filter...).Exist(); err != nil {
+	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
+		return false, 0, fmt.Errorf(UnsupportedControllerError, methods, "CreateOrUpdate")
+	}
+
+	if err = m.haveError(); err != nil {
+		return false, 0, err
+	}
+
+	if len(data) == 0 {
+		return false, 0, errors.New(DataEmptyError)
+	}
+
+	m.setCalled(ctlFilter)
+	m.qs.FilterToSQL(notNot, filter...)
+
+	if exist, err := m.exist(); err != nil {
 		return false, 0, err
 	} else if exist {
-		m.reset()
-		if num, err := m.Reset().Filter(filter...).Update(data); err != nil {
+		if num, err := m.update(data); err != nil {
 			return false, 0, err
 		} else {
 			return false, num, nil

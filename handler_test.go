@@ -460,6 +460,12 @@ func TestHandlerError(t *testing.T) {
 		t.Error(err)
 	}
 
+	if _, err := ctl(ctx).Limit(0, 1).FindAll(); err != nil {
+		if err.Error() != fmt.Errorf(MustBeCalledError, "Limit", "OrderBy").Error() {
+			t.Errorf("Limit call order check failed. error: %v", err)
+		}
+	}
+
 	// Insert unsupported operations
 	if id, err := ctl(ctx).Filter(Cond{}).Insert(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
