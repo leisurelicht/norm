@@ -18,7 +18,7 @@ type Operator interface {
 	Remove(ctx context.Context, conn any, sql string, args ...any) (num int64, err error)
 	Update(ctx context.Context, conn any, sql string, args ...any) (num int64, err error)
 	Count(ctx context.Context, conn any, sql string, args ...any) (num int64, err error)
-	Exist(ctx context.Context, conn any, sql string, args ...any) (bool, error)
+	Exist(ctx context.Context, conn any, condition string, args ...any) (bool, error)
 	FindOne(ctx context.Context, conn any, model any, sql string, args ...any) (err error)
 	FindAll(ctx context.Context, conn any, model any, sql string, args ...any) (err error)
 	// List(ctx context.Context, conn any, model any, sql string, args ...any) (num int64, err error)

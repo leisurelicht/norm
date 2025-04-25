@@ -149,8 +149,8 @@ func (d *Operator) Count(ctx context.Context, conn any, sql string, args ...any)
 	}
 }
 
-func (d *Operator) Exist(ctx context.Context, conn any, sql string, args ...any) (bool, error) {
-	query := "SELECT count(1) FROM " + d.tableName + sql
+func (d *Operator) Exist(ctx context.Context, conn any, condition string, args ...any) (bool, error) {
+	query := "SELECT count(1) FROM " + d.tableName + condition
 
 	var num int64
 	err := conn.(sqlx.SqlConn).QueryRowCtx(ctx, &num, query, args...)
