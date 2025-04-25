@@ -639,6 +639,19 @@ func TestHandlerError(t *testing.T) {
 		}
 	}
 
+	// CreateIfNotExists unsupported operations
+	if _, _, err := ctl(ctx).GroupBy("").Having("").CreateIfNotExist(map[string]any{}); err != nil {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlGroupBy.Name, ctlHaving.Name}, "CreateIfNotExist").Error() {
+			t.Error(err)
+
+		}
+	}
+	if _, _, err := ctl(ctx).Select("").CreateIfNotExist(map[string]any{}); err != nil {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlSelect.Name}, "CreateIfNotExist").Error() {
+			t.Error(err)
+		}
+	}
+
 	// send not exist columns to Select
 	if err := ctl(ctx).Select([]string{"age"}).FindOneModel(&test.Source{}); err != nil {
 		if err.Error() != "Select columns validate error: [age] not exist" {

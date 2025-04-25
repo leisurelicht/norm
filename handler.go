@@ -718,7 +718,7 @@ func (m *Impl) CreateOrUpdate(data map[string]any) (created bool, numOrID int64,
 
 func (m *Impl) CreateIfNotExist(data map[string]any) (id int64, created bool, err error) {
 	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
-		return 0, false, fmt.Errorf(UnsupportedControllerError, methods, "CreateOrUpdate")
+		return 0, false, fmt.Errorf(UnsupportedControllerError, methods, "CreateIfNotExist")
 	}
 
 	if err = m.haveError(); err != nil {
