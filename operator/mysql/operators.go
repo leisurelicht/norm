@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 
@@ -31,30 +32,28 @@ var operators = map[string]string{
 	"iendswith":   "`%s`%s LIKE ?",
 
 	"unimplemented": "UNIMPLEMENTED", // Placeholder for unimplemented operators
+
+	"is_null": "`%s` IS NULL",
 }
 
-var selectKeys = map[string]struct{}{
-	"AS": {},
-	//"DISTINCT": {},
+type Operator struct {
+	tableName string
 }
-
-type Operator struct{}
 
 func NewOperator() *Operator {
 	return &Operator{}
+}
+
+func (d *Operator) SetTableName(tableName string) {
+	d.tableName = tableName
 }
 
 func (d *Operator) OperatorSQL(operator string) string {
 	return operators[operator]
 }
 
-func (d *Operator) IsSelectKey(word string) bool {
-	_, exists := selectKeys[strings.ToUpper(word)] // 判断关键字（区分大小写）
-	return exists
-}
-
-func (d *Operator) Insert(ctx context.Context, conn any, sql string, args ...any) (id int64, err error) {
-	res, err := conn.(sqlx.SqlConn).ExecCtx(ctx, sql, args...)
+func (d *Operator) Insert(ctx context.Context, conn any, query string, args ...any) (id int64, err error) {
+	res, err := conn.(sqlx.SqlConn).ExecCtx(ctx, query, args...)
 	if err != nil {
 		if strings.Contains(err.Error(), "1062") {
 			return 0, operator.ErrDuplicateKey
@@ -71,12 +70,44 @@ func (d *Operator) Insert(ctx context.Context, conn any, sql string, args ...any
 	return id, err
 }
 
-func (d *Operator) BulkInsert(ctx context.Context, conn any, sql string, args ...any) (err error) {
-	return err
+func (d *Operator) BulkInsert(ctx context.Context, conn any, query string, args []string, data []map[string]any) (num int64, err error) {
+	blk, err := sqlx.NewBulkInserter(conn.(sqlx.SqlConn), query)
+	if err != nil {
+		panic(err)
+	}
+
+	values := make([]any, len(args))
+	for _, row := range data {
+		for i, arg := range args {
+			if val, ok := row[arg]; ok {
+				values[i] = val
+			}
+		}
+		blk.Insert(values...)
+	}
+
+	blk.SetResultHandler(func(result sql.Result, err error) {
+		if err != nil {
+			logc.Errorf(ctx, "Bulk insert error: %s", err)
+			return
+		}
+
+		num, err = result.RowsAffected()
+		if err != nil {
+			logc.Errorf(ctx, "Bulk insert rows affected error: %s", err)
+			return
+		}
+
+		logc.Infof(ctx, "Inserted %d rows", num)
+	})
+
+	blk.Flush()
+
+	return num, err
 }
 
-func (d *Operator) Remove(ctx context.Context, conn any, sql string, args ...any) (num int64, err error) {
-	res, err := conn.(sqlx.SqlConn).ExecCtx(ctx, sql, args...)
+func (d *Operator) Remove(ctx context.Context, conn any, query string, args ...any) (num int64, err error) {
+	res, err := conn.(sqlx.SqlConn).ExecCtx(ctx, query, args...)
 	if err != nil {
 		logc.Errorf(ctx, "Remove error: %+v", err)
 		return 0, err
@@ -90,8 +121,8 @@ func (d *Operator) Remove(ctx context.Context, conn any, sql string, args ...any
 	return num, nil
 }
 
-func (d *Operator) Update(ctx context.Context, conn any, sql string, args ...any) (num int64, err error) {
-	res, err := conn.(sqlx.SqlConn).Exec(sql, args...)
+func (d *Operator) Update(ctx context.Context, conn any, query string, args ...any) (num int64, err error) {
+	res, err := conn.(sqlx.SqlConn).Exec(query, args...)
 	if err != nil {
 		logc.Errorf(ctx, "Update error: %+v", err)
 		return 0, err
@@ -105,8 +136,8 @@ func (d *Operator) Update(ctx context.Context, conn any, sql string, args ...any
 	return num, nil
 }
 
-func (d *Operator) Count(ctx context.Context, conn any, sql string, args ...any) (num int64, err error) {
-	err = conn.(sqlx.SqlConn).QueryRowCtx(ctx, &num, sql, args...)
+func (d *Operator) Count(ctx context.Context, conn any, query string, args ...any) (num int64, err error) {
+	err = conn.(sqlx.SqlConn).QueryRowCtx(ctx, &num, query, args...)
 
 	switch {
 	case err == nil:
@@ -119,8 +150,25 @@ func (d *Operator) Count(ctx context.Context, conn any, sql string, args ...any)
 	}
 }
 
-func (d *Operator) FindOne(ctx context.Context, conn any, model any, sql string, args ...any) (err error) {
-	err = conn.(sqlx.SqlConn).QueryRowPartialCtx(ctx, model, sql, args...)
+func (d *Operator) Exist(ctx context.Context, conn any, condition string, args ...any) (bool, error) {
+	query := "SELECT count(1) FROM " + d.tableName + condition
+
+	var num int64
+	err := conn.(sqlx.SqlConn).QueryRowCtx(ctx, &num, query, args...)
+
+	switch {
+	case err == nil:
+		return num > 0, nil
+	case errors.Is(err, sqlx.ErrNotFound):
+		return false, nil
+	default:
+		logc.Errorf(ctx, "Exist error: %+v", err)
+		return false, err
+	}
+}
+
+func (d *Operator) FindOne(ctx context.Context, conn any, model any, query string, args ...any) (err error) {
+	err = conn.(sqlx.SqlConn).QueryRowPartialCtx(ctx, model, query, args...)
 
 	switch {
 	case err == nil:
@@ -133,8 +181,8 @@ func (d *Operator) FindOne(ctx context.Context, conn any, model any, sql string,
 	}
 }
 
-func (d *Operator) FindAll(ctx context.Context, conn any, model any, sql string, args ...any) (err error) {
-	err = conn.(sqlx.SqlConn).QueryRowsPartialCtx(ctx, model, sql, args...)
+func (d *Operator) FindAll(ctx context.Context, conn any, model any, query string, args ...any) (err error) {
+	err = conn.(sqlx.SqlConn).QueryRowsPartialCtx(ctx, model, query, args...)
 
 	switch {
 	case err == nil:

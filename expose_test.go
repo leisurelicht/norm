@@ -51,7 +51,22 @@ func TestEachOR(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := EachOR(tt.args.cond); !reflect.DeepEqual(got, tt.want) {
+			// Convert the input condition to the expected type
+			// and check if the output matches the expected output
+			// Use a type switch to handle different types of conditions
+			// and call EachOR accordingly
+			var got any
+			switch v := tt.args.cond.(type) {
+			case Cond:
+				got = EachOR(v)
+			case AND:
+				got = EachOR(v)
+			case OR:
+				got = EachOR(v)
+			default:
+				t.Fatalf("unsupported type: %T", v)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("get  content: %v, get  type: %v", got, reflect.TypeOf(got).String())
 				t.Errorf("want content: %v, want type: %v", tt.want, reflect.TypeOf(tt.want).String())
 			}

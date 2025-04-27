@@ -2,13 +2,87 @@ package norm
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 )
 
-// Struct2Map convert struct to map, tag is the tag name of struct
-func Struct2Map(obj any, tag string) map[string]any {
+// shiftName shift name like DevicePolicyMap to device_policy_map
+func shiftName(s string) string {
+	res := ""
+	for i, c := range s {
+		if c >= 'A' && c <= 'Z' {
+			if i != 0 {
+				res += "_"
+			}
+			res += string(c + 32)
+		} else {
+			res += string(c)
+		}
+	}
+	return "`" + res + "`"
+}
+
+func rawFieldNames(in any, tag string, pg bool) []string {
+	v := reflect.ValueOf(in)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	out := make([]string, 0, v.NumField())
+
+	typ := v.Type()
+	for i := range v.NumField() {
+		// gets us a StructField
+		fi := typ.Field(i)
+		tagv := fi.Tag.Get(tag)
+		switch tagv {
+		case "-":
+			continue
+		case "":
+			if pg {
+				out = append(out, fi.Name)
+			} else {
+				out = append(out, fmt.Sprintf("`%s`", fi.Name))
+			}
+		default:
+			// get tag name with the tag option, e.g.:
+			// `db:"id"`
+			// `db:"id,type=char,length=16"`
+			// `db:",type=char,length=16"`
+			// `db:"-,type=char,length=16"`
+			if strings.Contains(tagv, ",") {
+				tagv = strings.TrimSpace(strings.Split(tagv, ",")[0])
+			}
+			if tagv == "-" {
+				continue
+			}
+			if len(tagv) == 0 {
+				tagv = fi.Name
+			}
+			if pg {
+				out = append(out, tagv)
+			} else {
+				out = append(out, fmt.Sprintf("`%s`", tagv))
+			}
+		}
+	}
+
+	return out
+}
+
+// strSlice2Map convert string slice to map
+func strSlice2Map(s []string) (res map[string]struct{}) {
+	res = make(map[string]struct{})
+	for _, e := range s {
+		res[e] = struct{}{}
+	}
+	return res
+}
+
+// modelStruct2Map convert struct to map, tag is the tag name of struct
+func modelStruct2Map(obj any, tag string) map[string]any {
 	t := reflect.TypeOf(obj)
 	v := reflect.ValueOf(obj)
 	if t.Kind() == reflect.Ptr {
@@ -19,7 +93,9 @@ func Struct2Map(obj any, tag string) map[string]any {
 	data := make(map[string]any, t.NumField())
 
 	for i := 0; i < t.NumField(); i++ {
-		if t.Field(i).Tag.Get(tag) == "" {
+		if t.Field(i).Tag.Get(tag) == "" || t.Field(i).Tag.Get(tag) == "-" {
+			// skip empty tag
+			// skip "-" tag
 			continue
 		}
 
@@ -29,15 +105,45 @@ func Struct2Map(obj any, tag string) map[string]any {
 
 		value := v.Field(i).Interface()
 		switch reflect.TypeOf(value) {
-		case reflect.TypeOf(sql.NullString{}):
-			if value.(sql.NullString).Valid {
-				value = value.(sql.NullString).String
+		case reflect.TypeOf(sql.NullByte{}):
+			if value.(sql.NullByte).Valid {
+				value = value.(sql.NullByte).Byte
+			} else {
+				value = nil
+			}
+		case reflect.TypeOf(sql.NullBool{}):
+			if value.(sql.NullBool).Valid {
+				value = value.(sql.NullBool).Bool
+			} else {
+				value = nil
+			}
+		case reflect.TypeOf(sql.NullFloat64{}):
+			if value.(sql.NullFloat64).Valid {
+				value = value.(sql.NullFloat64).Float64
+			} else {
+				value = nil
+			}
+		case reflect.TypeOf(sql.NullInt16{}):
+			if value.(sql.NullInt16).Valid {
+				value = value.(sql.NullInt16).Int16
+			} else {
+				value = nil
+			}
+		case reflect.TypeOf(sql.NullInt32{}):
+			if value.(sql.NullInt32).Valid {
+				value = value.(sql.NullInt32).Int32
 			} else {
 				value = nil
 			}
 		case reflect.TypeOf(sql.NullInt64{}):
 			if value.(sql.NullInt64).Valid {
 				value = value.(sql.NullInt64).Int64
+			} else {
+				value = nil
+			}
+		case reflect.TypeOf(sql.NullString{}):
+			if value.(sql.NullString).Valid {
+				value = value.(sql.NullString).String
 			} else {
 				value = nil
 			}
@@ -53,48 +159,45 @@ func Struct2Map(obj any, tag string) map[string]any {
 	return data
 }
 
-// StructSlice2MapSlice convert struct slice to map slice, tag is the tag name of struct
-func StructSlice2MapSlice(obj any, tag string) []map[string]any {
+// modelStructSlice2MapSlice convert struct slice to map slice, tag is the tag name of struct
+func modelStructSlice2MapSlice(obj any, tag string) []map[string]any {
 	t := reflect.TypeOf(obj)
 	v := reflect.ValueOf(obj)
 	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
 		v = v.Elem()
 	}
 
 	data := make([]map[string]any, 0, v.Len())
-
 	for i := 0; i < v.Len(); i++ {
-		data = append(data, Struct2Map(v.Index(i).Interface(), tag))
+		data = append(data, modelStruct2Map(v.Index(i).Interface(), tag))
 	}
 	return data
 }
 
-func CreatePointerAndSlice(input interface{}) (interface{}, interface{}) {
-	// 获取输入值的反射值
-	inputValue := reflect.ValueOf(input)
+func createModelPointerAndSlice(input any) (any, any) {
+	if input == nil {
+		panic(errors.New("model is nil"))
+	}
 
-	// 获取输入值的类型
-	inputType := inputValue.Type()
+	inputType := reflect.ValueOf(input).Type()
 
-	// 创建输入值的指针
+	// we only accept structs
+	if inputType.Kind() != reflect.Struct {
+		panic(fmt.Errorf("model only can be a struct; got %s", inputType.Kind()))
+	}
+
 	inputPointer := reflect.New(inputType).Interface()
-	reflect.ValueOf(inputPointer).Elem().Set(inputValue)
 
-	// 创建一个包含输入值的切片
-	sliceType := reflect.SliceOf(inputType)
-	slice := reflect.MakeSlice(sliceType, 1, 1)
-	slice.Index(0).Set(inputValue)
+	slicePointer := reflect.New(reflect.SliceOf(inputType)).Interface()
 
-	// 创建包含该切片的指针
-	slicePointer := reflect.New(sliceType).Interface()
-	reflect.ValueOf(slicePointer).Elem().Set(slice)
-
-	// 返回输入值的指针和包含输入值的切片指针
 	return inputPointer, slicePointer
 }
 
 func isStrList(v any) bool {
+	if v == nil {
+		return false
+	}
+
 	switch reflect.TypeOf(v).Kind() {
 	case reflect.Slice:
 		slice, ok := v.([]string)
@@ -108,10 +211,25 @@ func isStrList(v any) bool {
 	return false
 }
 
+// numericKinds is a set of all reflect.Kind values that represent numeric types
+var numericKinds = map[reflect.Kind]struct{}{
+	reflect.Int:     {},
+	reflect.Int8:    {},
+	reflect.Int16:   {},
+	reflect.Int32:   {},
+	reflect.Int64:   {},
+	reflect.Uint:    {},
+	reflect.Uint8:   {},
+	reflect.Uint16:  {},
+	reflect.Uint32:  {},
+	reflect.Uint64:  {},
+	reflect.Float32: {},
+	reflect.Float64: {},
+}
+
 func isNumericKind(kind reflect.Kind) bool {
-	return kind == reflect.Int || kind == reflect.Int8 || kind == reflect.Int16 || kind == reflect.Int32 || kind == reflect.Int64 ||
-		kind == reflect.Uint || kind == reflect.Uint8 || kind == reflect.Uint16 || kind == reflect.Uint32 || kind == reflect.Uint64 ||
-		kind == reflect.Float32 || kind == reflect.Float64
+	_, ok := numericKinds[kind]
+	return ok
 }
 
 func isStringKind(kind reflect.Kind) bool {
@@ -126,31 +244,25 @@ func isListKind(kind reflect.Kind) bool {
 	return kind == reflect.Slice || kind == reflect.Array
 }
 
-func indexConjunctions(conj string) int {
-	for i, v := range conjunctions {
-		if strings.ToUpper(conj) == v {
-			return i
-		}
-	}
-	return -1
-}
-
 func genStrListValueLikeSQL(p *QuerySetImpl, filterConditions map[string]*cond, fieldName string, valueOf reflect.Value, notFlag int, operator, valueFormat string) {
 	op := p.OperatorSQL(operator)
 
 	filterConditions[fieldName] = newCondByValue("", fmt.Sprintf(op, fieldName, not[notFlag]), []any{fmt.Sprintf(valueFormat, valueOf.Index(0).Interface())})
 	for i := 1; i < valueOf.Len(); i++ {
 		if valueOf.Index(i).IsZero() {
-			p.setError("operator [%s] unsupported value empty ", operator)
+			p.setError(operatorValueEmptyError, operator)
 			return
 		}
 
-		filterConditions[fieldName].SQL += fmt.Sprintf(" "+conjunctions[0]+" "+op, fieldName, not[notFlag])
+		filterConditions[fieldName].SQL += fmt.Sprintf(" "+conjunctions[notFlag^1]+" "+op, fieldName, not[notFlag])
 		filterConditions[fieldName].Args = append(filterConditions[fieldName].Args, fmt.Sprintf(valueFormat, valueOf.Index(i).Interface()))
 	}
 }
 
 func joinSQL(filterSql *string, filterArgs *[]any, index int, condition *cond) {
+	if filterSql == nil || filterArgs == nil || condition == nil {
+		return
+	}
 	if index == 0 {
 		*filterSql += condition.SQL
 	} else {
@@ -159,102 +271,31 @@ func joinSQL(filterSql *string, filterArgs *[]any, index int, condition *cond) {
 	*filterArgs = append(*filterArgs, condition.Args...)
 }
 
-// DeepCopy deep copy
-func DeepCopy(src any) (any, error) {
+// deepCopyModelPtrStructure deep copy a pointer struct model or a pointer slice model.
+//
+// The input must be a pointer to a struct or a pointer to a slice of structs, if not, return nil.
+// I didn't check src type whether it is struct because it should be generated by the createModelPointerAndSlice function.
+// So if this function return nil, check createModelPointerAndSlice first, make sure it can pass its unit test.
+func deepCopyModelPtrStructure(src any) any {
 	srcValue := reflect.ValueOf(src)
 
-	// If src is not a pointer or interface, simply return the original value
-	if srcValue.Kind() != reflect.Ptr && srcValue.Kind() != reflect.Interface {
-		return src, nil
+	if srcValue.Kind() != reflect.Ptr {
+		return src
 	}
 
-	// If src is a nil pointer or interface, return a nil copy
-	if srcValue.IsNil() {
-		return nil, nil
-	}
-
-	// Insert a new value of the same type as src
-	dest := reflect.New(srcValue.Elem().Type()).Interface()
-
-	// If src is a slice, perform a deep copy of the slice elements
-	if srcValue.Elem().Kind() == reflect.Slice {
-		srcSlice := srcValue.Elem()
-		destSlice := reflect.ValueOf(dest).Elem()
-
-		for i := 0; i < srcSlice.Len(); i++ {
-			elem, err := DeepCopy(srcSlice.Index(i).Interface())
-			if err != nil {
-				return nil, err
-			}
-			destSlice = reflect.Append(destSlice, reflect.ValueOf(elem))
-		}
-		return dest, nil
-	}
-
-	// If src is a struct, perform a deep copy of the struct fields
-	if srcValue.Elem().Kind() == reflect.Struct {
-		for i := 0; i < srcValue.Elem().NumField(); i++ {
-			field := srcValue.Elem().Field(i)
-			// Deep copy each struct field
-			deepCopyField := reflect.New(field.Type()).Interface()
-			DeepCopy(field.Interface())
-			reflect.ValueOf(dest).Elem().Field(i).Set(reflect.ValueOf(deepCopyField).Elem())
-		}
-		return dest, nil
-	}
-
-	// For other types, return the original value
-	return src, nil
-}
-
-// StrSlice2Map convert string slice to map
-func StrSlice2Map(s []string) (res map[string]struct{}) {
-	res = make(map[string]struct{})
-	for _, e := range s {
-		res[e] = struct{}{}
-	}
-	return res
+	// create a new value of the same type as src
+	return reflect.New(srcValue.Elem().Type()).Interface()
 }
 
 // 用反引号包裹字段
 func wrapWithBackticks(str string) string {
+	if str == "" {
+		return str
+	}
 	// 如果已经被包裹，不做修改
 	if len(str) > 1 && str[0] == '`' && str[len(str)-1] == '`' {
 		return str
 	}
 	// 包裹字段
 	return "`" + str + "`"
-}
-
-func processSQL(sqlParts []string, isKeyWord func(word string) bool) string {
-	var result strings.Builder
-
-	// 遍历每个子字符串
-	for i, part := range sqlParts {
-		// 分割子字符串为单词
-		words := strings.Fields(part)
-
-		// 遍历每个单词
-		for j, word := range words {
-			// 如果是 SQL 关键字，直接输出，不包裹反引号
-			if isKeyWord(word) {
-				result.WriteString(word)
-			} else {
-				// 如果不是关键字，包裹反引号
-				result.WriteString(wrapWithBackticks(word))
-			}
-
-			// 添加空格分隔
-			if j < len(words)-1 {
-				result.WriteString(" ")
-			}
-		}
-
-		// 如果不是最后一个部分，添加逗号和空格
-		if i < len(sqlParts)-1 {
-			result.WriteString(", ")
-		}
-	}
-
-	return result.String()
 }

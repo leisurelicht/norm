@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+type callFlag int64
+
 const (
 	defaultOuterFilterCondsLen = 10
 	defaultInnerFilterCondsLen = 10
@@ -18,14 +20,15 @@ const (
 )
 
 const (
-	_exact       = "exact"
-	_exclude     = "exclude"
-	_iexact      = "iexact"
-	_gt          = "gt"
-	_gte         = "gte"
-	_lt          = "lt"
-	_lte         = "lte"
-	_len         = "len"
+	_exact   = "exact"
+	_exclude = "exclude"
+	_iexact  = "iexact"
+	_gt      = "gt"
+	_gte     = "gte"
+	_lt      = "lt"
+	_lte     = "lte"
+	_len     = "len"
+
 	_in          = "in"
 	_between     = "between"
 	_contains    = "contains"
@@ -34,14 +37,17 @@ const (
 	_istartswith = "istartswith"
 	_endswith    = "endswith"
 	_iendswith   = "iendswith"
+
+	_isNull = "is_null"
 )
 
 const (
-	argsLenError      = "args length must be equal to ? number"
-	orderKeyTypeError = "order key value must be a list of string"
-	orderKeyLenError  = "order key length must be equal to filter key length"
-	isNotValueError   = "isNot value must be 0 or 1"
-	paramTypeError    = "param type must be string or slice of string"
+	argsLenError          = "args length must be equal to ? number"
+	orderKeyTypeError     = "order key value must be a list of string"
+	orderKeyLenError      = "order key length must be equal to filter key length"
+	isNotValueError       = "isNot value must be 0 or 1"
+	paramTypeError        = "param type must be string or slice of string"
+	pageSizeORNumberError = "page size and page number must be positive"
 
 	filterOrWhereError          = "[%s] or [Where] can not be called at the same time"
 	fieldLookupError            = "field lookups [%s] is invalid"
@@ -52,30 +58,36 @@ const (
 	operatorValueLenLessError   = "operator [%s] value length must greater than [%d]"
 	operatorValueTypeError      = "operator [%s] value must be string list"
 	unsupportedFilterTypeError  = "unsupported filter type [%s], Please use be [Cond | AND | OR]"
+	operatorValueEmptyError     = "operator [%s] unsupported value empty"
 )
 
 const (
-	emptyTag, notTag                   = 0, 1
+	qsFilter callFlag = 1 << iota
+	qsExclude
+	qsWhere
+	qsOrderBy
+	qsLimit
+	qsSelect
+	qsGroupBy
+	qsHaving
+)
+
+const (
+	isFilter, isExclude                = 0, 1
+	notNot, isNot                      = 0, 1
 	andTag, orTag, andNotTag, orNotTag = 0, 1, 2, 3
 )
 
 var (
+	filterAndExclude = []string{"Filter", "Exclude"}
 	not              = [2]string{"", " NOT"}
 	conjunctions     = [4]string{"AND", "OR", "AND NOT", "OR NOT"}
-	filterAndExclude = []string{"Filter", "Exclude"}
-)
-
-type callFlag int64
-
-const (
-	callFilter callFlag = 1 << iota
-	callExclude
-	callWhere
-	callOrderBy
-	callLimit
-	callSelect
-	callGroupBy
-	callHaving
+	// Define a map for conjunction types and their tags
+	conjunctionMap = map[reflect.Type]int{
+		reflect.TypeOf(Cond{}): andTag,
+		reflect.TypeOf(AND{}):  andTag,
+		reflect.TypeOf(OR{}):   orTag,
+	}
 )
 
 type cond struct {
@@ -108,6 +120,8 @@ func newCondByValue(conj, sql string, args []any) *cond {
 }
 
 type QuerySet interface {
+	setCalled(f callFlag)
+	hasCalled(f callFlag) bool
 	setError(format string, a ...any)
 	Error() error
 	Reset()
@@ -192,50 +206,82 @@ func (p *QuerySetImpl) Reset() {
 }
 
 func (p *QuerySetImpl) GetQuerySet() (sql string, args []any) {
-	where := " WHERE "
-
+	// Handle the case with direct WHERE condition
 	if p.whereCond.SQL != "" {
-		return where + p.whereCond.SQL, p.whereCond.Args
+		return " WHERE " + p.whereCond.SQL, p.whereCond.Args
 	}
 
+	// Early return for no filter conditions
 	if len(p.filterConds) == 0 {
-		return "", []any{}
+		return "", nil
 	}
 
-	conj := ""
-	for i, filterList := range p.filterConds {
-		if i > 0 && len(p.filterConds) > 1 {
-			conj = conjunctions[p.filterConjTag[i]]
-		} else {
-			conj = ""
+	// Pre-calculate approximate capacity for string builder
+	totalConditions := 0
+	for _, filterList := range p.filterConds {
+		totalConditions += len(filterList)
+	}
+
+	// Initial capacity estimate: 8 chars per condition + conjunctions
+	outerSQL := strings.Builder{}
+	outerSQL.Grow(totalConditions*20 + len(p.filterConds)*10)
+	outerSQL.WriteString(" WHERE ")
+
+	args = make([]any, 0, totalConditions*2) // Estimate arg count
+
+	for i, condList := range p.filterConds {
+		// Add conjunction between filter groups
+		if i > 0 {
+			outerSQL.WriteString(" ")
+			outerSQL.WriteString(conjunctions[p.filterConjTag[i]])
+			outerSQL.WriteString(" ")
 		}
 
-		if len(filterList) == 1 {
-			tempConj := filterList[0].Conj
-			if i > 0 {
-				tempConj = " " + tempConj
-			}
-			sql += tempConj + " (" + filterList[0].SQL + ")"
-			args = append(args, filterList[0].Args...)
-		} else if len(filterList) > 1 {
-			sql += "(" + filterList[0].SQL + ")"
-			args = append(args, filterList[0].Args...)
-
-			for _, filter := range filterList[1:] {
-				sql += " " + filter.Conj + " (" + filter.SQL + ")"
-				args = append(args, filter.Args...)
-			}
-			sql = conj + "(" + sql + ")"
+		// Check if this is a NOT condition by examining the first filter in the group
+		// The isNot flag affects the entire filter group
+		isNot := strings.Contains(condList[0].Conj, "NOT")
+		if isNot {
+			outerSQL.WriteString("NOT ")
 		}
+
+		// Single condition doesn't need inner parentheses
+		if len(condList) == 1 {
+			outerSQL.WriteString("(")
+			outerSQL.WriteString(condList[0].SQL)
+			outerSQL.WriteString(")")
+			args = append(args, condList[0].Args...)
+			continue
+		}
+
+		// Multiple conditions in this group
+		outerSQL.WriteString("(")
+
+		// First condition
+		outerSQL.WriteString("(")
+		outerSQL.WriteString(condList[0].SQL)
+		outerSQL.WriteString(")")
+		args = append(args, condList[0].Args...)
+
+		// Remaining conditions with their conjunctions
+		for _, filter := range condList[1:] {
+			// Extract the base conjunction without NOT suffix for inner conditions
+			baseConj := filter.Conj
+			if isNot {
+				baseConj = strings.ReplaceAll(baseConj, " NOT", "")
+			}
+
+			outerSQL.WriteString(" ")
+			outerSQL.WriteString(baseConj)
+			outerSQL.WriteString(" (")
+			outerSQL.WriteString(filter.SQL)
+			outerSQL.WriteString(")")
+			args = append(args, filter.Args...)
+		}
+
+		outerSQL.WriteString(")")
 	}
 
-	if sql[0:3] == "AND" {
-		sql = sql[4:]
-	} else if sql[0:2] == "OR" {
-		sql = sql[3:]
-	}
-
-	return where + sql, args
+	return outerSQL.String(), args
 }
 
 func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, filterArgs []any) {
@@ -244,13 +290,13 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 	}
 
 	var (
-		filterConds = make(map[string]*cond)
+		filterConds = make(map[string]*cond, len(filter))
 		skList      []string
 		isOrder     = false
 		fieldName   string
 		operator    string
 		andOrFlag   = andTag
-		notFlag     = emptyTag
+		notFlag     = notNot
 	)
 
 	if sk, ok := filter[SortKey]; ok {
@@ -278,14 +324,14 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 		lookup := strings.Split(fieldLookup, operatorJoiner)
 		if len(lookup) == 1 {
 			operator = _exact
-			notFlag = emptyTag
+			notFlag = notNot
 		} else if len(lookup) == 2 {
 			operator = strings.ToLower(strings.TrimSpace(lookup[1]))
 			if strings.HasPrefix(operator, notPrefix) {
 				operator = strings.TrimPrefix(operator, notPrefix)
-				notFlag = notTag
+				notFlag = isNot
 			} else {
-				notFlag = emptyTag
+				notFlag = notNot
 			}
 		} else {
 			p.setError(fieldLookupError, fieldLookup)
@@ -306,7 +352,15 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 		valueOf := reflect.ValueOf(filedValue)
 		valueKind := valueOf.Kind()
 		switch operator {
-		case _exact, _exclude, _iexact:
+		case _exact:
+			if filedValue == nil {
+				// should generate sql like "fieldName IS NULL"
+				filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(p.OperatorSQL(_isNull), fieldName), []any{})
+				break
+			}
+			// the value arrived here is not nil, so go to the next case for processing
+			fallthrough
+		case _exclude, _iexact:
 			if isStringKind(valueKind) || isBoolKind(valueKind) || isNumericKind(valueKind) {
 				filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(op, fieldName), []any{filedValue})
 			} else if isListKind(valueKind) {
@@ -320,7 +374,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 					sql = "(" + sql + ")"
 				}
 				args := make([]any, valueOf.Len())
-				for i := 0; i < valueOf.Len(); i++ {
+				for i := range valueOf.Len() {
 					args[i] = valueOf.Index(i).Interface()
 				}
 				filterConds[fieldName] = fCond.SetSQL(sql, args)
@@ -425,35 +479,23 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 	return filterSql, filterArgs
 }
 
-func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
-	if !p.hasCalled(callWhere) {
-		if isNot == 0 {
-			p.setCalled(callFilter)
-		} else if isNot == 1 {
-			p.setCalled(callExclude)
+func (p *QuerySetImpl) FilterToSQL(state int, filter ...any) QuerySet {
+	if !p.hasCalled(qsWhere) {
+		if state == isFilter {
+			p.setCalled(qsFilter)
+		} else if state == isExclude {
+			p.setCalled(qsExclude)
+		} else {
+			p.setError(isNotValueError)
+			return p
 		}
 	} else {
-		p.setError(filterOrWhereError, filterAndExclude[isNot])
+		p.setError(filterOrWhereError, filterAndExclude[state])
 		return p
 	}
 
 	if len(filter) == 0 {
 		return p
-	}
-	if isNot != 0 && isNot != 1 {
-		p.setError(isNotValueError)
-		return p
-	}
-
-	if conj, ok := filter[0].(string); !ok {
-		p.filterConjTag = append(p.filterConjTag, andTag)
-	} else {
-		if res := indexConjunctions(conj); res > 0 {
-			p.filterConjTag = append(p.filterConjTag, res)
-		} else {
-			p.filterConjTag = append(p.filterConjTag, andTag)
-		}
-		filter = filter[1:]
 	}
 
 	var (
@@ -462,21 +504,44 @@ func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
 		filterConds = make([]cond, 0, defaultInnerFilterCondsLen)
 	)
 
-	for _, f := range filter {
-		switch f.(type) {
+	for i, f := range filter {
+		if f == nil {
+			p.setError(unsupportedFilterTypeError, "nil")
+			return p
+		}
+
+		// Set the conjunction tag for the first filter
+		if i == 0 {
+			// Use the map to determine the conjunction tag
+			conjTag, ok := conjunctionMap[reflect.TypeOf(f)]
+			if !ok {
+				p.setError(unsupportedFilterTypeError, reflect.TypeOf(f).String())
+				return p // Return immediately if there's an error
+			}
+			p.filterConjTag = append(p.filterConjTag, conjTag)
+		}
+
+		switch v := f.(type) {
 		case Cond:
-			arg, conjFlag = f.(Cond), andTag
+			arg, conjFlag = v, andTag
 		case AND:
-			arg, conjFlag = f.(AND), andTag
+			arg, conjFlag = v, andTag
 		case OR:
-			arg, conjFlag = f.(OR), orTag
+			arg, conjFlag = v, orTag
 		default:
 			p.setError(unsupportedFilterTypeError, reflect.TypeOf(f).String())
 		}
+
 		if filterSQL, filterArgs := p.filterHandler(arg); filterSQL == "" {
 			continue
 		} else {
-			filterConds = append(filterConds, *newCondByValue(conjunctions[conjFlag]+not[isNot], filterSQL, filterArgs))
+			// Only add "NOT" to the conjunction for the first condition
+			// The rest will be handled in GetQuerySet
+			conjStr := conjunctions[conjFlag]
+			if state == 1 && len(filterConds) == 0 {
+				conjStr = conjunctions[conjFlag+2] // Use AND NOT or OR NOT
+			}
+			filterConds = append(filterConds, *newCondByValue(conjStr, filterSQL, filterArgs))
 		}
 	}
 
@@ -488,13 +553,13 @@ func (p *QuerySetImpl) FilterToSQL(isNot int, filter ...any) QuerySet {
 }
 
 func (p *QuerySetImpl) WhereToSQL(cond string, args ...any) QuerySet {
-	if !p.hasCalled(callFilter) || !p.hasCalled(callExclude) {
-		p.setCalled(callWhere)
-	} else if p.hasCalled(callFilter) {
-		p.setError(filterOrWhereError, filterAndExclude[0])
+	if !p.hasCalled(qsFilter) && !p.hasCalled(qsExclude) {
+		p.setCalled(qsWhere)
+	} else if p.hasCalled(qsFilter) {
+		p.setError(filterOrWhereError, filterAndExclude[isFilter])
 		return p
-	} else if p.hasCalled(callExclude) {
-		p.setError(filterOrWhereError, filterAndExclude[1])
+	} else if p.hasCalled(qsExclude) {
+		p.setError(filterOrWhereError, filterAndExclude[isExclude])
 		return p
 	}
 
@@ -514,13 +579,13 @@ func (p *QuerySetImpl) GetSelectSQL() string {
 }
 
 func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
-	p.setCalled(callSelect)
+	p.setCalled(qsSelect)
 
-	switch columns.(type) {
+	switch cols := columns.(type) {
 	case string:
-		p.StrSelectToSQL(columns.(string))
+		p.StrSelectToSQL(cols)
 	case []string:
-		p.SliceSelectToSQL(columns.([]string))
+		p.SliceSelectToSQL(cols)
 	default:
 		p.setError(paramTypeError)
 	}
@@ -529,20 +594,29 @@ func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
 }
 
 func (p *QuerySetImpl) StrSelectToSQL(columns string) QuerySet {
-	p.setCalled(callSelect)
+	p.setCalled(qsSelect)
 
 	p.selectColumn = columns
 	return p
 }
 
 func (p *QuerySetImpl) SliceSelectToSQL(columns []string) QuerySet {
-	p.setCalled(callSelect)
+	p.setCalled(qsSelect)
 
 	if len(columns) == 0 {
 		return p
 	}
 
-	p.selectColumn = processSQL(columns, p.IsSelectKey)
+	var result strings.Builder
+	result.Grow(len(columns) * 10) // Pre-allocate space for performance
+	for i := 0; i < len(columns)-1; i++ {
+		result.WriteString(wrapWithBackticks(columns[i]))
+		result.WriteString(", ")
+	}
+	result.WriteString(wrapWithBackticks(columns[len(columns)-1]))
+
+	p.selectColumn = result.String()
+
 	return p
 }
 
@@ -554,13 +628,13 @@ func (p *QuerySetImpl) GetOrderBySQL() string {
 }
 
 func (p *QuerySetImpl) OrderByToSQL(orderBy any) QuerySet {
-	p.setCalled(callOrderBy)
+	p.setCalled(qsOrderBy)
 
-	switch orderBy.(type) {
+	switch o := orderBy.(type) {
 	case string:
-		p.StrOrderByToSQL(orderBy.(string))
+		p.StrOrderByToSQL(o)
 	case []string:
-		p.SliceOrderByToSQL(orderBy.([]string))
+		p.SliceOrderByToSQL(o)
 	default:
 		p.setError(paramTypeError)
 		return p
@@ -570,7 +644,7 @@ func (p *QuerySetImpl) OrderByToSQL(orderBy any) QuerySet {
 }
 
 func (p *QuerySetImpl) StrOrderByToSQL(orderBy string) QuerySet {
-	p.setCalled(callOrderBy)
+	p.setCalled(qsOrderBy)
 
 	p.orderBySQL = orderBy
 
@@ -578,7 +652,7 @@ func (p *QuerySetImpl) StrOrderByToSQL(orderBy string) QuerySet {
 }
 
 func (p *QuerySetImpl) SliceOrderByToSQL(orderBy []string) QuerySet {
-	p.setCalled(callOrderBy)
+	p.setCalled(qsOrderBy)
 
 	orderByList := orderBy
 
@@ -607,13 +681,16 @@ func (p *QuerySetImpl) GetLimitSQL() string {
 }
 
 func (p *QuerySetImpl) LimitToSQL(pageSize, pageNum int64) QuerySet {
-	p.setCalled(callLimit)
+	p.setCalled(qsLimit)
 
 	if pageSize > 0 && pageNum > 0 {
 		var offset, limit int64
 		offset = (pageNum - 1) * pageSize
 		limit = pageSize
 		p.limitSQL = " LIMIT " + strconv.FormatInt(limit, 10) + " OFFSET " + strconv.FormatInt(offset, 10)
+	} else if pageSize < 0 || pageNum < 0 {
+		p.setError(pageSizeORNumberError)
+		return p
 	}
 
 	return p
@@ -628,11 +705,11 @@ func (p *QuerySetImpl) GetGroupBySQL() string {
 }
 
 func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
-	switch groupBy.(type) {
+	switch v := groupBy.(type) {
 	case string:
-		p.StrGroupByToSQL(groupBy.(string))
+		p.StrGroupByToSQL(v)
 	case []string:
-		p.SliceGroupByToSQL(groupBy.([]string))
+		p.SliceGroupByToSQL(v)
 	default:
 		p.setError(paramTypeError)
 	}
@@ -640,7 +717,7 @@ func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
 }
 
 func (p *QuerySetImpl) StrGroupByToSQL(groupBy string) QuerySet {
-	p.setCalled(callGroupBy)
+	p.setCalled(qsGroupBy)
 
 	p.groupSQL = groupBy
 
@@ -648,7 +725,7 @@ func (p *QuerySetImpl) StrGroupByToSQL(groupBy string) QuerySet {
 }
 
 func (p *QuerySetImpl) SliceGroupByToSQL(groupBy []string) QuerySet {
-	p.setCalled(callGroupBy)
+	p.setCalled(qsGroupBy)
 
 	if len(groupBy) == 0 {
 		return p
@@ -677,7 +754,7 @@ func (p *QuerySetImpl) GetHavingSQL() (string, []any) {
 }
 
 func (p *QuerySetImpl) HavingToSQL(having string, args ...any) QuerySet {
-	p.setCalled(callHaving)
+	p.setCalled(qsHaving)
 
 	p.havingSQL.SetSQL(having, args)
 

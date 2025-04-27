@@ -4,20 +4,33 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"reflect"
 	"strings"
-
-	"github.com/zeromicro/go-zero/core/stores/builder"
-	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
 const (
 	DefaultModelTag = "db"
+	Asterisk        = "*"
 	SelectTemp      = "SELECT %s FROM %s"
 	InsertTemp      = "INSERT INTO %s (%s) VALUES (%s)"
 	UpdateTemp      = "UPDATE %s SET %s"
 	DeleteTemp      = "DELETE FROM %s"
+)
+
+const (
+	SelectColumsValidateError   = "Select columns validate error: %s"
+	SelectColumnsTypeError      = "Select type should be string or string slice"
+	OrderByColumnsValidateError = "OrderBy columns validate error: [%s] not exist"
+	OrderByColumnsTypeError     = "OrderBy type should be string or string slice"
+	GroupByColumnsValidateError = "GroupBy columns validate error: %s"
+	GroupByColumnsTypeError     = "GroupBy type should be string or string slice"
+	CreateDataEmptyError        = "create data is empty"
+	CreateDataTypeError         = "create data type is wrong, should not be [%s]"
+	UpdateDataEmptyError        = "update data is empty"
+	DataEmptyError              = "data is empty"
+	UpdateColumnNotExistError   = "update column [%s] not exist"
+	ColumnNotExistError         = "column [%s] not exist"
+	MustBeCalledError           = "[%s] must be called after [%s]"
 )
 
 const (
@@ -30,14 +43,14 @@ type controllerCall struct {
 }
 
 var (
-	ctlFilter  = controllerCall{Name: "Filter", Flag: callFilter}
-	ctlExclude = controllerCall{Name: "Exclude", Flag: callExclude}
-	ctlWhere   = controllerCall{Name: "Where", Flag: callWhere}
-	ctlSelect  = controllerCall{Name: "Select", Flag: callSelect}
-	ctlLimit   = controllerCall{Name: "Limit", Flag: callLimit}
-	ctlOrderBy = controllerCall{Name: "OrderBy", Flag: callOrderBy}
-	ctlGroupBy = controllerCall{Name: "GroupBy", Flag: callGroupBy}
-	ctlHaving  = controllerCall{Name: "Having", Flag: callHaving}
+	ctlFilter  = controllerCall{Name: "Filter", Flag: qsFilter}
+	ctlExclude = controllerCall{Name: "Exclude", Flag: qsExclude}
+	ctlWhere   = controllerCall{Name: "Where", Flag: qsWhere}
+	ctlSelect  = controllerCall{Name: "Select", Flag: qsSelect}
+	ctlLimit   = controllerCall{Name: "Limit", Flag: qsLimit}
+	ctlOrderBy = controllerCall{Name: "OrderBy", Flag: qsOrderBy}
+	ctlGroupBy = controllerCall{Name: "GroupBy", Flag: qsGroupBy}
+	ctlHaving  = controllerCall{Name: "Having", Flag: qsHaving}
 )
 
 var _ Controller = (*Impl)(nil)
@@ -46,12 +59,10 @@ type (
 	Controller interface {
 		ctx() context.Context
 		setCalled(f controllerCall)
-		hasCalled(f controllerCall) bool
 		checkCalled(f ...controllerCall) ([]string, bool)
 		validateColumns(columns []string) (validatedColumns []string, err error)
 		setError(format string, a ...any)
 		haveError() error
-		WithSession(session sqlx.Session) Controller
 		Reset() Controller
 		Filter(filter ...any) Controller
 		Exclude(exclude ...any) Controller
@@ -61,10 +72,7 @@ type (
 		OrderBy(orderBy any) Controller
 		GroupBy(groupBy any) Controller
 		Having(having string, args ...any) Controller
-		Insert(data map[string]any) (id int64, err error)
-		InsertModel(model any) (id int64, err error)
-		//BulkInsert(data []map[string]any, handler sqlx.ResultHandler) (err error)
-		//BulkInsertModel(modelSlice any, handler sqlx.ResultHandler) (err error)
+		Create(data any) (idOrNum int64, err error)
 		Remove() (num int64, err error)
 		Update(data map[string]any) (num int64, err error)
 		Count() (num int64, err error)
@@ -73,71 +81,57 @@ type (
 		FindAll() (result []map[string]any, err error)
 		FindAllModel(modelSlicePtr any) (err error)
 		Delete() (num int64, err error)
-		Modify(data map[string]any) (num int64, err error)
 		Exist() (exist bool, error error)
 		List() (num int64, data []map[string]any, err error)
 		GetOrCreate(data map[string]any) (result map[string]any, err error)
-		CreateOrUpdate(data map[string]any, filter ...any) (created bool, num int64, err error)
-		GetC2CMap(column1, column2 string) (res map[any]any, err error)
+		CreateOrUpdate(data map[string]any) (created bool, idOrNum int64, err error)
 		CreateIfNotExist(data map[string]any) (id int64, created bool, err error)
 	}
 
 	Impl struct {
-		context      context.Context
-		conn         any
-		model        any
-		modelSlice   any
-		operator     Operator
-		tableName    string
-		fieldNameMap map[string]struct{}
-		fieldRows    string
-		mTag         string
-		qs           QuerySet
-		called       callFlag
+		context        context.Context
+		conn           any
+		modelPtr       any
+		modelSlicePtr  any
+		operator       Operator
+		tableName      string
+		fieldNameMap   map[string]struct{}
+		fieldNameSlice []string
+		fieldRows      string
+		mTag           string
+		qs             QuerySet
+		called         callFlag
 	}
 )
 
-// shiftName shift name like DevicePolicyMap to device_policy_map
-func shiftName(s string) string {
-	res := ""
-	for i, c := range s {
-		if c >= 'A' && c <= 'Z' {
-			if i != 0 {
-				res += "_"
-			}
-			res += string(c + 32)
-		} else {
-			res += string(c)
-		}
-	}
-	return "`" + res + "`"
-}
-
 func NewController(conn any, op Operator, m any) func(ctx context.Context) Controller {
-	t := reflect.TypeOf(m)
-	if t.Kind() != reflect.Struct {
-		log.Panicf("model [%s] must be a struct", t.Name())
-		return nil
-	}
+	// createModelPointerAndSlice call must be at the beginning of this function,
+	// for it will check type of the m(model) is a struct
+	mPtr, mSlicePtr := createModelPointerAndSlice(m)
 
-	mPtr, mSlicePtr := CreatePointerAndSlice(m)
+	fieldNameSlice := rawFieldNames(m, DefaultModelTag, true)
+
+	tableName := shiftName(reflect.TypeOf(m).Name())
+
+	op.SetTableName(tableName)
 
 	return func(ctx context.Context) Controller {
 		if ctx == nil {
 			ctx = context.Background()
 		}
 		return &Impl{
-			context:      ctx,
-			conn:         conn,
-			model:        mPtr,
-			modelSlice:   mSlicePtr,
-			operator:     op,
-			tableName:    shiftName(t.Name()),
-			fieldNameMap: StrSlice2Map(builder.RawFieldNames(m, true)),
-			fieldRows:    strings.Join(builder.RawFieldNames(m), ","),
-			mTag:         DefaultModelTag,
-			qs:           NewQuerySet(op),
-			called:       0,
+			context:        ctx,
+			conn:           conn,
+			modelPtr:       mPtr,
+			modelSlicePtr:  mSlicePtr,
+			operator:       op,
+			tableName:      tableName,
+			fieldNameMap:   strSlice2Map(fieldNameSlice),
+			fieldNameSlice: fieldNameSlice,
+			fieldRows:      strings.Join(rawFieldNames(m, DefaultModelTag, false), ","),
+			mTag:           DefaultModelTag,
+			qs:             NewQuerySet(op),
+			called:         0,
 		}
 	}
 }
@@ -192,21 +186,20 @@ func (m *Impl) haveError() error {
 	return nil
 }
 
-func (m *Impl) WithSession(session sqlx.Session) Controller {
-	m.conn = sqlx.NewSqlConnFromSession(session)
-	return m
+func (m *Impl) reset() {
+	m.qs.Reset()
+	m.called = 0
 }
 
 func (m *Impl) Reset() Controller {
-	m.qs.Reset()
-	m.called = 0
+	m.reset()
 	return m
 }
 
 func (m *Impl) Filter(filter ...any) Controller {
 	m.setCalled(ctlFilter)
 
-	m.qs.FilterToSQL(0, filter...)
+	m.qs.FilterToSQL(notNot, filter...)
 
 	return m
 }
@@ -214,7 +207,7 @@ func (m *Impl) Filter(filter ...any) Controller {
 func (m *Impl) Exclude(exclude ...any) Controller {
 	m.setCalled(ctlExclude)
 
-	m.qs.FilterToSQL(1, exclude...)
+	m.qs.FilterToSQL(isNot, exclude...)
 
 	return m
 }
@@ -230,29 +223,26 @@ func (m *Impl) Where(cond string, args ...any) Controller {
 func (m *Impl) Select(selects any) Controller {
 	m.setCalled(ctlSelect)
 
-	switch selects.(type) {
+	switch sel := selects.(type) {
 	case string:
-		if selects.(string) == "" {
+		if sel == "" {
 			return m
 		}
-		m.qs.StrSelectToSQL(selects.(string))
+		m.qs.StrSelectToSQL(sel)
 	case []string:
-		selectList, _ := selects.([]string)
-
-		if len(selectList) == 0 {
+		if len(sel) == 0 {
 			return m
 		}
 
-		validatedColumns, err := m.validateColumns(selectList)
-
+		validatedColumns, err := m.validateColumns(sel)
 		if err != nil {
-			m.setError("Select columns validate error: %s", err)
+			m.setError(SelectColumsValidateError, err)
 			return m
 		}
 
 		m.qs.SliceSelectToSQL(validatedColumns)
 	default:
-		m.setError("Select type should be string or string slice")
+		m.setError(SelectColumnsTypeError)
 	}
 
 	return m
@@ -260,6 +250,11 @@ func (m *Impl) Select(selects any) Controller {
 
 func (m *Impl) Limit(pageSize, pageNum int64) Controller {
 	m.setCalled(ctlLimit)
+
+	if !m.hasCalled(ctlOrderBy) {
+		m.setError(MustBeCalledError, "Limit", "OrderBy")
+		return m
+	}
 
 	m.qs.LimitToSQL(pageSize, pageNum)
 	return m
@@ -270,21 +265,18 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 
 	var validatedOrderBy []string
 
-	switch orderBy.(type) {
+	switch orderByVal := orderBy.(type) {
 	case string:
-		if orderBy.(string) == "" {
+		if orderByVal == "" {
 			return m
 		}
-		m.qs.StrOrderByToSQL(orderBy.(string))
+		m.qs.StrOrderByToSQL(orderByVal)
 	case []string:
-		orderByList, _ := orderBy.([]string)
-
-		if len(orderByList) == 0 {
+		if len(orderByVal) == 0 {
 			return m
 		}
-
 		unknownColumns := []string{}
-		for _, by := range orderByList {
+		for _, by := range orderByVal {
 			needValidate := by
 			if strings.HasPrefix(by, "-") {
 				needValidate = by[1:]
@@ -298,13 +290,13 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 		}
 
 		if len(unknownColumns) > 0 {
-			m.setError("OrderBy columns validate error: [%s] not exist", strings.Join(unknownColumns, "; "))
+			m.setError(OrderByColumnsValidateError, strings.Join(unknownColumns, "; "))
 			return m
 		}
 
 		m.qs.OrderByToSQL(validatedOrderBy)
 	default:
-		m.setError("OrderBy type should be string or string slice")
+		m.setError(OrderByColumnsTypeError)
 	}
 
 	return m
@@ -313,29 +305,26 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 func (m *Impl) GroupBy(groupBy any) Controller {
 	m.setCalled(ctlGroupBy)
 
-	switch groupBy.(type) {
+	switch gb := groupBy.(type) {
 	case string:
-		if groupBy.(string) == "" {
+		if gb == "" {
 			return m
 		}
-		m.qs.StrGroupByToSQL(groupBy.(string))
+		m.qs.StrGroupByToSQL(gb)
 	case []string:
-		groupByList, _ := groupBy.([]string)
-
-		if len(groupByList) == 0 {
+		if len(gb) == 0 {
 			return m
 		}
 
-		validatedColumns, err := m.validateColumns(groupByList)
-
+		validatedColumns, err := m.validateColumns(gb)
 		if err != nil {
-			m.setError("GroupBy columns validate error: %s", err)
+			m.setError(GroupByColumnsValidateError, err)
 			return m
 		}
 
 		m.qs.SliceGroupByToSQL(validatedColumns)
 	default:
-		m.setError("GroupBy type should be string or string slice")
+		m.setError(GroupByColumnsTypeError)
 		return m
 	}
 
@@ -348,17 +337,9 @@ func (m *Impl) Having(having string, args ...any) Controller {
 	return m
 }
 
-func (m *Impl) Insert(data map[string]any) (id int64, err error) {
-	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
-		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Insert")
-	}
-
-	if err = m.haveError(); err != nil {
-		return 0, err
-	}
-
+func (m *Impl) create(data map[string]any) (id int64, err error) {
 	if len(data) == 0 {
-		return 0, errors.New("insert data is empty")
+		return 0, errors.New(CreateDataEmptyError)
 	}
 
 	var (
@@ -366,7 +347,7 @@ func (m *Impl) Insert(data map[string]any) (id int64, err error) {
 		args []any
 	)
 
-	for k := range m.fieldNameMap {
+	for _, k := range m.fieldNameSlice {
 		if _, ok := data[k]; !ok {
 			continue
 		}
@@ -379,28 +360,64 @@ func (m *Impl) Insert(data map[string]any) (id int64, err error) {
 	return m.operator.Insert(m.ctx(), m.conn, sql, args...)
 }
 
-func (m *Impl) InsertModel(model any) (id int64, err error) {
-	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
-		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Insert")
-	}
-
-	return m.Insert(Struct2Map(model, m.mTag))
-}
-
-func (m *Impl) BulkInsert(data []map[string]any, handler sqlx.ResultHandler) (err error) {
+func (m *Impl) bulkCreate(data []map[string]any) (num int64, err error) {
 	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlGroupBy, ctlHaving, ctlOrderBy); called {
-		return fmt.Errorf(UnsupportedControllerError, methods, "BulkInsert")
+		return 0, fmt.Errorf(UnsupportedControllerError, methods, "BulkInsert")
 	}
 
-	return m.operator.BulkInsert(m.ctx(), m.conn, m.tableName, data, handler)
+	if err = m.haveError(); err != nil {
+		return 0, err
+	}
+
+	if len(data) == 0 {
+		return 0, errors.New(CreateDataEmptyError)
+	}
+
+	var (
+		rows []string
+		args []string
+	)
+
+	for _, k := range m.fieldNameSlice {
+		if _, ok := data[0][k]; !ok {
+			continue
+		}
+		rows = append(rows, fmt.Sprintf("`%s`", k))
+		args = append(args, k)
+	}
+
+	sql := fmt.Sprintf(InsertTemp, m.tableName, strings.Join(rows, ","), strings.Repeat("?,", len(rows)-1)+"?")
+
+	return m.operator.BulkInsert(m.ctx(), m.conn, sql, args, data)
 }
 
-func (m *Impl) BulkInsertModel(modelSlice any, handler sqlx.ResultHandler) (err error) {
-	return m.BulkInsert(StructSlice2MapSlice(modelSlice, m.mTag), handler)
+func (m *Impl) Create(data any) (idOrNum int64, err error) {
+	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
+		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Create")
+	}
+
+	switch d := data.(type) {
+	case map[string]any:
+		return m.create(d)
+	case []map[string]any:
+		return m.bulkCreate(d)
+	default:
+		fmt.Printf("data type: %+v\n", d)
+		v := reflect.ValueOf(data)
+		if v.Kind() == reflect.Ptr {
+			v = v.Elem()
+		}
+		if v.Kind() == reflect.Struct {
+			return m.create(modelStruct2Map(data, m.mTag))
+		} else if v.Kind() == reflect.Slice {
+			return m.bulkCreate(modelStructSlice2MapSlice(data, m.mTag))
+		}
+	}
+	return 0, fmt.Errorf(CreateDataTypeError, reflect.TypeOf(data).Kind())
 }
 
 func (m *Impl) Remove() (num int64, err error) {
-	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving, ctlOrderBy); called {
+	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Remove")
 	}
 
@@ -416,15 +433,7 @@ func (m *Impl) Remove() (num int64, err error) {
 	return m.operator.Remove(m.ctx(), m.conn, sql, filterArgs...)
 }
 
-func (m *Impl) Update(data map[string]any) (num int64, err error) {
-	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving, ctlOrderBy); called {
-		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Update")
-	}
-
-	if err = m.haveError(); err != nil {
-		return num, err
-	}
-
+func (m *Impl) update(data map[string]any) (num int64, err error) {
 	var (
 		args       []any
 		updateRows []string
@@ -433,7 +442,7 @@ func (m *Impl) Update(data map[string]any) (num int64, err error) {
 
 	for k, v := range data {
 		if _, ok := m.fieldNameMap[k]; !ok {
-			return 0, errors.New("update column [" + k + "] not exist")
+			return 0, fmt.Errorf(UpdateColumnNotExistError, k)
 		}
 		updateRows = append(updateRows, "`"+k+"`")
 		updateArgs = append(updateArgs, v)
@@ -447,6 +456,22 @@ func (m *Impl) Update(data map[string]any) (num int64, err error) {
 	args = append(args, filterArgs...)
 
 	return m.operator.Update(m.ctx(), m.conn, sql, args...)
+}
+
+func (m *Impl) Update(data map[string]any) (num int64, err error) {
+	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
+		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Update")
+	}
+
+	if err = m.haveError(); err != nil {
+		return num, err
+	}
+
+	if len(data) == 0 {
+		return 0, errors.New(UpdateDataEmptyError)
+	}
+
+	return m.update(data)
 }
 
 func (m *Impl) Count() (num int64, err error) {
@@ -463,15 +488,7 @@ func (m *Impl) Count() (num int64, err error) {
 	return m.operator.Count(m.ctx(), m.conn, query, filterArgs...)
 }
 
-func (m *Impl) FindOne() (result map[string]any, err error) {
-	if methods, called := m.checkCalled(ctlSelect, ctlHaving); called {
-		return result, fmt.Errorf(UnsupportedControllerError, methods, "FindOne")
-	}
-
-	if err = m.haveError(); err != nil {
-		return result, err
-	}
-
+func (m *Impl) findOne() (result map[string]any, err error) {
 	filterSQL, filterArgs := m.qs.GetQuerySet()
 
 	query := SelectTemp
@@ -484,18 +501,30 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 	query += m.qs.GetOrderBySQL()
 	query += " LIMIT 1"
 
-	res, _ := DeepCopy(m.model)
+	res := deepCopyModelPtrStructure(m.modelPtr)
 
 	err = m.operator.FindOne(m.ctx(), m.conn, res, query, filterArgs...)
 
 	switch {
 	case err == nil:
-		return Struct2Map(res, m.mTag), nil
+		return modelStruct2Map(res, m.mTag), nil
 	case errors.Is(err, ErrNotFound):
 		return map[string]any{}, nil
 	default:
 		return map[string]any{}, err
 	}
+}
+
+func (m *Impl) FindOne() (result map[string]any, err error) {
+	if methods, called := m.checkCalled(ctlSelect, ctlHaving); called {
+		return result, fmt.Errorf(UnsupportedControllerError, methods, "FindOne")
+	}
+
+	if err = m.haveError(); err != nil {
+		return result, err
+	}
+
+	return m.findOne()
 }
 
 func (m *Impl) FindOneModel(modelPtr any) (err error) {
@@ -506,7 +535,7 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 	query := SelectTemp
 
 	selectRows := m.qs.GetSelectSQL()
-	if selectRows != "*" {
+	if selectRows != Asterisk {
 		query = fmt.Sprintf(query, selectRows, m.tableName)
 	} else {
 		query = fmt.Sprintf(query, m.fieldRows, m.tableName)
@@ -544,13 +573,13 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 	query += m.qs.GetOrderBySQL()
 	query += m.qs.GetLimitSQL()
 
-	res, _ := DeepCopy(m.modelSlice)
+	res := deepCopyModelPtrStructure(m.modelSlicePtr)
 
 	err = m.operator.FindAll(m.ctx(), m.conn, res, query, filterArgs...)
 
 	switch {
 	case err == nil:
-		return StructSlice2MapSlice(res, m.mTag), nil
+		return modelStructSlice2MapSlice(res, m.mTag), nil
 	case errors.Is(err, ErrNotFound):
 		return []map[string]any{}, nil
 	default:
@@ -566,7 +595,7 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 	query := SelectTemp
 
 	selectRows := m.qs.GetSelectSQL()
-	if selectRows != "*" {
+	if selectRows != Asterisk {
 		query = fmt.Sprintf(query, selectRows, m.tableName)
 	} else {
 		query = fmt.Sprintf(query, m.fieldRows, m.tableName)
@@ -604,18 +633,22 @@ func (m *Impl) Delete() (int64, error) {
 	return m.Update(data)
 }
 
-func (m *Impl) Modify(data map[string]any) (num int64, err error) {
-	return m.Exclude(data).Update(data)
+func (m *Impl) exist() (exist bool, err error) {
+	filterSQL, filterArgs := m.qs.GetQuerySet()
+
+	return m.operator.Exist(m.ctx(), m.conn, filterSQL, filterArgs...)
 }
 
 func (m *Impl) Exist() (exist bool, err error) {
-	if num, err := m.Count(); err != nil {
-		return false, err
-	} else if num > 0 {
-		return true, nil
+	if methods, called := m.checkCalled(ctlGroupBy, ctlSelect); called {
+		return false, fmt.Errorf(UnsupportedControllerError, methods, "Exist")
 	}
 
-	return false, nil
+	if err = m.haveError(); err != nil {
+		return exist, err
+	}
+
+	return m.exist()
 }
 
 func (m *Impl) List() (total int64, data []map[string]any, err error) {
@@ -630,77 +663,85 @@ func (m *Impl) List() (total int64, data []map[string]any, err error) {
 	return total, data, nil
 }
 
-func (m *Impl) GetOrCreate(data map[string]any) (map[string]any, error) {
-	if _, err := m.Insert(data); err != nil {
+func (m *Impl) GetOrCreate(data map[string]any) (res map[string]any, err error) {
+	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
+		return res, fmt.Errorf(UnsupportedControllerError, methods, "GetOrCreate")
+	}
+
+	if err = m.haveError(); err != nil {
+		return res, err
+	}
+
+	if len(data) == 0 {
+		return res, errors.New(DataEmptyError)
+	}
+
+	if _, err := m.create(data); err != nil {
 		if !errors.Is(err, ErrDuplicateKey) {
-			return nil, err
+			return res, err
 		}
 	}
 
-	return m.Filter(data).FindOne()
+	m.setCalled(ctlFilter)
+	m.qs.FilterToSQL(notNot, Cond(data))
+
+	return m.findOne()
 }
 
-func (m *Impl) CreateOrUpdate(data map[string]any, filter ...any) (bool, int64, error) {
-	if exist, err := m.Filter(filter...).Exist(); err != nil {
+func (m *Impl) CreateOrUpdate(data map[string]any) (created bool, numOrID int64, err error) {
+	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
+		return false, 0, fmt.Errorf(UnsupportedControllerError, methods, "CreateOrUpdate")
+	}
+
+	if err = m.haveError(); err != nil {
+		return false, 0, err
+	}
+
+	if len(data) == 0 {
+		return false, 0, errors.New(DataEmptyError)
+	}
+
+	if exist, err := m.exist(); err != nil {
 		return false, 0, err
 	} else if exist {
-		if num, err := m.Reset().Filter(filter...).Update(data); err != nil {
+		if num, err := m.update(data); err != nil {
 			return false, 0, err
 		} else {
 			return false, num, nil
 		}
 	}
 
-	id, err := m.Reset().Insert(data)
+	m.reset()
+	id, err := m.create(data)
 	if err != nil {
 		return false, 0, err
 	}
 	return true, id, nil
 }
 
-func (m *Impl) GetC2CMap(column1, column2 string) (res map[any]any, err error) {
-	if err = m.haveError(); err != nil {
-		return res, err
-	}
-
-	if _, ok := m.fieldNameMap[column1]; !ok {
-		return res, fmt.Errorf("column [%s] not exist", column1)
-	}
-	if _, ok := m.fieldNameMap[column2]; !ok {
-		return res, fmt.Errorf("column [%s] not exist", column2)
-	}
-
-	query := fmt.Sprintf("SELECT `%s`,`%s` FROM %s ", column1, column2, m.tableName)
-
-	filterSQL, filterArgs := m.qs.GetQuerySet()
-
-	query += filterSQL
-	query += m.qs.GetGroupBySQL()
-	query += m.qs.GetOrderBySQL()
-	query += m.qs.GetLimitSQL()
-
-	result, _ := DeepCopy(m.modelSlice)
-
-	if err = m.operator.FindAll(m.ctx(), m.conn, res, query, filterArgs...); err != nil {
-		return res, err
-	}
-
-	res = make(map[any]any)
-	for _, v := range StructSlice2MapSlice(result, m.mTag) {
-		res[v[column1]] = v[column2]
-	}
-
-	return res, nil
-}
-
 func (m *Impl) CreateIfNotExist(data map[string]any) (id int64, created bool, err error) {
-	if exist, err := m.Filter(data).Exist(); err != nil {
+	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
+		return 0, false, fmt.Errorf(UnsupportedControllerError, methods, "CreateIfNotExist")
+	}
+
+	if err = m.haveError(); err != nil {
+		return 0, false, err
+	}
+
+	if len(data) == 0 {
+		return 0, false, errors.New(DataEmptyError)
+	}
+
+	m.setCalled(ctlFilter)
+	m.qs.FilterToSQL(notNot, Cond(data))
+
+	if exist, err := m.exist(); err != nil {
 		return 0, false, err
 	} else if exist {
 		return 0, false, nil
 	}
 
-	id, err = m.Insert(data)
+	id, err = m.create(data)
 	if err != nil {
 		return 0, false, err
 	}
