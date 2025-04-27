@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 
@@ -51,8 +52,8 @@ func (d *Operator) OperatorSQL(operator string) string {
 	return operators[operator]
 }
 
-func (d *Operator) Insert(ctx context.Context, conn any, sql string, args ...any) (id int64, err error) {
-	res, err := conn.(sqlx.SqlConn).ExecCtx(ctx, sql, args...)
+func (d *Operator) Insert(ctx context.Context, conn any, query string, args ...any) (id int64, err error) {
+	res, err := conn.(sqlx.SqlConn).ExecCtx(ctx, query, args...)
 	if err != nil {
 		if strings.Contains(err.Error(), "1062") {
 			return 0, operator.ErrDuplicateKey
@@ -69,8 +70,8 @@ func (d *Operator) Insert(ctx context.Context, conn any, sql string, args ...any
 	return id, err
 }
 
-func (d *Operator) BulkInsert(ctx context.Context, conn any, sql string, args []string, data []map[string]any) (err error) {
-	blk, err := sqlx.NewBulkInserter(conn.(sqlx.SqlConn), sql)
+func (d *Operator) BulkInsert(ctx context.Context, conn any, query string, args []string, data []map[string]any) (num int64, err error) {
+	blk, err := sqlx.NewBulkInserter(conn.(sqlx.SqlConn), query)
 	if err != nil {
 		panic(err)
 	}
@@ -87,26 +88,26 @@ func (d *Operator) BulkInsert(ctx context.Context, conn any, sql string, args []
 
 	blk.Flush()
 
-	// blk.SetResultHandler(func(result sql.Result, err error) {
-	// 	if err != nil {
-	// 		logc.Errorf(ctx, "Bulk insert error: %s", err)
-	// 		return
-	// 	}
+	blk.SetResultHandler(func(result sql.Result, err error) {
+		if err != nil {
+			logc.Errorf(ctx, "Bulk insert error: %s", err)
+			return
+		}
 
-	// 	rowsAffected, err := result.RowsAffected()
-	// 	if err != nil {
-	// 		logc.Errorf(ctx, "Bulk insert rows affected error: %s", err)
-	// 		return
-	// 	}
+		num, err = result.RowsAffected()
+		if err != nil {
+			logc.Errorf(ctx, "Bulk insert rows affected error: %s", err)
+			return
+		}
 
-	// 	logc.Infof(ctx, "Inserted %d rows", rowsAffected)
-	// })
+		logc.Infof(ctx, "Inserted %d rows", num)
+	})
 
-	return err
+	return num, err
 }
 
-func (d *Operator) Remove(ctx context.Context, conn any, sql string, args ...any) (num int64, err error) {
-	res, err := conn.(sqlx.SqlConn).ExecCtx(ctx, sql, args...)
+func (d *Operator) Remove(ctx context.Context, conn any, query string, args ...any) (num int64, err error) {
+	res, err := conn.(sqlx.SqlConn).ExecCtx(ctx, query, args...)
 	if err != nil {
 		logc.Errorf(ctx, "Remove error: %+v", err)
 		return 0, err
@@ -120,8 +121,8 @@ func (d *Operator) Remove(ctx context.Context, conn any, sql string, args ...any
 	return num, nil
 }
 
-func (d *Operator) Update(ctx context.Context, conn any, sql string, args ...any) (num int64, err error) {
-	res, err := conn.(sqlx.SqlConn).Exec(sql, args...)
+func (d *Operator) Update(ctx context.Context, conn any, query string, args ...any) (num int64, err error) {
+	res, err := conn.(sqlx.SqlConn).Exec(query, args...)
 	if err != nil {
 		logc.Errorf(ctx, "Update error: %+v", err)
 		return 0, err
@@ -135,8 +136,8 @@ func (d *Operator) Update(ctx context.Context, conn any, sql string, args ...any
 	return num, nil
 }
 
-func (d *Operator) Count(ctx context.Context, conn any, sql string, args ...any) (num int64, err error) {
-	err = conn.(sqlx.SqlConn).QueryRowCtx(ctx, &num, sql, args...)
+func (d *Operator) Count(ctx context.Context, conn any, query string, args ...any) (num int64, err error) {
+	err = conn.(sqlx.SqlConn).QueryRowCtx(ctx, &num, query, args...)
 
 	switch {
 	case err == nil:
@@ -166,8 +167,8 @@ func (d *Operator) Exist(ctx context.Context, conn any, condition string, args .
 	}
 }
 
-func (d *Operator) FindOne(ctx context.Context, conn any, model any, sql string, args ...any) (err error) {
-	err = conn.(sqlx.SqlConn).QueryRowPartialCtx(ctx, model, sql, args...)
+func (d *Operator) FindOne(ctx context.Context, conn any, model any, query string, args ...any) (err error) {
+	err = conn.(sqlx.SqlConn).QueryRowPartialCtx(ctx, model, query, args...)
 
 	switch {
 	case err == nil:
@@ -180,8 +181,8 @@ func (d *Operator) FindOne(ctx context.Context, conn any, model any, sql string,
 	}
 }
 
-func (d *Operator) FindAll(ctx context.Context, conn any, model any, sql string, args ...any) (err error) {
-	err = conn.(sqlx.SqlConn).QueryRowsPartialCtx(ctx, model, sql, args...)
+func (d *Operator) FindAll(ctx context.Context, conn any, model any, query string, args ...any) (err error) {
+	err = conn.(sqlx.SqlConn).QueryRowsPartialCtx(ctx, model, query, args...)
 
 	switch {
 	case err == nil:

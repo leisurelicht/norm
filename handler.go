@@ -73,8 +73,6 @@ type (
 		Having(having string, args ...any) Controller
 		Create(data map[string]any) (id int64, err error)
 		CreateModel(model any) (id int64, err error)
-		//BulkInsert(data []map[string]any) (err error)
-		//BulkInsertModel(modelSlice []any) (err error)
 		Remove() (num int64, err error)
 		Update(data map[string]any) (num int64, err error)
 		Count() (num int64, err error)
@@ -378,17 +376,17 @@ func (m *Impl) CreateModel(model any) (id int64, err error) {
 	return m.insert(modelStruct2Map(model, m.mTag))
 }
 
-func (m *Impl) BulkInsert(data []map[string]any) (err error) {
+func (m *Impl) BulkInsert(data []map[string]any) (num int64, err error) {
 	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlGroupBy, ctlHaving, ctlOrderBy); called {
-		return fmt.Errorf(UnsupportedControllerError, methods, "BulkInsert")
+		return 0, fmt.Errorf(UnsupportedControllerError, methods, "BulkInsert")
 	}
 
 	if err = m.haveError(); err != nil {
-		return err
+		return 0, err
 	}
 
 	if len(data) == 0 {
-		return errors.New(CreateDataEmptyError)
+		return 0, errors.New(CreateDataEmptyError)
 	}
 
 	var (
@@ -409,7 +407,7 @@ func (m *Impl) BulkInsert(data []map[string]any) (err error) {
 	return m.operator.BulkInsert(m.ctx(), m.conn, sql, args, data)
 }
 
-func (m *Impl) BulkInsertModel(modelSlice []any) (err error) {
+func (m *Impl) BulkInsertModel(modelSlice []any) (num int64, err error) {
 	return m.BulkInsert(modelStructSlice2MapSlice(modelSlice, m.mTag))
 }
 

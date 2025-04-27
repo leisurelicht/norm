@@ -17,8 +17,8 @@ func (m *MockOperator) IsSelectKey(column string) bool {
 }
 
 // BulkInsert implements the Operator interface with the correct signature
-func (m *MockOperator) BulkInsert(ctx context.Context, conn any, sql string, args []string, data []map[string]any) error {
-	return nil // Just a stub implementation for testing
+func (m *MockOperator) BulkInsert(ctx context.Context, conn any, sql string, args []string, data []map[string]any) (int64, error) {
+	return 0, nil // Just a stub implementation for testing
 }
 
 // setupQuerySet creates a new QuerySet with the MockOperator for benchmarking
