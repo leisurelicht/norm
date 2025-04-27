@@ -168,7 +168,6 @@ func modelStructSlice2MapSlice(obj any, tag string) []map[string]any {
 	}
 
 	data := make([]map[string]any, 0, v.Len())
-
 	for i := 0; i < v.Len(); i++ {
 		data = append(data, modelStruct2Map(v.Index(i).Interface(), tag))
 	}

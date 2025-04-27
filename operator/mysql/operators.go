@@ -76,7 +76,7 @@ func (d *Operator) BulkInsert(ctx context.Context, conn any, query string, args 
 		panic(err)
 	}
 
-	values := make([]any, 0, len(args))
+	values := make([]any, len(args))
 	for _, row := range data {
 		for i, arg := range args {
 			if val, ok := row[arg]; ok {

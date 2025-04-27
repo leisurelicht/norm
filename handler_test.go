@@ -245,17 +245,17 @@ func TestQuery(t *testing.T) {
 
 	// test having
 
-	// Insert, update, delete, remove
+	// Create, update, delete, remove
 	if _, err := sourceCli(ctx).Create(map[string]any{"id": 666, "name": "666", "description": "2333"}); err != nil {
-		t.Errorf("Insert error: %s", err)
+		t.Errorf("Create error: %s", err)
 	} else if res, err := sourceCli(ctx).Filter(Cond{"id": 666}).FindOne(); err != nil {
 		t.Error(err)
 	} else if res["id"].(int64) != 666 {
-		t.Errorf("Insert error: \nexpect 666 but got %d", res["id"])
+		t.Errorf("Create error: \nexpect 666 but got %d", res["id"])
 	} else if res["name"].(string) != "666" {
-		t.Errorf("Insert error: \nexpect 666 but got %s", res["name"])
+		t.Errorf("Create error: \nexpect 666 but got %s", res["name"])
 	} else if res["description"].(string) != "2333" {
-		t.Errorf("Insert error: \nexpect 2333 but got %s", res["description"])
+		t.Errorf("Create error: \nexpect 2333 but got %s", res["description"])
 	}
 	if res, err := sourceCli(ctx).Filter(Cond{"id": 666}).Update(map[string]any{"name": "test"}); err != nil {
 		t.Errorf("Update error: %s", err)
@@ -289,16 +289,16 @@ func TestQuery(t *testing.T) {
 		t.Errorf("Remove error: \nexpect 0 but got %d\nexpect empty but got %+v\n", len(res), res)
 	}
 
-	if _, err := sourceCli(ctx).CreateModel(&test.Source{Id: 777, Name: "777", Description: "2333", IsDeleted: false, CreateTime: time.Now(), UpdateTime: time.Now()}); err != nil {
-		t.Errorf("InsertModel error: %s", err)
+	if _, err := sourceCli(ctx).Create(&test.Source{Id: 777, Name: "777", Description: "2333", IsDeleted: false, CreateTime: time.Now(), UpdateTime: time.Now()}); err != nil {
+		t.Errorf("Create error: %s", err)
 	} else if res, err := sourceCli(ctx).Filter(Cond{"id": 777, "is_deleted": false}).FindOne(); err != nil {
 		t.Error(err)
 	} else if res["id"].(int64) != 777 {
-		t.Errorf("InsertModel error: \nexpect 777 but got %d", res["id"])
+		t.Errorf("Create error: \nexpect 777 but got %d", res["id"])
 	} else if res["name"].(string) != "777" {
-		t.Errorf("InsertModel error: \nexpect 777 but got %s", res["name"])
+		t.Errorf("Create error: \nexpect 777 but got %s", res["name"])
 	} else if res["description"].(string) != "2333" {
-		t.Errorf("InsertModel error: \nexpect 2333 but got %s", res["description"])
+		t.Errorf("Create error: \nexpect 2333 but got %s", res["description"])
 	}
 
 	if _, err := sourceCli(ctx).Filter(Cond{"id": 777}).Remove(); err != nil {
@@ -448,10 +448,31 @@ func TestQuery(t *testing.T) {
 		t.Errorf("Remove error: %s", err)
 	}
 
-	if id, err := propertyCli(ctx).Create(map[string]any{"source_id": 11111, "column_name": "test11111", "description": "Test11111"}); err != nil {
+	if num, err := propertyCli(ctx).Create([]map[string]any{
+		{"source_id": 11111, "column_name": "test11111", "description": "Test11111"},
+		{"source_id": 11112, "column_name": "test11112", "description": "Test11112"},
+		{"source_id": 11113, "column_name": "test11113", "description": "Test11113"},
+		{"source_id": 11114, "column_name": "test11114", "description": "Test11114"},
+		{"source_id": 11115, "column_name": "test11115", "description": "Test11115"},
+		{"source_id": 11116, "column_name": "test11116", "description": "Test11116"},
+	}); err != nil {
 		t.Errorf("Create error: %s", err)
-	} else if id == 0 {
+	} else if num != 0 {
 		t.Errorf("Create error: \nexpect no-zero but got 0")
+	} else if res, err := propertyCli(ctx).Filter(Cond{"source_id__between": []int64{11111, 11116}}).OrderBy("source_id").FindAll(); err != nil {
+		t.Errorf("FindAll error: %s", err)
+	} else if len(res) != 6 {
+		t.Errorf("FindAll error: \nexpect 6 but got %d\ngot res: %+v", len(res), res)
+	} else if res[0]["source_id"].(int64) != 11111 {
+		t.Errorf("FindAll error: \nexpect 11111 but got %d", res[0]["source_id"])
+	} else if res[1]["source_id"].(int64) != 11112 {
+		t.Errorf("FindAll error: \nexpect 11112 but got %d", res[1]["source_id"])
+	} else if res[5]["source_id"].(int64) != 11116 {
+		t.Errorf("FindAll error: \nexpect 11116 but got %d", res[5]["source_id"])
+	}
+
+	if _, err := propertyCli(ctx).Filter(Cond{"source_id__between": []int64{11111, 11116}}).Remove(); err != nil {
+		t.Errorf("Remove error: %s", err)
 	}
 
 }
@@ -501,7 +522,7 @@ func TestHandlerError(t *testing.T) {
 		}
 	}
 
-	// Insert unsupported operations
+	// Create unsupported operations
 	if id, err := ctl(ctx).Filter(Cond{}).Create(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
 	} else if err != nil && err.Error() != "[Filter] not supported for Create" {
@@ -532,33 +553,33 @@ func TestHandlerError(t *testing.T) {
 		t.Error(err)
 	}
 
-	if id, err := ctl(ctx).Filter(Cond{}).CreateModel(&test.Source{}); id != 0 {
+	if id, err := ctl(ctx).Filter(Cond{}).Create(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter] not supported for CreateModel" {
+	} else if err != nil && err.Error() != "[Filter] not supported for Create" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(ctx).Filter(Cond{}).Where("").CreateModel(&test.Source{}); id != 0 {
+	if id, err := ctl(ctx).Filter(Cond{}).Where("").Create(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where] not supported for CreateModel" {
+	} else if err != nil && err.Error() != "[Filter Where] not supported for Create" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").CreateModel(&test.Source{}); id != 0 {
+	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").Create(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where OrderBy] not supported for CreateModel" {
+	} else if err != nil && err.Error() != "[Filter Where OrderBy] not supported for Create" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").CreateModel(&test.Source{}); id != 0 {
+	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Create(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where OrderBy GroupBy] not supported for CreateModel" {
+	} else if err != nil && err.Error() != "[Filter Where OrderBy GroupBy] not supported for Create" {
 		t.Error(err)
 	}
 
-	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Select("").CreateModel(&test.Source{}); id != 0 {
+	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Select("").Create(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where Select OrderBy GroupBy] not supported for CreateModel" {
+	} else if err != nil && err.Error() != "[Filter Where Select OrderBy GroupBy] not supported for Create" {
 		t.Error(err)
 	}
 

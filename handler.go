@@ -25,6 +25,7 @@ const (
 	GroupByColumnsValidateError = "GroupBy columns validate error: %s"
 	GroupByColumnsTypeError     = "GroupBy type should be string or string slice"
 	CreateDataEmptyError        = "create data is empty"
+	CreateDataTypeError         = "create data type is wrong, should not be [%s]"
 	UpdateDataEmptyError        = "update data is empty"
 	DataEmptyError              = "data is empty"
 	UpdateColumnNotExistError   = "update column [%s] not exist"
@@ -71,8 +72,7 @@ type (
 		OrderBy(orderBy any) Controller
 		GroupBy(groupBy any) Controller
 		Having(having string, args ...any) Controller
-		Create(data map[string]any) (id int64, err error)
-		CreateModel(model any) (id int64, err error)
+		Create(data any) (id int64, err error)
 		Remove() (num int64, err error)
 		Update(data map[string]any) (num int64, err error)
 		Count() (num int64, err error)
@@ -360,23 +360,7 @@ func (m *Impl) create(data map[string]any) (id int64, err error) {
 	return m.operator.Insert(m.ctx(), m.conn, sql, args...)
 }
 
-func (m *Impl) Create(data map[string]any) (id int64, err error) {
-	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
-		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Create")
-	}
-
-	return m.create(data)
-}
-
-func (m *Impl) CreateModel(model any) (id int64, err error) {
-	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
-		return 0, fmt.Errorf(UnsupportedControllerError, methods, "CreateModel")
-	}
-
-	return m.create(modelStruct2Map(model, m.mTag))
-}
-
-func (m *Impl) BulkInsert(data []map[string]any) (num int64, err error) {
+func (m *Impl) bulkCreate(data []map[string]any) (num int64, err error) {
 	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlGroupBy, ctlHaving, ctlOrderBy); called {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "BulkInsert")
 	}
@@ -407,8 +391,32 @@ func (m *Impl) BulkInsert(data []map[string]any) (num int64, err error) {
 	return m.operator.BulkInsert(m.ctx(), m.conn, sql, args, data)
 }
 
-func (m *Impl) BulkInsertModel(modelSlice []any) (num int64, err error) {
-	return m.BulkInsert(modelStructSlice2MapSlice(modelSlice, m.mTag))
+func (m *Impl) Create(data any) (id int64, err error) {
+	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
+		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Create")
+	}
+
+	switch d := data.(type) {
+	case map[string]any:
+		return m.create(d)
+	case []map[string]any:
+		return m.bulkCreate(d)
+	default:
+		v := reflect.ValueOf(data)
+		if v.Kind() == reflect.Ptr {
+			v = v.Elem()
+		}
+		if v.Kind() == reflect.Struct {
+			return m.create(modelStruct2Map(data, m.mTag))
+		} else if v.Kind() == reflect.Slice {
+			return m.bulkCreate(modelStructSlice2MapSlice(data, m.mTag))
+		}
+	}
+	return 0, fmt.Errorf(CreateDataTypeError, reflect.TypeOf(data).Kind())
+}
+
+func (m *Impl) BulkCreate(modelSlice any) (num int64, err error) {
+	return m.bulkCreate(modelStructSlice2MapSlice(modelSlice, m.mTag))
 }
 
 func (m *Impl) Remove() (num int64, err error) {
