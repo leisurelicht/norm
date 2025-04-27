@@ -337,7 +337,7 @@ func (m *Impl) Having(having string, args ...any) Controller {
 	return m
 }
 
-func (m *Impl) insert(data map[string]any) (id int64, err error) {
+func (m *Impl) create(data map[string]any) (id int64, err error) {
 	if len(data) == 0 {
 		return 0, errors.New(CreateDataEmptyError)
 	}
@@ -365,7 +365,7 @@ func (m *Impl) Create(data map[string]any) (id int64, err error) {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Create")
 	}
 
-	return m.insert(data)
+	return m.create(data)
 }
 
 func (m *Impl) CreateModel(model any) (id int64, err error) {
@@ -373,7 +373,7 @@ func (m *Impl) CreateModel(model any) (id int64, err error) {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "CreateModel")
 	}
 
-	return m.insert(modelStruct2Map(model, m.mTag))
+	return m.create(modelStruct2Map(model, m.mTag))
 }
 
 func (m *Impl) BulkInsert(data []map[string]any) (num int64, err error) {
@@ -671,7 +671,7 @@ func (m *Impl) GetOrCreate(data map[string]any) (res map[string]any, err error) 
 		return res, errors.New(DataEmptyError)
 	}
 
-	if _, err := m.insert(data); err != nil {
+	if _, err := m.create(data); err != nil {
 		if !errors.Is(err, ErrDuplicateKey) {
 			return res, err
 		}
@@ -707,7 +707,7 @@ func (m *Impl) CreateOrUpdate(data map[string]any) (created bool, numOrID int64,
 	}
 
 	m.reset()
-	id, err := m.insert(data)
+	id, err := m.create(data)
 	if err != nil {
 		return false, 0, err
 	}
@@ -736,7 +736,7 @@ func (m *Impl) CreateIfNotExist(data map[string]any) (id int64, created bool, er
 		return 0, false, nil
 	}
 
-	id, err = m.insert(data)
+	id, err = m.create(data)
 	if err != nil {
 		return 0, false, err
 	}
