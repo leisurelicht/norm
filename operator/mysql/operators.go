@@ -86,8 +86,6 @@ func (d *Operator) BulkInsert(ctx context.Context, conn any, query string, args 
 		blk.Insert(values...)
 	}
 
-	blk.Flush()
-
 	blk.SetResultHandler(func(result sql.Result, err error) {
 		if err != nil {
 			logc.Errorf(ctx, "Bulk insert error: %s", err)
@@ -102,6 +100,8 @@ func (d *Operator) BulkInsert(ctx context.Context, conn any, query string, args 
 
 		logc.Infof(ctx, "Inserted %d rows", num)
 	})
+
+	blk.Flush()
 
 	return num, err
 }

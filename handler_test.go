@@ -457,8 +457,8 @@ func TestQuery(t *testing.T) {
 		{"source_id": 11116, "column_name": "test11116", "description": "Test11116"},
 	}); err != nil {
 		t.Errorf("Create error: %s", err)
-	} else if num != 0 {
-		t.Errorf("Create error: \nexpect no-zero but got 0")
+	} else if num != 6 {
+		t.Errorf("Create error: \nexpect 6 but got %d", num)
 	} else if res, err := propertyCli(ctx).Filter(Cond{"source_id__between": []int64{11111, 11116}}).OrderBy("source_id").FindAll(); err != nil {
 		t.Errorf("FindAll error: %s", err)
 	} else if len(res) != 6 {

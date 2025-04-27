@@ -72,7 +72,7 @@ type (
 		OrderBy(orderBy any) Controller
 		GroupBy(groupBy any) Controller
 		Having(having string, args ...any) Controller
-		Create(data any) (id int64, err error)
+		Create(data any) (idOrNum int64, err error)
 		Remove() (num int64, err error)
 		Update(data map[string]any) (num int64, err error)
 		Count() (num int64, err error)
@@ -84,7 +84,7 @@ type (
 		Exist() (exist bool, error error)
 		List() (num int64, data []map[string]any, err error)
 		GetOrCreate(data map[string]any) (result map[string]any, err error)
-		CreateOrUpdate(data map[string]any) (created bool, numOrID int64, err error)
+		CreateOrUpdate(data map[string]any) (created bool, idOrNum int64, err error)
 		CreateIfNotExist(data map[string]any) (id int64, created bool, err error)
 	}
 
@@ -391,7 +391,7 @@ func (m *Impl) bulkCreate(data []map[string]any) (num int64, err error) {
 	return m.operator.BulkInsert(m.ctx(), m.conn, sql, args, data)
 }
 
-func (m *Impl) Create(data any) (id int64, err error) {
+func (m *Impl) Create(data any) (idOrNum int64, err error) {
 	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Create")
 	}
@@ -402,6 +402,7 @@ func (m *Impl) Create(data any) (id int64, err error) {
 	case []map[string]any:
 		return m.bulkCreate(d)
 	default:
+		fmt.Printf("data type: %+v\n", d)
 		v := reflect.ValueOf(data)
 		if v.Kind() == reflect.Ptr {
 			v = v.Elem()
@@ -413,10 +414,6 @@ func (m *Impl) Create(data any) (id int64, err error) {
 		}
 	}
 	return 0, fmt.Errorf(CreateDataTypeError, reflect.TypeOf(data).Kind())
-}
-
-func (m *Impl) BulkCreate(modelSlice any) (num int64, err error) {
-	return m.bulkCreate(modelStructSlice2MapSlice(modelSlice, m.mTag))
 }
 
 func (m *Impl) Remove() (num int64, err error) {
