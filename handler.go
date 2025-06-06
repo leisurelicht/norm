@@ -402,7 +402,6 @@ func (m *Impl) Create(data any) (idOrNum int64, err error) {
 	case []map[string]any:
 		return m.bulkCreate(d)
 	default:
-		fmt.Printf("data type: %+v\n", d)
 		v := reflect.ValueOf(data)
 		if v.Kind() == reflect.Ptr {
 			v = v.Elem()

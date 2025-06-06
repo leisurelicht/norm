@@ -9,7 +9,7 @@ import (
 
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 
-	mysqlOp "github.com/leisurelicht/norm/operator/mysql"
+	go_zero "github.com/leisurelicht/norm/operator/mysql/go-zero"
 	"github.com/leisurelicht/norm/test"
 )
 
@@ -37,8 +37,8 @@ func TestCharacterEncoding(t *testing.T) {
 }
 
 func TestQuery(t *testing.T) {
-	sourceCli := NewController(sqlx.NewMysql(mysqlAddress), mysqlOp.NewOperator(), test.Source{})
-	propertyCli := NewController(sqlx.NewMysql(mysqlAddress), mysqlOp.NewOperator(), test.Property{})
+	sourceCli := NewController(sqlx.NewMysql(mysqlAddress), go_zero.NewOperator(), test.Source{})
+	propertyCli := NewController(sqlx.NewMysql(mysqlAddress), go_zero.NewOperator(), test.Property{})
 
 	if num, err := sourceCli(nil).Count(); err != nil {
 		t.Error(err)
@@ -478,7 +478,7 @@ func TestQuery(t *testing.T) {
 }
 
 func TestHandlerError(t *testing.T) {
-	ctl := NewController(sqlx.NewMysql(mysqlAddress), mysqlOp.NewOperator(), test.Source{})
+	ctl := NewController(sqlx.NewMysql(mysqlAddress), go_zero.NewOperator(), test.Source{})
 
 	if _, err := ctl(nil).Filter(Cond{}).Where("").FindOne(); err != nil && err.Error() != fmt.Sprintf(filterOrWhereError, "Filter") {
 		t.Errorf("expect nil but got %v", err)
