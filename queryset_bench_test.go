@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/leisurelicht/norm/operator/mysql" // Import mysql package
+	go_zero "github.com/leisurelicht/norm/operator/mysql/go-zero" // Import mysql package
 )
 
 type MockOperator struct {
-	mysql.Operator // Embed mysql.Operator to inherit its methods
+	go_zero.Operator // Embed mysql.Operator to inherit its methods
 }
 
 // IsSelectKey implements the Operator interface with the correct signature
