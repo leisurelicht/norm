@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	mysqlOp "github.com/leisurelicht/norm/operator/mysql"
+	go_zero "github.com/leisurelicht/norm/operator/mysql/go-zero"
 )
 
 func TestFilter(t *testing.T) {
@@ -166,7 +166,7 @@ func TestFilter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator())
 			p = p.FilterToSQL(tt.args.state, tt.args.filter...)
 			sql, sqlArgs := p.GetQuerySet()
 
@@ -219,7 +219,7 @@ func TestMultipleCallFilter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator())
 			for _, f := range tt.args {
 				p = p.FilterToSQL(f.state, f.filter...)
 			}
@@ -531,7 +531,7 @@ func TestFilterError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator())
 			p = p.FilterToSQL(tt.args.isNot, tt.args.filter...)
 			p.GetQuerySet()
 
@@ -570,7 +570,7 @@ func TestWhere(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator())
 			p.WhereToSQL(tt.args.cond, tt.args.args...)
 
 			sql, sqlArgs := p.GetQuerySet()
@@ -617,7 +617,7 @@ func TestWhereError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator())
 			p.WhereToSQL(tt.args.cond, tt.args.args...)
 
 			sql, sqlArgs := p.GetQuerySet()
@@ -649,7 +649,7 @@ func TestWhereError(t *testing.T) {
 }
 
 func TestFilterAndWhereConflict(t *testing.T) {
-	p := NewQuerySet(mysqlOp.NewOperator())
+	p := NewQuerySet(go_zero.NewOperator())
 	p.WhereToSQL("test = ?", 1)
 	p.FilterToSQL(notNot, Cond{"test": 1})
 	if p.Error() == nil {
@@ -658,7 +658,7 @@ func TestFilterAndWhereConflict(t *testing.T) {
 		t.Errorf("TestFilterAndExcludeConflict not working as expected")
 	}
 
-	p = NewQuerySet(mysqlOp.NewOperator())
+	p = NewQuerySet(go_zero.NewOperator())
 	p.WhereToSQL("test = ?", 1)
 	p.FilterToSQL(isNot, Cond{"test": 1})
 	if p.Error() == nil {
@@ -667,7 +667,7 @@ func TestFilterAndWhereConflict(t *testing.T) {
 		t.Errorf("TestFilterAndExcludeConflict not working as expected")
 	}
 
-	p = NewQuerySet(mysqlOp.NewOperator())
+	p = NewQuerySet(go_zero.NewOperator())
 	p.FilterToSQL(notNot, Cond{"test": 1})
 	p.WhereToSQL("test = ?", 1)
 	if p.Error() == nil {
@@ -701,7 +701,7 @@ func TestSelect(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator())
 
 			sql := p.GetSelectSQL()
 			if sql != "*" {
@@ -752,7 +752,7 @@ func TestSelectError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator())
 
 			sql := p.GetSelectSQL()
 			if sql != "*" {
@@ -870,7 +870,7 @@ func TestLimit(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator())
 			p.LimitToSQL(tt.args.PageSize, tt.args.PageNum)
 			sql := p.GetLimitSQL()
 
@@ -916,7 +916,7 @@ func TestOrderBy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator())
 			p.OrderByToSQL(tt.args.order)
 			sql := p.GetOrderBySQL()
 
@@ -958,7 +958,7 @@ func TestOrderByError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator())
 
 			p.OrderByToSQL(tt.args.selects)
 			sql := p.GetOrderBySQL()
@@ -999,7 +999,7 @@ func TestGroupBy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator())
 			p.GroupByToSQL(tt.args.groupby)
 
 			sql := p.GetGroupBySQL()
@@ -1042,7 +1042,7 @@ func TestGroupByError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator())
 
 			p.GroupByToSQL(tt.args.selects)
 			sql := p.GetGroupBySQL()
@@ -1082,7 +1082,7 @@ func TestHaving(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(mysqlOp.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator())
 			p.HavingToSQL(tt.args.havingSQL, tt.args.havingArgs...)
 
 			sql, sqlArgs := p.GetHavingSQL()
@@ -1105,7 +1105,7 @@ func TestHaving(t *testing.T) {
 }
 
 func TestFilterResetAndError(t *testing.T) {
-	p := NewQuerySet(mysqlOp.NewOperator())
+	p := NewQuerySet(go_zero.NewOperator())
 
 	// Create an error
 	p.SelectToSQL("test")
@@ -1148,7 +1148,7 @@ func TestFilterResetAndError(t *testing.T) {
 
 // Test that multiple call flags are properly set
 func TestMultipleCallFlags(t *testing.T) {
-	p := NewQuerySet(mysqlOp.NewOperator()).(*QuerySetImpl)
+	p := NewQuerySet(go_zero.NewOperator()).(*QuerySetImpl)
 
 	// Test initial state
 	if p.hasCalled(qsFilter) || p.hasCalled(qsExclude) || p.hasCalled(qsWhere) {
