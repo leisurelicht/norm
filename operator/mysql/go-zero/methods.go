@@ -13,16 +13,27 @@ import (
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
+const (
+	placeholder = "?"
+)
+
 type Operator struct {
-	tableName string
+	tableName   string
+	placeholder string
 }
 
 func NewOperator() *Operator {
-	return &Operator{}
+	return &Operator{
+		placeholder: placeholder,
+	}
 }
 
 func (d *Operator) SetTableName(tableName string) {
 	d.tableName = tableName
+}
+
+func (d *Operator) Placeholder() string {
+	return d.placeholder
 }
 
 func (d *Operator) OperatorSQL(operator string) string {
