@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	go_zero "github.com/leisurelicht/norm/operator/mysql/go-zero"
@@ -166,7 +167,8 @@ func TestFilter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			operator := go_zero.NewOperator()
+			p := NewQuerySet(operator)
 			p = p.FilterToSQL(tt.args.state, tt.args.filter...)
 			sql, sqlArgs := p.GetQuerySet()
 
@@ -174,7 +176,8 @@ func TestFilter(t *testing.T) {
 				t.Errorf("TestFilter SQL Occur Error -> error:%+v", p.Error())
 			}
 
-			wantSQL := tt.want.sql
+			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.Placeholder())
+
 			if sql != wantSQL {
 				t.Errorf("TestFilter SQL Gen Error -> sql :%v", sql)
 				t.Errorf("TestFilter SQL Gen Error -> want:%v", wantSQL)
@@ -219,7 +222,8 @@ func TestMultipleCallFilter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			operator := go_zero.NewOperator()
+			p := NewQuerySet(operator)
 			for _, f := range tt.args {
 				p = p.FilterToSQL(f.state, f.filter...)
 			}
@@ -229,7 +233,8 @@ func TestMultipleCallFilter(t *testing.T) {
 				t.Errorf("TestFilter SQL Occur Error -> error:%+v", p.Error())
 			}
 
-			wantSQL := tt.want.sql
+			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.Placeholder())
+
 			if sql != wantSQL {
 				t.Errorf("TestFilter SQL Gen Error -> sql :%v", sql)
 				t.Errorf("TestFilter SQL Gen Error -> want:%v", wantSQL)
@@ -531,7 +536,8 @@ func TestFilterError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			operator := go_zero.NewOperator()
+			p := NewQuerySet(operator)
 			p = p.FilterToSQL(tt.args.isNot, tt.args.filter...)
 			p.GetQuerySet()
 
@@ -570,14 +576,17 @@ func TestWhere(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			operator := go_zero.NewOperator()
+			p := NewQuerySet(operator)
 			p.WhereToSQL(tt.args.cond, tt.args.args...)
 
 			sql, sqlArgs := p.GetQuerySet()
 
-			if sql != tt.want.sql {
+			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.Placeholder())
+
+			if sql != wantSQL {
 				t.Errorf("TestWhere SQL Gen Error -> sql :%v", sql)
-				t.Errorf("TestWhere SQL Gen Error -> want:%v", tt.want.sql)
+				t.Errorf("TestWhere SQL Gen Error -> want:%v", wantSQL)
 			}
 
 			if len(sqlArgs) != len(tt.want.args) {
@@ -617,7 +626,8 @@ func TestWhereError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			operator := go_zero.NewOperator()
+			p := NewQuerySet(operator)
 			p.WhereToSQL(tt.args.cond, tt.args.args...)
 
 			sql, sqlArgs := p.GetQuerySet()
@@ -627,9 +637,11 @@ func TestWhereError(t *testing.T) {
 				t.Errorf("TestWhereError SQL Occur Error -> want:%+v", tt.want.err)
 			}
 
-			if sql != tt.want.sql {
+			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.Placeholder())
+
+			if sql != wantSQL {
 				t.Errorf("TestWhereError SQL Gen Error -> sql :%v", sql)
-				t.Errorf("TestWhereError SQL Gen Error -> want:%v", tt.want.sql)
+				t.Errorf("TestWhereError SQL Gen Error -> want:%v", wantSQL)
 			}
 
 			if len(sqlArgs) != len(tt.want.args) {
@@ -649,7 +661,9 @@ func TestWhereError(t *testing.T) {
 }
 
 func TestFilterAndWhereConflict(t *testing.T) {
-	p := NewQuerySet(go_zero.NewOperator())
+	operator := go_zero.NewOperator()
+
+	p := NewQuerySet(operator)
 	p.WhereToSQL("test = ?", 1)
 	p.FilterToSQL(notNot, Cond{"test": 1})
 	if p.Error() == nil {
@@ -658,7 +672,7 @@ func TestFilterAndWhereConflict(t *testing.T) {
 		t.Errorf("TestFilterAndExcludeConflict not working as expected")
 	}
 
-	p = NewQuerySet(go_zero.NewOperator())
+	p = NewQuerySet(operator)
 	p.WhereToSQL("test = ?", 1)
 	p.FilterToSQL(isNot, Cond{"test": 1})
 	if p.Error() == nil {
@@ -667,7 +681,7 @@ func TestFilterAndWhereConflict(t *testing.T) {
 		t.Errorf("TestFilterAndExcludeConflict not working as expected")
 	}
 
-	p = NewQuerySet(go_zero.NewOperator())
+	p = NewQuerySet(operator)
 	p.FilterToSQL(notNot, Cond{"test": 1})
 	p.WhereToSQL("test = ?", 1)
 	if p.Error() == nil {
@@ -701,7 +715,8 @@ func TestSelect(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			operator := go_zero.NewOperator()
+			p := NewQuerySet(operator)
 
 			sql := p.GetSelectSQL()
 			if sql != "*" {
@@ -712,9 +727,10 @@ func TestSelect(t *testing.T) {
 			p.SelectToSQL(tt.args.selects)
 			sql = p.GetSelectSQL()
 
-			if sql != tt.want.sql {
+			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.Placeholder())
+			if sql != wantSQL {
 				t.Errorf("TestSelect SQL Gen Error -> sql : %v", sql)
-				t.Errorf("TestSelect SQL Gen Error -> want: %v", tt.want.sql)
+				t.Errorf("TestSelect SQL Gen Error -> want: %v", wantSQL)
 			}
 		})
 	}
@@ -1082,7 +1098,8 @@ func TestHaving(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			operator := go_zero.NewOperator()
+			p := NewQuerySet(operator)
 			p.HavingToSQL(tt.args.havingSQL, tt.args.havingArgs...)
 
 			sql, sqlArgs := p.GetHavingSQL()
@@ -1091,9 +1108,11 @@ func TestHaving(t *testing.T) {
 				t.Errorf("TestHaving SQL Occur Error -> error:%+v", p.Error())
 			}
 
-			if sql != tt.want.havingSQL {
+			wantSQL := strings.ReplaceAll(tt.want.havingSQL, "?", operator.Placeholder())
+
+			if sql != wantSQL {
 				t.Errorf("TestHaving SQL Gen Error -> sql :%v", sql)
-				t.Errorf("TestHaving SQL Gen Error -> want:%v", tt.want.havingSQL)
+				t.Errorf("TestHaving SQL Gen Error -> want:%v", wantSQL)
 			}
 
 			if !reflect.DeepEqual(sqlArgs, tt.want.havingArgs) {
