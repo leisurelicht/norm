@@ -447,7 +447,7 @@ Some methods have restrictions when used with certain operations:
 - **Exist**: Not supported - GroupBy, Select
 - **Count**: Supports all filter methods
 
-### Advanced Operations
+### Compound Operations
 
 - **GetOrCreate**: Not supported - Select, GroupBy, Having. Uses data map fields as filter conditions.
 - **CreateOrUpdate**: Not supported - Select, GroupBy, Having. Requires existing filter conditions.
