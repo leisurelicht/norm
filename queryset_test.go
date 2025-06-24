@@ -224,6 +224,7 @@ func TestMultipleCallFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			operator := go_zero.NewOperator()
 			p := NewQuerySet(operator)
+      
 			for _, f := range tt.args {
 				p = p.FilterToSQL(f.state, f.filter...)
 			}
@@ -578,6 +579,7 @@ func TestWhere(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			operator := go_zero.NewOperator()
 			p := NewQuerySet(operator)
+
 			p.WhereToSQL(tt.args.cond, tt.args.args...)
 
 			sql, sqlArgs := p.GetQuerySet()
@@ -662,7 +664,6 @@ func TestWhereError(t *testing.T) {
 
 func TestFilterAndWhereConflict(t *testing.T) {
 	operator := go_zero.NewOperator()
-
 	p := NewQuerySet(operator)
 	p.WhereToSQL("test = ?", 1)
 	p.FilterToSQL(notNot, Cond{"test": 1})
@@ -1100,6 +1101,7 @@ func TestHaving(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			operator := go_zero.NewOperator()
 			p := NewQuerySet(operator)
+
 			p.HavingToSQL(tt.args.havingSQL, tt.args.havingArgs...)
 
 			sql, sqlArgs := p.GetHavingSQL()
