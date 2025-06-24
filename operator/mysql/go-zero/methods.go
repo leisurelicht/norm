@@ -13,6 +13,11 @@ import (
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
+// NewMysql returns a mysql connection.
+func NewMysql(datasource string, opts ...sqlx.SqlOption) sqlx.SqlConn {
+	return sqlx.NewMysql(datasource, opts...)
+}
+
 const (
 	placeholder = "?"
 )
