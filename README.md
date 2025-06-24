@@ -4,22 +4,465 @@
 
 ## Features
 
-- Chainable query building API with intuitive methods
-- Rich set of filter operators for complex query conditions
-- Simple and efficient CRUD operations
-- Automatic struct-to-table mapping with customizable tags
-- Transaction support
-- Customizable query operators for different database engines
-- Optimized query generation with minimal allocations
-- Built-in pagination support
+- **Chainable Query Building**: Intuitive fluent API for building complex queries
+- **Rich Filter Operators**: Comprehensive set of operators for complex query conditions
+- **Multiple Database Support**: MySQL, ClickHouse with extensible operator system
+- **CRUD Operations**: Simple and efficient Create, Read, Update, Delete operations
+- **Automatic Struct Mapping**: Struct-to-table mapping with customizable `db` tags
+- **Transaction Support**: Built-in transaction handling
+- **Pagination Support**: Easy pagination with Limit and OrderBy
+- **Aggregation**: GroupBy, Having clauses for complex queries
+- **Bulk Operations**: Efficient bulk insert and update operations
 
 ## Installation
 
-```go
-go get github.com/username/norm
+```bash
+go get github.com/leisurelicht/norm
 ```
 
 ## Quick Start
+
+### Define Your Model
+
+```go
+package main
+
+import (
+    "context"
+    "time"
+    
+    "github.com/leisurelicht/norm"
+    "github.com/zeromicro/go-zero/core/stores/sqlx"
+    go_zero "github.com/leisurelicht/norm/operator/mysql/go-zero"
+)
+
+// User model with db tags
+type User struct {
+    ID          int64     `db:"id"`
+    Name        string    `db:"name"`
+    Email       string    `db:"email"`
+    Age         int       `db:"age"`
+    IsActive    bool      `db:"is_active"`
+    CreatedAt   time.Time `db:"created_at"`
+    UpdatedAt   time.Time `db:"updated_at"`
+    IsDeleted   bool      `db:"is_deleted"`
+}
+```
+
+### Initialize Controller
+
+```go
+func main() {
+    // Initialize database connection
+    db := sqlx.NewMysql("user:password@tcp(localhost:3306)/database")
+    
+    // Create controller with go-zero operator
+    userController := norm.NewController(db, go_zero.NewOperator(), User{})
+    
+    ctx := context.Background()
+    
+    // Now you can use the controller
+    users, err := userController(ctx).Filter(norm.Cond{"is_active": true}).FindAll()
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Printf("Found %d active users\n", len(users))
+}
+```
+
+## Core Concepts
+
+### 1. Conditions (Cond, AND, OR)
+
+```go
+// Basic condition
+userController(ctx).Filter(norm.Cond{"name": "John"})
+
+// Multiple conditions with AND (default)
+userController(ctx).Filter(
+    norm.Cond{"age__gte": 18},
+    norm.AND{"is_active": true},
+)
+
+// OR conditions
+userController(ctx).Filter(
+    norm.Cond{"name": "John"},
+    norm.OR{"email__contains": "gmail"},
+)
+
+// Complex nested conditions
+userController(ctx).Filter(
+    norm.Cond{"age__between": []int{18, 65}},
+    norm.AND{"is_active": true},
+    norm.OR{"name__startswith": "J"},
+)
+```
+
+### 2. Filter Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `exact` (default) | Exact match | `{"name": "John"}` |
+| `exclude` | Not equal | `{"name__exclude": "John"}` |
+| `iexact` | Case-insensitive exact | `{"name__iexact": "john"}` |
+| `gt` | Greater than | `{"age__gt": 18}` |
+| `gte` | Greater than or equal | `{"age__gte": 18}` |
+| `lt` | Less than | `{"age__lt": 65}` |
+| `lte` | Less than or equal | `{"age__lte": 65}` |
+| `in` | In list | `{"id__in": []int{1,2,3}}` |
+| `not_in` | Not in list | `{"id__not_in": []int{1,2,3}}` |
+| `between` | Between values | `{"age__between": []int{18,65}}` |
+| `not_between` | Not between values | `{"age__not_between": []int{18,65}}` |
+| `contains` | String contains | `{"name__contains": "oh"}` |
+| `not_contains` | String does not contain | `{"name__not_contains": "oh"}` |
+| `icontains` | Case-insensitive contains | `{"name__icontains": "OH"}` |
+| `not_icontains` | Case-insensitive not contains | `{"name__not_icontains": "OH"}` |
+| `startswith` | String starts with | `{"name__startswith": "Jo"}` |
+| `not_startswith` | String does not start with | `{"name__not_startswith": "Jo"}` |
+| `istartswith` | Case-insensitive starts with | `{"name__istartswith": "jo"}` |
+| `not_istartswith` | Case-insensitive not starts with | `{"name__not_istartswith": "jo"}` |
+| `endswith` | String ends with | `{"name__endswith": "hn"}` |
+| `not_endswith` | String does not end with | `{"name__not_endswith": "hn"}` |
+| `iendswith` | Case-insensitive ends with | `{"name__iendswith": "HN"}` |
+| `not_iendswith` | Case-insensitive not ends with | `{"name__not_iendswith": "HN"}` |
+| `len` | String/field length | `{"name__len": 4}` |
+
+### 3. Special Condition Features
+
+```go
+// Using SortKey to control field order in SQL generation
+userController(ctx).Filter(norm.Cond{
+    norm.SortKey: []string{"name", "email"},
+    "name": "John",
+    "email": "john@example.com",
+})
+
+// Using OR prefix (| ) to make specific field OR within same condition
+userController(ctx).Filter(norm.Cond{
+    "name": "John",
+    "| email": "john@example.com", // name = 'John' OR email = 'john@example.com'
+})
+
+// EachOR - Convert all fields in condition to OR
+userController(ctx).Filter(norm.EachOR(norm.Cond{
+    "name": "John",
+    "email": "john@example.com", // name = 'John' OR email = 'john@example.com'
+}))
+```
+
+## CRUD Operations
+
+### Create
+
+```go
+// Create single record
+id, err := userController(ctx).Create(map[string]any{
+    "name": "John Doe",
+    "email": "john@example.com",
+    "age": 25,
+    "is_active": true,
+})
+
+// Create from struct
+user := User{
+    Name: "Jane Doe",
+    Email: "jane@example.com",
+    Age: 28,
+    IsActive: true,
+}
+id, err := userController(ctx).Create(&user)
+
+// Bulk create
+users := []map[string]any{
+    {"name": "User1", "email": "user1@example.com", "age": 20},
+    {"name": "User2", "email": "user2@example.com", "age": 25},
+}
+count, err := userController(ctx).Create(users)
+```
+
+### Read
+
+```go
+// Find single record
+user, err := userController(ctx).Filter(norm.Cond{"id": 1}).FindOne()
+
+// Find into struct
+var user User
+err := userController(ctx).Filter(norm.Cond{"id": 1}).FindOneModel(&user)
+
+// Find all records
+users, err := userController(ctx).Filter(norm.Cond{"is_active": true}).FindAll()
+
+// Find all into struct slice
+var users []User
+err := userController(ctx).Filter(norm.Cond{"is_active": true}).FindAllModel(&users)
+
+// Count records
+count, err := userController(ctx).Filter(norm.Cond{"is_active": true}).Count()
+
+// Check existence
+exists, err := userController(ctx).Filter(norm.Cond{"email": "john@example.com"}).Exist()
+```
+
+### Update
+
+```go
+// Update records
+count, err := userController(ctx).
+    Filter(norm.Cond{"id": 1}).
+    Update(map[string]any{"name": "Updated Name"})
+
+// Update multiple records
+count, err := userController(ctx).
+    Filter(norm.Cond{"is_active": false}).
+    Update(map[string]any{"is_active": true})
+```
+
+### Delete
+
+```go
+// Soft delete (sets is_deleted = true)
+count, err := userController(ctx).Filter(norm.Cond{"id": 1}).Delete()
+
+// Hard delete (removes from database)
+count, err := userController(ctx).Filter(norm.Cond{"id": 1}).Remove()
+```
+
+## Advanced Operations
+
+### Pagination and Ordering
+
+```go
+// Order by single field
+users, err := userController(ctx).
+    OrderBy("name").
+    FindAll()
+
+// Order by multiple fields
+users, err := userController(ctx).
+    OrderBy([]string{"age", "-created_at"}). // ASC, DESC
+    FindAll()
+
+// Pagination (requires OrderBy)
+users, err := userController(ctx).
+    OrderBy("id").
+    Limit(10, 1). // page size 10, page 1
+    FindAll()
+```
+
+### Selection and Grouping
+
+```go
+// Select specific columns
+users, err := userController(ctx).
+    Select([]string{"name", "email"}).
+    FindAll()
+
+// Select with string
+users, err := userController(ctx).
+    Select("name, email, age").
+    FindAll()
+
+// Group by with aggregation
+type AgeGroup struct {
+    Age   int `db:"age"`
+    Count int `db:"count"`
+}
+
+var ageGroups []AgeGroup
+err := userController(ctx).
+    Select("age, COUNT(*) as count").
+    GroupBy("age").
+    FindAllModel(&ageGroups)
+
+// Group by with having
+err := userController(ctx).
+    Select("age, COUNT(*) as count").
+    GroupBy("age").
+    Having("COUNT(*) > ?", 5).
+    FindAllModel(&ageGroups)
+```
+
+### Exclude Conditions
+
+```go
+// Exclude is the opposite of Filter
+users, err := userController(ctx).
+    Exclude(norm.Cond{"is_active": false}).
+    FindAll()
+
+// Equivalent to
+users, err := userController(ctx).
+    Filter(norm.Cond{"is_active__exclude": false}).
+    FindAll()
+```
+
+### Raw SQL Conditions
+
+```go
+// Use Where for raw SQL
+users, err := userController(ctx).
+    Where("age > ? AND name LIKE ?", 18, "%John%").
+    FindAll()
+
+// Note: Where and Filter/Exclude cannot be used together
+```
+
+### Advanced CRUD Operations
+
+```go
+// Get or Create - Uses data map fields as filter conditions automatically
+user, err := userController(ctx).GetOrCreate(map[string]any{
+    "email": "new@example.com",
+    "name": "New User",
+    "age": 25,
+})
+
+// Create or Update - Requires existing filter conditions
+created, count, err := userController(ctx).
+    Filter(norm.Cond{"email": "user@example.com"}).
+    CreateOrUpdate(map[string]any{
+        "name": "Updated Name",
+        "age": 30,
+    })
+
+// Create if not exists -Uses data map fields as filter conditions automatically
+id, created, err := userController(ctx).CreateIfNotExist(map[string]any{
+    "email": "unique@example.com",
+    "name": "Unique User",
+})
+
+// List with count and data
+total, users, err := userController(ctx).
+    Filter(norm.Cond{"is_active": true}).
+    OrderBy("name").
+    List()
+```
+
+## Database Support
+
+### MySQL with go-zero
+
+```go
+import (
+    "github.com/zeromicro/go-zero/core/stores/sqlx"
+    go_zero "github.com/leisurelicht/norm/operator/mysql/go-zero"
+)
+
+db := sqlx.NewMysql("connection_string")
+controller := norm.NewController(db, go_zero.NewOperator(), YourModel{})
+```
+
+### MySQL with sqlx
+
+```go
+import (
+    sqlx_op "github.com/leisurelicht/norm/operator/mysql/sqlx"
+)
+
+// Use with database/sql or jmoiron/sqlx
+controller := norm.NewController(db, sqlx_op.NewOperator(), YourModel{})
+```
+
+### ClickHouse
+
+```go
+import (
+    clickhouse_op "github.com/leisurelicht/norm/operator/clickhouse"
+)
+
+controller := norm.NewController(db, clickhouse_op.NewOperator(), YourModel{})
+```
+
+## Error Handling
+
+```go
+import (
+    "errors"
+    "github.com/leisurelicht/norm"
+)
+
+// Check for specific errors
+user, err := userController(ctx).Filter(norm.Cond{"id": 999}).FindOne()
+if errors.Is(err, norm.ErrNotFound) {
+    // Handle not found
+    fmt.Println("User not found")
+} else if errors.Is(err, norm.ErrDuplicateKey) {
+    // Handle duplicate key
+    fmt.Println("Duplicate key error")
+} else if err != nil {
+    // Handle other errors
+    fmt.Printf("Error: %v\n", err)
+}
+
+// Note: FindOne returns empty map[string]any{} when no record is found (no error)
+// ErrNotFound is only returned by FindOneModel and FindAllModel when used with struct pointers
+```
+
+## Struct Tags
+
+Use `db` tags to map struct fields to database columns:
+
+```go
+type User struct {
+    ID          int64      `db:"id"`
+    Name        string     `db:"name"`
+    Email       string     `db:"email"`
+    IgnoreField string     `db:"-"`           // Ignored field
+    CustomName  string     `db:"custom_col"`  // Custom column name
+    WithOptions string     `db:"col,type=varchar,length=100"` // With options
+}
+```
+
+## Best Practices
+
+1. **Always use context**: Pass context to controller functions
+2. **Handle errors**: Check and handle errors appropriately
+3. **Use transactions**: For operations that need atomicity
+4. **Validate input**: Validate data before database operations
+5. **Use struct models**: Prefer struct models over maps for type safety
+6. **Order dependencies**: Call OrderBy before Limit for pagination
+7. **Filter vs Where**: Cannot use Filter/Exclude and Where in the same query
+8. **Method restrictions**: Some methods like GroupBy, Select are not supported for certain operations (Create, Update, Delete)
+
+## Method Restrictions
+
+Some methods have restrictions when used with certain operations:
+
+### Create Operations
+
+- **Not supported**: Filter, Exclude, Where, Select, OrderBy, GroupBy, Having, Limit
+
+### Update/Delete/Remove Operations  
+
+- **Update**: Not supported - Select, GroupBy, Having
+- **Delete**: Not supported - GroupBy, Select, OrderBy
+- **Remove**: Not supported - Select, GroupBy, Having
+
+### Query Operations
+
+- **FindOne/FindAll**: Not supported - Select and GroupBy together, Having without GroupBy
+- **FindOneModel/FindAllModel**: Supports all query methods
+- **Exist**: Not supported - GroupBy, Select
+- **Count**: Supports all filter methods
+
+### Advanced Operations
+
+- **GetOrCreate**: Not supported - Select, GroupBy, Having. Uses data map fields as filter conditions.
+- **CreateOrUpdate**: Not supported - Select, GroupBy, Having. Requires existing filter conditions.
+- **CreateIfNotExist**: Not supported - Select, GroupBy, Having. Automatically adds filter from data map.
+
+### Important Notes
+
+1. **Limit dependency**: Limit can only be used after OrderBy
+2. **Where vs Filter/Exclude**: Cannot use Where with Filter or Exclude in the same query
+3. **Column validation**: Select, OrderBy, and GroupBy validate column names against model fields
+4. **FindOne vs FindOneModel**: FindOne returns empty map when not found, FindOneModel returns ErrNotFound
+
+## Examples
+
+### Complete CRUD Example
 
 ```go
 package main
@@ -27,495 +470,85 @@ package main
 import (
     "context"
     "fmt"
+    "log"
     "time"
-    
-    "github.com/username/norm"
+
+    "github.com/leisurelicht/norm"
     "github.com/zeromicro/go-zero/core/stores/sqlx"
+    go_zero "github.com/leisurelicht/norm/operator/mysql/go-zero"
 )
 
-// Define your model
 type User struct {
-    Id        int64     `db:"id"`
-    Username  string    `db:"username"`
+    ID        int64     `db:"id"`
+    Name      string    `db:"name"`
     Email     string    `db:"email"`
+    Age       int       `db:"age"`
+    IsActive  bool      `db:"is_active"`
     CreatedAt time.Time `db:"created_at"`
     IsDeleted bool      `db:"is_deleted"`
 }
 
 func main() {
-    // Connect to database
-    conn := sqlx.NewMysql("user:password@tcp(localhost:3306)/dbname")
-    
-    // Create controller
-    userCtrl := norm.NewController(conn, mysqlOp.NewOperator(), User{})
-    
-    // Use controller with context
+    // Initialize
+    db := sqlx.NewMysql("user:pass@tcp(localhost:3306)/testdb")
+    userCtl := norm.NewController(db, go_zero.NewOperator(), User{})
     ctx := context.Background()
-    ctrl := userCtrl(ctx)
-    
-    // Create a new user
-    user := User{
-        Username:  "johndoe",
-        Email:     "john@example.com",
-        CreatedAt: time.Now(),
-        IsDeleted: false,
-    }
-    
-    id, err := ctrl.InsertModel(user)
+
+    // Create user
+    id, err := userCtl(ctx).Create(map[string]any{
+        "name":       "John Doe",
+        "email":      "john@example.com",
+        "age":        25,
+        "is_active":  true,
+        "created_at": time.Now(),
+    })
     if err != nil {
-        panic(err)
+        log.Fatal(err)
     }
     fmt.Printf("Created user with ID: %d\n", id)
-    
-    // Find users with complex filters
-    result, err := ctrl.Filter(
-        norm.AND{"username__startswith": "john", "is_deleted": false},
-        norm.OR{"email__contains": "@example.com"},
-    ).FindAll()
-    
-    if err != nil {
-        panic(err)
-    }
-    
-    for _, user := range result {
-        fmt.Printf("Found user: %v\n", user)
-    }
-}
-```
 
-## Core Concepts
-
-### Controller
-
-The Controller is the main entry point for database operations. It provides methods for querying, inserting, updating, and deleting records.
-
-### QuerySet
-
-QuerySet provides a fluent API for building SQL queries with conditions, ordering, limits, etc. It handles the construction of SQL statements and parameter binding.
-
-### Operator
-
-Operators handle the actual database operations, allowing for customization of how queries are executed for different database systems.
-
-## API Reference
-
-### Creating a Controller
-
-```go
-// Create a controller factory for a specific model
-userCtrl := norm.NewController(conn, mysqlOp.NewOperator(), User{})
-
-// Create a controller instance with context
-ctrl := userCtrl(context.Background())
-```
-
-### Basic CRUD Operations
-
-#### Insert
-
-```go
-// Insert using a map
-id, err := ctrl.Insert(map[string]any{
-    "username": "johndoe",
-    "email": "john@example.com",
-    "created_at": time.Now(),
-    "is_deleted": false,
-})
-
-// Insert using a struct
-id, err := ctrl.InsertModel(user)
-```
-
-#### Find
-
-```go
-// Find all records
-results, err := ctrl.FindAll()
-
-// Find all records and map to structs
-var users []User
-err := ctrl.FindAllModel(&users)
-
-// Find one record
-result, err := ctrl.FindOne()
-
-// Find one record and map to struct
-var user User
-err := ctrl.FindOneModel(&user)
-```
-
-#### Update
-
-```go
-// Update records matching the filter
-num, err := ctrl.Filter(norm.AND{"id": 1}).Update(map[string]any{
-    "username": "newusername",
-})
-
-// Update with exclude - update all fields except specified ones
-num, err := ctrl.Exclude(norm.AND{"updated_at": time.Now()}).Update(userData)
-
-// Modify - automatically excludes the filter fields from update data
-num, err := ctrl.Modify(map[string]any{"status": "active", "id": 1}) // Won't update the "id" field
-```
-
-#### Delete
-
-```go
-// Soft delete (setting is_deleted to true)
-num, err := ctrl.Filter(norm.AND{"id": 1}).Delete()
-
-// Hard delete (removing from database)
-num, err := ctrl.Filter(norm.AND{"id": 1}).Remove()
-```
-
-### Advanced Query Operations
-
-#### Get or Create
-
-```go
-// Try to find a record, create it if not exist
-result, err := ctrl.GetOrCreate(map[string]any{
-    "username": "johndoe",
-    "email": "john@example.com",
-})
-```
-
-#### Create or Update
-
-```go
-// Create a record if it doesn't exist, otherwise update it
-created, id, err := ctrl.CreateOrUpdate(
-    map[string]any{"email": "updated@example.com"}, // data to insert/update
-    norm.AND{"username": "johndoe"}, // filter criteria
-)
-```
-
-#### Create If Not Exist
-
-```go
-// Only create if record doesn't exist
-id, created, err := ctrl.CreateIfNotExist(map[string]any{
-    "username": "unique_user",
-    "email": "unique@example.com",
-})
-```
-
-### Filters and Conditions
-
-`norm` supports a variety of filter operators:
-
-| Operator | Description | Example |
-|----------|-------------|---------|
-| exact | Exact match (default) | `"username": "johndoe"` |
-| iexact | Case-insensitive exact match | `"username__iexact": "johndoe"` |
-| gt | Greater than | `"age__gt": 18` |
-| gte | Greater than or equal | `"age__gte": 18` |
-| lt | Less than | `"age__lt": 65` |
-| lte | Less than or equal | `"age__lte": 65` |
-| len | String length equals | `"username__len": 8` |
-| in | In a list | `"status__in": []string{"active", "pending"}` |
-| between | Between two values | `"age__between": []int{18, 65}` |
-| contains | Contains string (case sensitive) | `"username__contains": "john"` |
-| icontains | Case-insensitive contains | `"username__icontains": "john"` |
-| startswith | Starts with string (case sensitive) | `"username__startswith": "j"` |
-| istartswith | Case-insensitive starts with | `"username__istartswith": "j"` |
-| endswith | Ends with string (case sensitive) | `"email__endswith": ".com"` |
-| iendswith | Case-insensitive ends with | `"email__iendswith": ".COM"` |
-
-#### Using NOT Operators
-
-All operators can be negated by prefixing them with `not_`:
-
-```go
-// Find users whose username doesn't contain "admin"
-result, err := ctrl.Filter(norm.AND{"username__not_contains": "admin"}).FindAll()
-
-// Find users who aren't in the specified ID list
-result, err := ctrl.Filter(norm.AND{"id__not_in": []int64{1, 2, 3}}).FindAll()
-```
-
-#### Using AND/OR Conditions
-
-```go
-// Complex filtering with AND/OR combinations
-result, err := ctrl.Filter(
-    "AND", // Default conjunction is AND
-    norm.AND{"username__startswith": "john", "is_deleted": false},
-    norm.OR{"email__contains": "@example.com", "email__contains": "@company.com"},
-).FindAll()
-
-// Converting map keys to use OR logic
-orConditions := norm.EachOR(norm.AND{
-    "username__contains": "john",
-    "email__contains": "john",
-}) // Both conditions will use OR instead of AND
-result, err := ctrl.Filter(orConditions).FindAll()
-
-// Convert a single key to use OR logic
-result, err := ctrl.Filter(norm.AND{
-    "username": "john",
-    norm.ToOR("email"): "john@example.com",
-}).FindAll() // username=john OR email=john@example.com
-```
-
-### Working with Direct SQL
-
-```go
-// Use raw WHERE condition
-results, err := ctrl.Where("username = ? OR email LIKE ?", "john", "%@example.com%").FindAll()
-```
-
-### Ordering, Limit, and Pagination
-
-```go
-// Order by fields (prefix with - for descending)
-results, err := ctrl.OrderBy([]string{"created_at", "-username"}).FindAll()
-
-// String-based ordering
-results, err := ctrl.OrderBy("created_at ASC, username DESC").FindAll()
-
-// Limit and pagination (pageSize, pageNumber)
-results, err := ctrl.Limit(10, 1).FindAll() // 10 records per page, first page
-
-// Combined example with filtering, ordering, and pagination
-results, err := ctrl.Filter(norm.AND{"is_deleted": false})
-                   .OrderBy([]string{"created_at", "-username"})
-                   .Limit(10, 2) // Second page
-                   .FindAll()
-```
-
-### Selecting Specific Columns
-
-```go
-// Select specific columns
-results, err := ctrl.Select([]string{"id", "username", "email"}).FindAll()
-
-// String-based select
-results, err := ctrl.Select("id, username, COUNT(*) as user_count").FindAll()
-
-// Select with joins
-results, err := ctrl.Select("u.id, u.username, p.name as profile_name")
-                   .Where("u.id = p.user_id")
-                   .FindAll()
-```
-
-### Group By and Having
-
-```go
-// Group by with having clause
-results, err := ctrl.GroupBy([]string{"status"})
-                   .Having("COUNT(*) > ?", 5)
-                   .FindAll()
-
-// String-based grouping
-results, err := ctrl.GroupBy("status, created_at")
-                   .Having("COUNT(*) > ? AND MAX(score) > ?", 5, 80)
-                   .FindAll()
-```
-
-### Transactions
-
-```go
-session := sqlx.NewSession(conn)
-err := session.TransactCtx(context.Background(), func(ctx context.Context, s sqlx.Session) error {
-    ctrl := userCtrl(ctx).WithSession(s)
-    
-    // Perform operations within transaction
-    id, err := ctrl.Insert(map[string]any{"username": "transaction_user"})
-    if err != nil {
-        return err // Transaction will be rolled back
-    }
-    
-    // Update another record in the same transaction
-    _, err = ctrl.Reset().Filter(norm.AND{"id": id}).Update(map[string]any{
-        "email": fmt.Sprintf("tx_%d@example.com", id)
-    })
-    if err != nil {
-        return err // Transaction will be rolled back
-    }
-    
-    return nil // Transaction will be committed
-})
-```
-
-### Other Utility Methods
-
-```go
-// Check if a record exists
-exists, err := ctrl.Filter(norm.AND{"username": "johndoe"}).Exist()
-
-// Get count of records
-count, err := ctrl.Filter(norm.AND{"is_deleted": false}).Count()
-
-// Get column-to-column mapping (useful for lookups)
-// Returns a map where keys are values from column1 and values are from column2
-map, err := ctrl.GetC2CMap("id", "username")
-// Result: map[1:"john" 2:"jane" 3:"bob"]
-
-// List with pagination (returns total count and paginated data)
-total, data, err := ctrl.Filter(norm.AND{"is_deleted": false})
-                     .OrderBy([]string{"created_at"})
-                     .Limit(10, 1)
-                     .List()
-
-// GetOrCreate finds a record matching the criteria or creates it if not found
-result, err := ctrl.GetOrCreate(map[string]any{
-    "username": "johndoe",
-    "email": "john@example.com",
-})
-
-// CreateOrUpdate creates a record if it doesn't exist, otherwise updates it
-// Returns: created (bool), id/affected rows (int64), error
-created, id, err := ctrl.CreateOrUpdate(
-    map[string]any{"email": "updated@example.com"}, // data to insert/update
-    norm.AND{"username": "johndoe"}, // filter criteria
-)
-
-// CreateIfNotExist only creates a record if one matching the criteria doesn't exist
-// Returns: id (int64), created (bool), error
-id, created, err := ctrl.CreateIfNotExist(map[string]any{
-    "username": "unique_user",
-    "email": "unique@example.com",
-})
-
-// Modify - automatically excludes the filter fields from update data
-// Useful for updating records while preventing certain fields from being changed
-num, err := ctrl.Modify(map[string]any{
-    "status": "active", 
-    "id": 1, // The id field will be used as a filter and not updated
-})
-```
-
-### Transaction with Multiple Operations
-
-For more complex transactions that involve multiple operations:
-
-```go
-err := session.TransactCtx(context.Background(), func(ctx context.Context, s sqlx.Session) error {
-    // Create controller with session
-    ctrl := userCtrl(ctx).WithSession(s)
-    
-    // 1. Insert a new user
-    userData := map[string]any{
-        "username": "new_user",
-        "email": "new@example.com",
-        "created_at": time.Now(),
-    }
-    userId, err := ctrl.Insert(userData)
-    if err != nil {
-        return err
-    }
-    
-    // 2. Create related user profile
-    profileCtrl := profileCtrl(ctx).WithSession(s)
-    profileId, err := profileCtrl.Insert(map[string]any{
-        "user_id": userId,
-        "display_name": "New User",
-        "created_at": time.Now(),
-    })
-    if err != nil {
-        return err
-    }
-    
-    // 3. Update user with profile reference
-    _, err = ctrl.Reset().Filter(norm.AND{"id": userId}).Update(map[string]any{
-        "profile_id": profileId,
-        "status": "active",
-    })
-    if err != nil {
-        return err
-    }
-    
-    // All operations succeeded - transaction will commit
-    return nil
-})
-
-if err != nil {
-    // Handle transaction error
-    log.Printf("Transaction failed: %v", err)
-}
-```
-
-## Extending Norm
-
-### Custom Operators
-
-You can implement the `Operator` interface to customize how SQL operations are executed:
-
-```go
-type CustomOperator struct {
-    norm.Operator
-    // Add custom fields
-}
-
-func (op *CustomOperator) Insert(ctx context.Context, conn any, query string, args ...any) (int64, error) {
-    // Custom insert logic
-    log.Printf("Executing insert query: %s with args: %v", query, args)
-    // ...
-    return op.Operator.Insert(ctx, conn, query, args...)
-}
-```
-
-## Best Practices
-
-1. **Use struct tags:** Always define `db` tags on your struct fields for proper mapping.
-2. **Validate input:** Check for errors on all database operations.
-3. **Use transactions:** For operations that require atomicity.
-4. **Use Reset:** Call `Reset()` before reusing a controller for a new query chain.
-5. **Avoid unnecessary queries:** Use methods like `Exist()` instead of retrieving and checking records.
-6. **Leverage batch operations:** Use `BulkInsert` and similar methods for better performance.
-7. **Monitor query performance:** Use the testing utilities to identify slow queries.
-
-## Common Patterns
-
-### Repository Pattern
-
-```go
-// UserRepository handles all database operations for users
-type UserRepository struct {
-    ctrl func(context.Context) norm.Controller
-}
-
-func NewUserRepository(conn sqlx.SqlConn) *UserRepository {
-    return &UserRepository{
-        ctrl: norm.NewController(conn, mysqlOp.NewOperator(), User{}),
-    }
-}
-
-func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*User, error) {
+    // Find user
     var user User
-    err := r.ctrl(ctx).Filter(norm.AND{"username": username}).FindOneModel(&user)
+    err = userCtl(ctx).Filter(norm.Cond{"id": id}).FindOneModel(&user)
     if err != nil {
-        return nil, err
+        log.Fatal(err)
     }
-    return &user, nil
-}
+    fmt.Printf("Found user: %+v\n", user)
 
-func (r *UserRepository) Create(ctx context.Context, user *User) (int64, error) {
-    return r.ctrl(ctx).InsertModel(user)
+    // Update user
+    count, err := userCtl(ctx).
+        Filter(norm.Cond{"id": id}).
+        Update(map[string]any{"age": 26})
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Printf("Updated %d records\n", count)
+
+    // Find active users with pagination
+    var users []User
+    err = userCtl(ctx).
+        Filter(norm.Cond{"is_active": true}).
+        OrderBy("name").
+        Limit(10, 1).
+        FindAllModel(&users)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Printf("Found %d active users\n", len(users))
+
+    // Soft delete
+    count, err = userCtl(ctx).Filter(norm.Cond{"id": id}).Delete()
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Printf("Soft deleted %d records\n", count)
 }
 ```
 
-### Working with Time Fields
+## Contributing
 
-```go
-// Find records created in the last 24 hours
-yesterday := time.Now().AddDate(0, 0, -1)
-results, err := ctrl.Filter(norm.AND{"created_at__gte": yesterday}).FindAll()
-
-// Find records between two dates
-start := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
-end := time.Date(2023, 12, 31, 23, 59, 59, 0, time.UTC)
-results, err := ctrl.Filter(
-    norm.AND{"created_at__between": []time.Time{start, end}}
-).FindAll()
-```
-
-## Testing
-
-For information about testing and benchmarking, see [README_TEST.md](README_TEST.md).
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-[MIT License](LICENSE)
+This project is licensed under the MIT License.
