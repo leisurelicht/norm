@@ -20,6 +20,7 @@ func NewMysql(datasource string, opts ...sqlx.SqlOption) sqlx.SqlConn {
 
 const (
 	placeholder = "?"
+	dbTag       = "db"
 )
 
 type Operator struct {
@@ -39,6 +40,10 @@ func (d *Operator) SetTableName(tableName string) {
 
 func (d *Operator) Placeholder() string {
 	return d.placeholder
+}
+
+func (d *Operator) DBTag() string {
+	return dbTag
 }
 
 func (d *Operator) OperatorSQL(operator string) string {

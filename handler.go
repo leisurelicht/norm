@@ -9,12 +9,11 @@ import (
 )
 
 const (
-	DefaultModelTag = "db"
-	Asterisk        = "*"
-	SelectTemp      = "SELECT %s FROM %s"
-	InsertTemp      = "INSERT INTO %s (%s) VALUES (%s)"
-	UpdateTemp      = "UPDATE %s SET %s"
-	DeleteTemp      = "DELETE FROM %s"
+	Asterisk   = "*"
+	SelectTemp = "SELECT %s FROM %s"
+	InsertTemp = "INSERT INTO %s (%s) VALUES (%s)"
+	UpdateTemp = "UPDATE %s SET %s"
+	DeleteTemp = "DELETE FROM %s"
 )
 
 const (
@@ -109,7 +108,7 @@ func NewController(conn any, op Operator, m any) func(ctx context.Context) Contr
 	// for it will check type of the m(model) is a struct
 	mPtr, mSlicePtr := createModelPointerAndSlice(m)
 
-	fieldNameSlice := rawFieldNames(m, DefaultModelTag, true)
+	fieldNameSlice := rawFieldNames(m, op.DBTag(), true)
 
 	tableName := shiftName(reflect.TypeOf(m).Name())
 
@@ -128,8 +127,8 @@ func NewController(conn any, op Operator, m any) func(ctx context.Context) Contr
 			tableName:      tableName,
 			fieldNameMap:   strSlice2Map(fieldNameSlice),
 			fieldNameSlice: fieldNameSlice,
-			fieldRows:      strings.Join(rawFieldNames(m, DefaultModelTag, false), ","),
-			mTag:           DefaultModelTag,
+			fieldRows:      strings.Join(rawFieldNames(m, op.DBTag(), false), ","),
+			mTag:           op.DBTag(),
 			qs:             NewQuerySet(op),
 			called:         0,
 		}

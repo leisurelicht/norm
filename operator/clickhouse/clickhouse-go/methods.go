@@ -23,6 +23,7 @@ func OpenDB(opt *clickhouse.Options) *sql.DB {
 
 const (
 	placeholder = "?"
+	dbTag       = "ch"
 )
 
 type Operator struct {
@@ -44,16 +45,15 @@ func (d *Operator) Placeholder() string {
 	return d.placeholder
 }
 
+func (d *Operator) DBTag() string {
+	return dbTag
+}
+
 func (d *Operator) OperatorSQL(operator string) string {
 	return ck.Operators[operator]
 }
 
 func (d *Operator) Insert(ctx context.Context, conn any, query string, args ...any) (id int64, err error) {
-	if c, err := conn.(driver.DB); err == nil {
-		return 0, nil
-	} else if c, err := conn.(*sql.Db); err == nil {
-
-	}
 	return 0, nil
 }
 
