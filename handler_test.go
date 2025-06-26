@@ -36,7 +36,7 @@ func TestCharacterEncoding(t *testing.T) {
 	}
 }
 
-func TestQuery(t *testing.T) {
+func TestGoZeroMysqlMethods(t *testing.T) {
 	sourceCli := NewController(sqlx.NewMysql(mysqlAddress), go_zero.NewOperator(), test.Source{})
 	propertyCli := NewController(sqlx.NewMysql(mysqlAddress), go_zero.NewOperator(), test.Property{})
 
@@ -477,7 +477,7 @@ func TestQuery(t *testing.T) {
 
 }
 
-func TestHandlerError(t *testing.T) {
+func TestGoZeroMysqlHandlerError(t *testing.T) {
 	ctl := NewController(sqlx.NewMysql(mysqlAddress), go_zero.NewOperator(), test.Source{})
 
 	if _, err := ctl(nil).Filter(Cond{}).Where("").FindOne(); err != nil && err.Error() != fmt.Sprintf(filterOrWhereError, "Filter") {
@@ -864,4 +864,7 @@ func TestHandlerError(t *testing.T) {
 			t.Error(err)
 		}
 	}
+}
+
+func TestClickhouseGoMethods(t *testing.T) {
 }

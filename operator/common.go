@@ -14,6 +14,7 @@ type Operator interface {
 	OperatorSQL(operator string) string
 	Placeholder() string
 	SetTableName(tableName string)
+	// Exec() (err error)
 	Insert(ctx context.Context, conn any, query string, args ...any) (id int64, err error)
 	BulkInsert(ctx context.Context, conn any, query string, args []string, data []map[string]any) (num int64, err error)
 	Remove(ctx context.Context, conn any, query string, args ...any) (num int64, err error)

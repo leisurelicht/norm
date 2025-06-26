@@ -9,6 +9,7 @@ var Operators = map[string]string{
 	"lt":      "`%s` < ?",
 	"lte":     "`%s` <= ?",
 	"len":     "LENGTH(`%s`) = ?",
+	"is_null": "`%s` IS NULL",
 
 	"in":          "`%s`%s IN",
 	"between":     "`%s`%s BETWEEN ? AND ?",
@@ -21,5 +22,4 @@ var Operators = map[string]string{
 
 	"unimplemented": "UNIMPLEMENTED", // Placeholder for unimplemented operators
 
-	"is_null": "`%s` IS NULL",
 }

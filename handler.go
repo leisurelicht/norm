@@ -531,6 +531,11 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 		return err
 	}
 
+	rv := reflect.ValueOf(modelPtr)
+	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Struct {
+		return fmt.Errorf("model must be a pointer to struct")
+	}
+
 	query := SelectTemp
 
 	selectRows := m.qs.GetSelectSQL()
@@ -589,6 +594,11 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 	if err = m.haveError(); err != nil {
 		return err
+	}
+
+	rv := reflect.ValueOf(modelSlicePtr)
+	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Slice {
+		return fmt.Errorf("model must be a pointer to slice")
 	}
 
 	query := SelectTemp
