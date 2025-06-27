@@ -23,3 +23,5 @@ var Operators = map[string]string{
 	"unimplemented": "UNIMPLEMENTED", // Placeholder for unimplemented operators
 
 }
+
+var Methods = map[string]string{}

@@ -6,9 +6,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/leisurelicht/norm/operator/mysql"
-
 	"github.com/leisurelicht/norm/operator"
+	"github.com/leisurelicht/norm/operator/mysql"
 	"github.com/zeromicro/go-zero/core/logc"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
@@ -46,8 +45,18 @@ func (d *Operator) DBTag() string {
 	return dbTag
 }
 
-func (d *Operator) OperatorSQL(operator string) string {
-	return mysql.Operators[operator]
+func (d *Operator) OperatorSQL(operator, method string) string {
+	sql, ok := mysql.Operators[operator]
+	if !ok {
+		return ""
+	}
+	if method == "" {
+		return sql
+	}
+	if methodSQL, ok := mysql.Methods[method]; ok {
+		sql = strings.ReplaceAll(sql, "?", methodSQL)
+	}
+	return sql
 }
 
 func (d *Operator) Insert(ctx context.Context, conn any, query string, args ...any) (id int64, err error) {

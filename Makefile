@@ -34,7 +34,7 @@ prepare:
 	@docker exec -i norm_test_mysql mysql -uroot -p123456 --default-character-set=utf8mb4 < ./test/ddl.sql
 	@goctl model mysql ddl --style go_zero --src ./test/ddl.sql --dir ./test
 	@echo "Prepare MYSQLTest Environment Over"
-    @echo "Prepare ClickHouse Test Environment"
+	@echo "Prepare ClickHouse Test Environment"
 	@docker run -d --name norm_test_clickhouse \
 		-p 8123:8123 \
 		-p 9000:9000 \

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -49,8 +50,18 @@ func (d *Operator) DBTag() string {
 	return dbTag
 }
 
-func (d *Operator) OperatorSQL(operator string) string {
-	return ck.Operators[operator]
+func (d *Operator) OperatorSQL(operator, method string) string {
+	sql, ok := ck.Operators[operator]
+	if !ok {
+		return ""
+	}
+	if method == "" {
+		return sql
+	}
+	if methodSQL, ok := ck.Methods[method]; ok {
+		sql = strings.ReplaceAll(sql, "?", methodSQL)
+	}
+	return sql
 }
 
 func (d *Operator) Insert(ctx context.Context, conn any, query string, args ...any) (id int64, err error) {

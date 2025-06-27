@@ -11,7 +11,7 @@ var (
 )
 
 type Operator interface {
-	OperatorSQL(operator string) string
+	OperatorSQL(operator, method string) string
 	SetTableName(tableName string)
 	Placeholder() string
 	DBTag() string

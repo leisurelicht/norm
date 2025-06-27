@@ -17,6 +17,7 @@ const (
 	descPrefix                 = "-"
 	operatorJoiner             = "__"
 	plural                     = "~"
+	methodJoiner               = "##"
 )
 
 const (
@@ -297,6 +298,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 		operator    string
 		andOrFlag   = andTag
 		notFlag     = notNot
+		method      string
 	)
 
 	if sk, ok := filter[SortKey]; ok {
@@ -321,6 +323,13 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 			andOrFlag = andTag
 		}
 
+		if pos := strings.Index(fieldLookup, methodJoiner); pos != -1 {
+			method = fieldLookup[pos+len(methodJoiner):]
+			fieldLookup = fieldLookup[:pos]
+		} else {
+			method = ""
+		}
+
 		lookup := strings.Split(fieldLookup, operatorJoiner)
 		if len(lookup) == 1 {
 			operator = _exact
@@ -338,7 +347,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 			return
 		}
 
-		op := p.OperatorSQL(operator)
+		op := p.OperatorSQL(operator, method)
 		if op == "" {
 			p.setError(unknownOperatorError, operator)
 			return
@@ -355,7 +364,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 		case _exact:
 			if filedValue == nil {
 				// should generate sql like "fieldName IS NULL"
-				filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(p.OperatorSQL(_isNull), fieldName), []any{})
+				filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(p.OperatorSQL(_isNull, ""), fieldName), []any{})
 				break
 			}
 			// the value arrived here is not nil, so go to the next case for processing
