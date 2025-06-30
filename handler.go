@@ -477,13 +477,9 @@ func (m *Impl) Count() (num int64, err error) {
 		return num, err
 	}
 
-	query := fmt.Sprintf("SELECT count(1) FROM %s", m.tableName)
-
 	filterSQL, filterArgs := m.qs.GetQuerySet()
 
-	query += filterSQL
-
-	return m.operator.Count(m.ctx(), m.conn, query, filterArgs...)
+	return m.operator.Count(m.ctx(), m.conn, filterSQL, filterArgs...)
 }
 
 func (m *Impl) findOne() (result map[string]any, err error) {

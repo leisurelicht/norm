@@ -161,7 +161,9 @@ func (d *Operator) Update(ctx context.Context, conn any, query string, args ...a
 	return num, nil
 }
 
-func (d *Operator) Count(ctx context.Context, conn any, query string, args ...any) (num int64, err error) {
+func (d *Operator) Count(ctx context.Context, conn any, condition string, args ...any) (num int64, err error) {
+	query := "SELECT count(1) FROM " + d.tableName + condition
+
 	err = conn.(sqlx.SqlConn).QueryRowCtx(ctx, &num, query, args...)
 
 	switch {

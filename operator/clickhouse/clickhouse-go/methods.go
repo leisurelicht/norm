@@ -71,6 +71,11 @@ func (d *Operator) OperatorSQL(operator, method string) string {
 }
 
 func (d *Operator) Insert(ctx context.Context, conn any, query string, args ...any) (id int64, err error) {
+	err = conn.(driver.Conn).AsyncInsert(ctx, query, true, args...)
+	if err != nil {
+		return 0, err
+	}
+
 	return 0, nil
 }
 
@@ -86,12 +91,37 @@ func (d *Operator) Update(ctx context.Context, conn any, query string, args ...a
 	return 0, nil
 }
 
-func (d *Operator) Count(ctx context.Context, conn any, query string, args ...any) (num int64, err error) {
-	return 0, nil
+func (d *Operator) Count(ctx context.Context, conn any, condition string, args ...any) (num int64, err error) {
+	query := "SELECT count() FROM " + d.tableName + condition
+
+	err = conn.(driver.Conn).QueryRow(ctx, query, args...).Scan(&num)
+
+	switch {
+	case err == nil:
+		return num, nil
+	case errors.Is(err, sql.ErrNoRows):
+		return 0, nil
+	default:
+		logger.Errorf("Count error: %s. ", err)
+		return 0, err
+	}
 }
 
 func (d *Operator) Exist(ctx context.Context, conn any, condition string, args ...any) (bool, error) {
-	return false, nil
+	query := "SELECT count() FROM " + d.tableName + condition
+
+	var num int64
+	err := conn.(driver.Conn).QueryRow(ctx, query, args...).Scan(&num)
+
+	switch {
+	case err == nil:
+		return num > 0, nil
+	case errors.Is(err, sql.ErrNoRows):
+		return false, nil
+	default:
+		logger.Errorf("Exist error: %s", err)
+		return false, err
+	}
 }
 
 func (d *Operator) FindOne(ctx context.Context, conn any, model any, query string, args ...any) (err error) {
@@ -103,7 +133,7 @@ func (d *Operator) FindOne(ctx context.Context, conn any, model any, query strin
 	case errors.Is(err, sql.ErrNoRows):
 		return operator.ErrNotFound
 	default:
-		logger.Error("FindOne error: %s", err)
+		logger.Errorf("FindOne error: %s", err)
 		return err
 	}
 
@@ -125,7 +155,7 @@ func (d *Operator) FindAll(ctx context.Context, conn any, model any, query strin
 		newElement := reflect.New(elementType).Interface()
 
 		if err := rows.ScanStruct(newElement); err != nil {
-			logger.Error("FindAll scan struct failed. error: %s", err)
+			logger.Errorf("FindAll scan struct failed. error: %s", err)
 			return err
 		}
 		sliceValue.Set(reflect.Append(sliceValue, reflect.ValueOf(newElement).Elem()))
