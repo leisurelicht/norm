@@ -4,17 +4,23 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
+	"log"
 	"reflect"
 	"strings"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/leisurelicht/norm/internal/config"
+	"github.com/leisurelicht/norm/internal/logger"
 	"github.com/leisurelicht/norm/operator"
 	ck "github.com/leisurelicht/norm/operator/clickhouse"
 )
 
 func Open(opt *clickhouse.Options) (driver.Conn, error) {
+	if config.IsDebug() {
+		log.SetFlags(log.LstdFlags | log.Lshortfile)
+	}
+
 	return clickhouse.Open(opt)
 }
 
@@ -97,6 +103,7 @@ func (d *Operator) FindOne(ctx context.Context, conn any, model any, query strin
 	case errors.Is(err, sql.ErrNoRows):
 		return operator.ErrNotFound
 	default:
+		logger.Error("FindOne error: %s", err)
 		return err
 	}
 
@@ -118,7 +125,7 @@ func (d *Operator) FindAll(ctx context.Context, conn any, model any, query strin
 		newElement := reflect.New(elementType).Interface()
 
 		if err := rows.ScanStruct(newElement); err != nil {
-			fmt.Printf("Scan Struct Failed. Error: %s", err)
+			logger.Error("FindAll scan struct failed. error: %s", err)
 			return err
 		}
 		sliceValue.Set(reflect.Append(sliceValue, reflect.ValueOf(newElement).Elem()))

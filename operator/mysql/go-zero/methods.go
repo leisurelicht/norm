@@ -6,14 +6,32 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/leisurelicht/norm/internal/config"
 	"github.com/leisurelicht/norm/operator"
 	"github.com/leisurelicht/norm/operator/mysql"
 	"github.com/zeromicro/go-zero/core/logc"
+	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
 // NewMysql returns a mysql connection.
 func NewMysql(datasource string, opts ...sqlx.SqlOption) sqlx.SqlConn {
+	switch config.C.Level {
+	case config.Debug:
+		logx.SetLevel(logx.DebugLevel)
+	case config.Info:
+		logx.SetLevel(logx.InfoLevel)
+		logx.DisableStat()
+	case config.Warn:
+		logx.SetLevel(logx.SevereLevel)
+		logx.DisableStat()
+	case config.Error:
+		logx.SetLevel(logx.ErrorLevel)
+		logx.DisableStat()
+	default:
+		logx.SetLevel(logx.InfoLevel)
+	}
+
 	return sqlx.NewMysql(datasource, opts...)
 }
 
@@ -116,13 +134,13 @@ func (d *Operator) BulkInsert(ctx context.Context, conn any, query string, args 
 func (d *Operator) Remove(ctx context.Context, conn any, query string, args ...any) (num int64, err error) {
 	res, err := conn.(sqlx.SqlConn).ExecCtx(ctx, query, args...)
 	if err != nil {
-		logc.Errorf(ctx, "Remove error: %+v", err)
+		logc.Errorf(ctx, "Remove error: %s", err)
 		return 0, err
 	}
 
 	num, err = res.RowsAffected()
 	if err != nil {
-		logc.Errorf(ctx, "Remove rows affected error: %+v", err)
+		logc.Errorf(ctx, "Remove rows affected error: %s", err)
 		return 0, err
 	}
 	return num, nil
@@ -131,13 +149,13 @@ func (d *Operator) Remove(ctx context.Context, conn any, query string, args ...a
 func (d *Operator) Update(ctx context.Context, conn any, query string, args ...any) (num int64, err error) {
 	res, err := conn.(sqlx.SqlConn).Exec(query, args...)
 	if err != nil {
-		logc.Errorf(ctx, "Update error: %+v", err)
+		logc.Errorf(ctx, "Update error: %s", err)
 		return 0, err
 	}
 
 	num, err = res.RowsAffected()
 	if err != nil {
-		logc.Errorf(ctx, "Update rows affected error: %+v", err)
+		logc.Errorf(ctx, "Update rows affected error: %s", err)
 		return 0, err
 	}
 	return num, nil
@@ -152,7 +170,7 @@ func (d *Operator) Count(ctx context.Context, conn any, query string, args ...an
 	case errors.Is(err, sqlx.ErrNotFound):
 		return 0, nil
 	default:
-		logc.Errorf(ctx, "Count error: %+v. ", err)
+		logc.Errorf(ctx, "Count error: %s. ", err)
 		return 0, err
 	}
 }
@@ -169,7 +187,7 @@ func (d *Operator) Exist(ctx context.Context, conn any, condition string, args .
 	case errors.Is(err, sqlx.ErrNotFound):
 		return false, nil
 	default:
-		logc.Errorf(ctx, "Exist error: %+v", err)
+		logc.Errorf(ctx, "Exist error: %s", err)
 		return false, err
 	}
 }
@@ -183,7 +201,7 @@ func (d *Operator) FindOne(ctx context.Context, conn any, model any, query strin
 	case errors.Is(err, sqlx.ErrNotFound):
 		return operator.ErrNotFound
 	default:
-		logc.Errorf(ctx, "FindOne error: %+v", err)
+		logc.Errorf(ctx, "FindOne error: %s", err)
 		return err
 	}
 }
@@ -197,7 +215,7 @@ func (d *Operator) FindAll(ctx context.Context, conn any, model any, query strin
 	case errors.Is(err, sqlx.ErrNotFound):
 		return operator.ErrNotFound
 	default:
-		logc.Errorf(ctx, "FindAll error: %+v", err)
+		logc.Errorf(ctx, "FindAll error: %s", err)
 		return err
 	}
 }
