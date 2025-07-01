@@ -80,7 +80,33 @@ func (d *Operator) Insert(ctx context.Context, conn any, query string, args ...a
 }
 
 func (d *Operator) BulkInsert(ctx context.Context, conn any, query string, args []string, data []map[string]any) (num int64, err error) {
-	return 0, nil
+	batch, err := conn.(driver.Conn).PrepareBatch(ctx, query, driver.WithCloseOnFlush())
+	if err != nil {
+		return 0, err
+	}
+	// defer batch.Close()
+
+	values := make([]any, len(args))
+	for _, row := range data {
+		for i, arg := range args {
+			if val, ok := row[arg]; ok {
+				values[i] = val
+			}
+		}
+
+		if err := batch.Append(values...); err != nil {
+			logger.Errorf("BulkInsert append error: %s", err)
+			return 0, err
+		}
+		num++
+	}
+	if err := batch.Send(); err != nil {
+		logger.Errorf("BulkInsert send error: %s", err)
+		return 0, err
+	}
+
+	batch.Columns()
+	return num, nil
 }
 
 func (d *Operator) Remove(ctx context.Context, conn any, query string, args ...any) (num int64, err error) {
