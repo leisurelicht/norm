@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"reflect"
 	"strings"
@@ -110,11 +111,11 @@ func (d *Operator) BulkInsert(ctx context.Context, conn any, query string, args 
 }
 
 func (d *Operator) Remove(ctx context.Context, conn any, query string, args ...any) (num int64, err error) {
-	return 0, nil
+	return 0, fmt.Errorf("Remove not implemented for ClickHouse")
 }
 
 func (d *Operator) Update(ctx context.Context, conn any, query string, args ...any) (num int64, err error) {
-	return 0, nil
+	return 0, fmt.Errorf("Update not implemented for ClickHouse")
 }
 
 func (d *Operator) Count(ctx context.Context, conn any, condition string, args ...any) (num int64, err error) {
