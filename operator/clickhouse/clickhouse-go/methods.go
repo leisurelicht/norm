@@ -81,11 +81,11 @@ func (d *Operator) Insert(ctx context.Context, conn any, query string, args ...a
 }
 
 func (d *Operator) BulkInsert(ctx context.Context, conn any, query string, args []string, data []map[string]any) (num int64, err error) {
-	batch, err := conn.(driver.Conn).PrepareBatch(ctx, query, driver.WithCloseOnFlush())
+	batch, err := conn.(driver.Conn).PrepareBatch(ctx, query)
 	if err != nil {
 		return 0, err
 	}
-	// defer batch.Close()
+	defer batch.Close()
 
 	values := make([]any, len(args))
 	for _, row := range data {
