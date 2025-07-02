@@ -299,3 +299,11 @@ func wrapWithBackticks(str string) string {
 	// 包裹字段
 	return "`" + str + "`"
 }
+
+func getTableName(m any) string {
+	if call, ok := reflect.TypeOf(m).MethodByName("TableName"); ok {
+		return "`" + call.Func.Call([]reflect.Value{reflect.ValueOf(m)})[0].String() + "`"
+	}
+
+	return shiftName(reflect.TypeOf(m).Name())
+}

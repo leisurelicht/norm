@@ -110,7 +110,7 @@ func NewController(conn any, op Operator, m any) func(ctx context.Context) Contr
 
 	fieldNameSlice := rawFieldNames(m, op.DBTag(), true)
 
-	tableName := shiftName(reflect.TypeOf(m).Name())
+	tableName := getTableName(m)
 
 	op.SetTableName(tableName)
 
