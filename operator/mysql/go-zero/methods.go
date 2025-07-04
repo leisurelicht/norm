@@ -16,7 +16,7 @@ import (
 
 // NewMysql returns a mysql connection.
 func NewMysql(datasource string, opts ...sqlx.SqlOption) sqlx.SqlConn {
-	switch config.C.Level {
+	switch config.Get().Level {
 	case config.Debug:
 		logx.SetLevel(logx.DebugLevel)
 	case config.Info:
@@ -30,6 +30,7 @@ func NewMysql(datasource string, opts ...sqlx.SqlOption) sqlx.SqlConn {
 		logx.DisableStat()
 	default:
 		logx.SetLevel(logx.InfoLevel)
+		logx.DisableStat()
 	}
 
 	return sqlx.NewMysql(datasource, opts...)

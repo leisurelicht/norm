@@ -1,5 +1,7 @@
 package config
 
+import "sync"
+
 type Level int
 
 const (
@@ -13,22 +15,37 @@ type config struct {
 	Level Level
 }
 
-var C = config{
-	Level: Debug,
+var (
+	initConfig sync.Once
+	c          config
+)
+
+func Get() config {
+	initConfig.Do(func() {
+		c = config{
+			Level: Info,
+		}
+	})
+
+	return c
+}
+
+func SetLevel(level Level) {
+	c.Level = level
 }
 
 func IsDebug() bool {
-	return C.Level == Debug
+	return c.Level == Debug
 }
 
 func IsInfo() bool {
-	return C.Level == Info
+	return c.Level == Info
 }
 
 func IsWarn() bool {
-	return C.Level == Warn
+	return c.Level == Warn
 }
 
 func IsError() bool {
-	return C.Level == Error
+	return c.Level == Error
 }

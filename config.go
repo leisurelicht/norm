@@ -10,5 +10,5 @@ const (
 )
 
 func SetLevel(level config.Level) {
-	config.C.Level = level
+	config.SetLevel(level)
 }
