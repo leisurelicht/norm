@@ -9,12 +9,11 @@ import (
 )
 
 const (
-	DefaultModelTag = "db"
-	Asterisk        = "*"
-	SelectTemp      = "SELECT %s FROM %s"
-	InsertTemp      = "INSERT INTO %s (%s) VALUES (%s)"
-	UpdateTemp      = "UPDATE %s SET %s"
-	DeleteTemp      = "DELETE FROM %s"
+	Asterisk   = "*"
+	SelectTemp = "SELECT %s FROM %s"
+	InsertTemp = "INSERT INTO %s (%s) VALUES (%s)"
+	UpdateTemp = "UPDATE %s SET %s"
+	DeleteTemp = "DELETE FROM %s"
 )
 
 const (
@@ -109,9 +108,9 @@ func NewController(conn any, op Operator, m any) func(ctx context.Context) Contr
 	// for it will check type of the m(model) is a struct
 	mPtr, mSlicePtr := createModelPointerAndSlice(m)
 
-	fieldNameSlice := rawFieldNames(m, DefaultModelTag, true)
+	fieldNameSlice := rawFieldNames(m, op.DBTag(), true)
 
-	tableName := shiftName(reflect.TypeOf(m).Name())
+	tableName := getTableName(m)
 
 	op.SetTableName(tableName)
 
@@ -128,8 +127,8 @@ func NewController(conn any, op Operator, m any) func(ctx context.Context) Contr
 			tableName:      tableName,
 			fieldNameMap:   strSlice2Map(fieldNameSlice),
 			fieldNameSlice: fieldNameSlice,
-			fieldRows:      strings.Join(rawFieldNames(m, DefaultModelTag, false), ","),
-			mTag:           DefaultModelTag,
+			fieldRows:      strings.Join(rawFieldNames(m, op.DBTag(), false), ","),
+			mTag:           op.DBTag(),
 			qs:             NewQuerySet(op),
 			called:         0,
 		}
@@ -478,13 +477,9 @@ func (m *Impl) Count() (num int64, err error) {
 		return num, err
 	}
 
-	query := fmt.Sprintf("SELECT count(1) FROM %s", m.tableName)
-
 	filterSQL, filterArgs := m.qs.GetQuerySet()
 
-	query += filterSQL
-
-	return m.operator.Count(m.ctx(), m.conn, query, filterArgs...)
+	return m.operator.Count(m.ctx(), m.conn, filterSQL, filterArgs...)
 }
 
 func (m *Impl) findOne() (result map[string]any, err error) {
@@ -529,6 +524,11 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 func (m *Impl) FindOneModel(modelPtr any) (err error) {
 	if err = m.haveError(); err != nil {
 		return err
+	}
+
+	rv := reflect.ValueOf(modelPtr)
+	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Struct {
+		return fmt.Errorf("model must be a pointer to struct")
 	}
 
 	query := SelectTemp
@@ -589,6 +589,11 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 	if err = m.haveError(); err != nil {
 		return err
+	}
+
+	rv := reflect.ValueOf(modelSlicePtr)
+	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Slice {
+		return fmt.Errorf("model must be a pointer to slice")
 	}
 
 	query := SelectTemp
@@ -718,6 +723,8 @@ func (m *Impl) CreateOrUpdate(data map[string]any) (created bool, numOrID int64,
 	return true, id, nil
 }
 
+// CreateIfNotExist creates a new record if it does not already exist.
+// If data not exist, it will create a new record and return the ID and created status.
 func (m *Impl) CreateIfNotExist(data map[string]any) (id int64, created bool, err error) {
 	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
 		return 0, false, fmt.Errorf(UnsupportedControllerError, methods, "CreateIfNotExist")

@@ -245,7 +245,7 @@ func isListKind(kind reflect.Kind) bool {
 }
 
 func genStrListValueLikeSQL(p *QuerySetImpl, filterConditions map[string]*cond, fieldName string, valueOf reflect.Value, notFlag int, operator, valueFormat string) {
-	op := p.OperatorSQL(operator)
+	op := p.OperatorSQL(operator, "")
 
 	filterConditions[fieldName] = newCondByValue("", fmt.Sprintf(op, fieldName, not[notFlag]), []any{fmt.Sprintf(valueFormat, valueOf.Index(0).Interface())})
 	for i := 1; i < valueOf.Len(); i++ {
@@ -298,4 +298,12 @@ func wrapWithBackticks(str string) string {
 	}
 	// 包裹字段
 	return "`" + str + "`"
+}
+
+func getTableName(m any) string {
+	if call, ok := reflect.TypeOf(m).MethodByName("TableName"); ok {
+		return "`" + call.Func.Call([]reflect.Value{reflect.ValueOf(m)})[0].String() + "`"
+	}
+
+	return shiftName(reflect.TypeOf(m).Name())
 }

@@ -20,7 +20,7 @@ test:
 ## prepare: Prepare test environment
 .PHONY: prepare
 prepare:
-	@echo "prepare test environment"
+	@echo "Prepare MYSQL Test Environment"
 	@docker run -d --name norm_test_mysql \
         -e MYSQL_ROOT_PASSWORD=123456 \
         -e MYSQL_CHARSET=utf8mb4 \
@@ -29,11 +29,19 @@ prepare:
         -e MYSQL_COLLATION_SERVER=utf8mb4_unicode_ci \
         -p 6033:3306 \
         mysql:8.4
-	@echo "Waiting for MySQL to initialize..."
+	@echo "Waiting for MySQL To Initialize..."
 	@sleep 20
 	@docker exec -i norm_test_mysql mysql -uroot -p123456 --default-character-set=utf8mb4 < ./test/ddl.sql
 	@goctl model mysql ddl --style go_zero --src ./test/ddl.sql --dir ./test
-	@echo "prepare test environment over"
+	@echo "Prepare MYSQLTest Environment Over"
+	@echo "Prepare ClickHouse Test Environment"
+	@docker run -d --name norm_test_clickhouse \
+		-p 8123:8123 \
+		-p 9000:9000 \
+		yandex/clickhouse-server:latest
+	@echo "Waiting for ClickHouse To Initialize..."
+	@sleep 20
+
 
 ## clean: Clean test environment
 .PHONY: clean

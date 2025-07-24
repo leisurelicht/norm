@@ -964,15 +964,18 @@ func TestOrderByError(t *testing.T) {
 		want want
 	}{
 		{"array", args{[1]string{"test"}}, want{"", errors.New(paramTypeError)}},
-		{"array", args{123}, want{"", errors.New(paramTypeError)}},
-		{"array", args{[]int{1, 2}}, want{"", errors.New(paramTypeError)}},
-		{"array", args{map[string]int{"test": 1}}, want{"", errors.New(paramTypeError)}},
-		{"array", args{map[int]string{1: "test"}}, want{"", errors.New(paramTypeError)}},
-		{"array", args{map[bool]string{true: "test"}}, want{"", errors.New(paramTypeError)}},
-		{"array", args{map[string]bool{"test": true}}, want{"", errors.New(paramTypeError)}},
-		{"array", args{map[string]any{"test": 1}}, want{"", errors.New(paramTypeError)}},
-		{"array", args{map[string]any{"test": "test"}}, want{"", errors.New(paramTypeError)}},
-		{"array", args{map[string]any{"test": 1.0}}, want{"", errors.New(paramTypeError)}},
+		{"string", args{123}, want{"", errors.New(paramTypeError)}},
+		{"slice", args{[]int{1, 2}}, want{"", errors.New(paramTypeError)}},
+		{"map0", args{map[string]int{"test": 1}}, want{"", errors.New(paramTypeError)}},
+		{"map1", args{map[int]string{1: "test"}}, want{"", errors.New(paramTypeError)}},
+		{"map2", args{map[bool]string{true: "test"}}, want{"", errors.New(paramTypeError)}},
+		{"map3", args{map[string]bool{"test": true}}, want{"", errors.New(paramTypeError)}},
+		{"map4", args{map[string]any{"test": 1}}, want{"", errors.New(paramTypeError)}},
+		{"map5", args{map[string]any{"test": "test"}}, want{"", errors.New(paramTypeError)}},
+		{"map6", args{map[string]any{"test": 1.0}}, want{"", errors.New(paramTypeError)}},
+		{"sql_injection", args{"test; DROP TABLE users;"}, want{"", errors.New(paramTypeError)}},
+		{"sql_injection2", args{"test; SELECT * FROM users;"}, want{"", errors.New(paramTypeError)}},
+		{"sql_injection3", args{"(select*from(select+sleep(5)union/**/select+1)a)"}, want{"", errors.New(paramTypeError)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -981,11 +984,8 @@ func TestOrderByError(t *testing.T) {
 			p.OrderByToSQL(tt.args.selects)
 			sql := p.GetOrderBySQL()
 
-			if p.Error() != nil {
-				if p.Error().Error() != tt.want.err.Error() {
-					t.Errorf("TestOrderByError SQL Occur Error -> error: %+v", p.Error())
-				}
-				return
+			if p.Error() != tt.want.err && p.Error().Error() != tt.want.err.Error() {
+				t.Errorf("TestOrderByError SQL Occur Error -> error: %+v", p.Error())
 			}
 
 			if sql != tt.want.sql {
@@ -1009,7 +1009,9 @@ func TestGroupBy(t *testing.T) {
 		want want
 	}{
 		{"blank_string", args{""}, want{""}},
-		{"string", args{"test, test2"}, want{" GROUP BY test, test2"}},
+		{"string", args{"test,test2"}, want{" GROUP BY test,test2"}},
+		{"string1", args{"test, test2"}, want{" GROUP BY test, test2"}},
+		{"string2", args{"test,  test2"}, want{" GROUP BY test,  test2"}},
 		{"zero_slice", args{[]string{}}, want{""}},
 		{"one_slice", args{[]string{"test"}}, want{" GROUP BY `test`"}},
 		{"two_slice", args{[]string{"test", "test2"}}, want{" GROUP BY `test`, `test2`"}},
@@ -1048,15 +1050,15 @@ func TestGroupByError(t *testing.T) {
 		want want
 	}{
 		{"array", args{[1]string{"test"}}, want{"", errors.New(paramTypeError)}},
-		{"array", args{123}, want{"", errors.New(paramTypeError)}},
-		{"array", args{[]int{1, 2}}, want{"", errors.New(paramTypeError)}},
-		{"array", args{map[string]int{"test": 1}}, want{"", errors.New(paramTypeError)}},
-		{"array", args{map[int]string{1: "test"}}, want{"", errors.New(paramTypeError)}},
-		{"array", args{map[bool]string{true: "test"}}, want{"", errors.New(paramTypeError)}},
-		{"array", args{map[string]bool{"test": true}}, want{"", errors.New(paramTypeError)}},
-		{"array", args{map[string]any{"test": 1}}, want{"", errors.New(paramTypeError)}},
-		{"array", args{map[string]any{"test": "test"}}, want{"", errors.New(paramTypeError)}},
-		{"array", args{map[string]any{"test": 1.0}}, want{"", errors.New(paramTypeError)}},
+		{"string", args{123}, want{"", errors.New(paramTypeError)}},
+		{"slice", args{[]int{1, 2}}, want{"", errors.New(paramTypeError)}},
+		{"map0", args{map[string]int{"test": 1}}, want{"", errors.New(paramTypeError)}},
+		{"map1", args{map[int]string{1: "test"}}, want{"", errors.New(paramTypeError)}},
+		{"map2", args{map[bool]string{true: "test"}}, want{"", errors.New(paramTypeError)}},
+		{"map3", args{map[string]bool{"test": true}}, want{"", errors.New(paramTypeError)}},
+		{"map4", args{map[string]any{"test": 1}}, want{"", errors.New(paramTypeError)}},
+		{"map5", args{map[string]any{"test": "test"}}, want{"", errors.New(paramTypeError)}},
+		{"map6", args{map[string]any{"test": 1.0}}, want{"", errors.New(paramTypeError)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1065,11 +1067,8 @@ func TestGroupByError(t *testing.T) {
 			p.GroupByToSQL(tt.args.selects)
 			sql := p.GetGroupBySQL()
 
-			if p.Error() != nil {
-				if p.Error().Error() != tt.want.err.Error() {
-					t.Errorf("TestGroupByError SQL Occur Error -> error: %+v", p.Error())
-				}
-				return
+			if p.Error() != tt.want.err && p.Error().Error() != tt.want.err.Error() {
+				t.Errorf("TestGroupByError SQL Occur Error -> error: %+v", p.Error())
 			}
 
 			if sql != tt.want.sql {

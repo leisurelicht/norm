@@ -1263,3 +1263,47 @@ func Test_wrapWithBackticks(t *testing.T) {
 		})
 	}
 }
+
+// Define the Model type and its method at package level
+type TestModel struct {
+	Name string
+}
+
+type TestModelWithTableName struct {
+	Name string
+}
+
+func (m TestModelWithTableName) TableName() string {
+	return "custom_table_name"
+}
+
+type TestModelWithTableNamePtr struct {
+	Name string
+}
+
+func (m *TestModelWithTableNamePtr) TableName() string {
+	return "custom_table_name_ptr"
+}
+
+func Test_getTableName(t *testing.T) {
+	type args struct {
+		m any
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		// Do not check whether the model is nil, because it will be checked in the createModelPointerAndSlice
+		{"test model without TableName method", args{TestModel{}}, "`test_model`"},
+		{"test model with TableName method", args{TestModelWithTableName{}}, "`custom_table_name`"},
+		{"test model with TableName method pointer", args{&TestModelWithTableNamePtr{}}, "`custom_table_name_ptr`"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getTableName(tt.args.m); got != tt.want {
+				t.Errorf("getTableName() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
