@@ -665,6 +665,7 @@ func TestWhereError(t *testing.T) {
 func TestFilterAndWhereConflict(t *testing.T) {
 	operator := go_zero.NewOperator()
 	p := NewQuerySet(operator)
+
 	p.WhereToSQL("test = ?", 1)
 	p.FilterToSQL(notNot, Cond{"test": 1})
 	if p.Error() == nil {

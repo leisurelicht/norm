@@ -32,7 +32,6 @@ func NewMysql(datasource string, opts ...sqlx.SqlOption) sqlx.SqlConn {
 		logx.SetLevel(logx.InfoLevel)
 		logx.DisableStat()
 	}
-
 	return sqlx.NewMysql(datasource, opts...)
 }
 
