@@ -820,6 +820,12 @@ func TestGoZeroMysqlHandlerError(t *testing.T) {
 			t.Error(err)
 		}
 	}
+	// orderBy contains empty string
+	if _, err := ctl(ctx).OrderBy([]string{""}).FindAll(); err != nil {
+		if err.Error() != OrderByColumnsTypeError {
+			t.Error(err)
+		}
+	}
 
 	// groupby type error
 	if err := ctl(ctx).Select([]string{"name"}).GroupBy([1]string{"name"}).FindAllModel(&[]struct {
