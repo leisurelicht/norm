@@ -3,6 +3,7 @@ package norm
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -655,6 +656,38 @@ func (p *QuerySetImpl) OrderByToSQL(orderBy any) QuerySet {
 func (p *QuerySetImpl) StrOrderByToSQL(orderBy string) QuerySet {
 	p.setCalled(qsOrderBy)
 
+	// If the orderBy string is empty, just return
+	if orderBy == "" {
+		return p
+	}
+
+	// Define a regex pattern for valid ORDER BY clauses
+	// This allows:
+	// - alphanumeric characters, underscores, and backticks for column names
+	// - optional ASC/DESC (case insensitive)
+	// - commas and spaces for separating multiple columns
+	validPattern := "^[\\w\\s`,]+(\\s+((?i)ASC|DESC))?(\\s*,\\s*[\\w\\s`,]+(\\s+((?i)ASC|DESC))?)*$"
+
+	matched, err := regexp.MatchString(validPattern, orderBy)
+	if err != nil || !matched {
+		p.setError(paramTypeError)
+		return p
+	}
+
+	// Additional check for common SQL injection patterns
+	injectionPatterns := []string{
+		";", "--", "/*", "*/", "@@", "SELECT", "INSERT", "UPDATE",
+		"DELETE", "DROP", "UNION", "EXEC", "SLEEP", "WAITFOR",
+	}
+
+	orderByUpper := strings.ToUpper(orderBy)
+	for _, pattern := range injectionPatterns {
+		if strings.Contains(orderByUpper, pattern) {
+			p.setError(paramTypeError)
+			return p
+		}
+	}
+
 	p.orderBySQL = orderBy
 
 	return p
@@ -728,24 +761,7 @@ func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
 func (p *QuerySetImpl) StrGroupByToSQL(groupBy string) QuerySet {
 	p.setCalled(qsGroupBy)
 
-	// Split the groupBy string by commas and handle each part
-	if groupBy != "" {
-		parts := strings.Split(groupBy, ",")
-		var processedParts []string
-
-		for _, part := range parts {
-			// Trim whitespace and wrap with backticks
-			trimmedPart := strings.TrimSpace(part)
-			if trimmedPart != "" {
-				processedParts = append(processedParts, wrapWithBackticks(trimmedPart))
-			}
-		}
-
-		// Join the processed parts back together
-		p.groupSQL = strings.Join(processedParts, ", ")
-	} else {
-		p.groupSQL = groupBy
-	}
+	p.groupSQL = groupBy
 
 	return p
 }

@@ -310,7 +310,7 @@ func TestGoZeroMysqlMethods(t *testing.T) {
 	}
 
 	// test List
-	if num, res, err := sourceCli(ctx).Filter(Cond{"id__in": []int64{11, 12, 13}}).OrderBy("-id").List(); err != nil {
+	if num, res, err := sourceCli(ctx).Filter(Cond{"id__in": []int64{11, 12, 13}}).OrderBy("id DESC").List(); err != nil {
 		t.Errorf("List error: %s", err)
 	} else if num != 3 {
 		t.Errorf("List num error: \nexpect 3 but got %d", num)
