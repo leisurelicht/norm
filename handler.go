@@ -276,6 +276,9 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 		}
 		unknownColumns := []string{}
 		for _, by := range orderByVal {
+			if by == "" {
+				continue
+			}
 			needValidate := by
 			if strings.HasPrefix(by, "-") {
 				needValidate = by[1:]
