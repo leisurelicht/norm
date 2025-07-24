@@ -224,7 +224,7 @@ func TestMultipleCallFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			operator := go_zero.NewOperator()
 			p := NewQuerySet(operator)
-      
+
 			for _, f := range tt.args {
 				p = p.FilterToSQL(f.state, f.filter...)
 			}
@@ -1008,7 +1008,9 @@ func TestGroupBy(t *testing.T) {
 		want want
 	}{
 		{"blank_string", args{""}, want{""}},
-		{"string", args{"test, test2"}, want{" GROUP BY test, test2"}},
+		{"string", args{"test,test2"}, want{" GROUP BY `test`, `test2`"}},
+		{"string1", args{"test, test2"}, want{" GROUP BY `test`, `test2`"}},
+		{"string2", args{"test,  test2"}, want{" GROUP BY `test`, `test2`"}},
 		{"zero_slice", args{[]string{}}, want{""}},
 		{"one_slice", args{[]string{"test"}}, want{" GROUP BY `test`"}},
 		{"two_slice", args{[]string{"test", "test2"}}, want{" GROUP BY `test`, `test2`"}},

@@ -728,7 +728,24 @@ func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
 func (p *QuerySetImpl) StrGroupByToSQL(groupBy string) QuerySet {
 	p.setCalled(qsGroupBy)
 
-	p.groupSQL = groupBy
+	// Split the groupBy string by commas and handle each part
+	if groupBy != "" {
+		parts := strings.Split(groupBy, ",")
+		var processedParts []string
+
+		for _, part := range parts {
+			// Trim whitespace and wrap with backticks
+			trimmedPart := strings.TrimSpace(part)
+			if trimmedPart != "" {
+				processedParts = append(processedParts, wrapWithBackticks(trimmedPart))
+			}
+		}
+
+		// Join the processed parts back together
+		p.groupSQL = strings.Join(processedParts, ", ")
+	} else {
+		p.groupSQL = groupBy
+	}
 
 	return p
 }
