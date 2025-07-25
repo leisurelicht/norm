@@ -103,6 +103,11 @@ type (
 	}
 )
 
+// NewController creates a new Controller instance with the provided connection, operator, and model.
+// It initializes the controller with the model's field names and prepares it for database operations.
+// The model can be a struct or a slice of structs, and the operator must implement the Operator interface.
+// The connection is used to execute queries, and the operator provides methods for database operations.
+// It returns a function that takes a context and returns a Controller instance.
 func NewController(conn any, op Operator, m any) func(ctx context.Context) Controller {
 	// createModelPointerAndSlice call must be at the beginning of this function,
 	// for it will check type of the m(model) is a struct
@@ -190,11 +195,16 @@ func (m *Impl) reset() {
 	m.called = 0
 }
 
+// Reset resets the controller's state.
+// It clears any previous filters, selections, and other query parameters.
+// This allows the controller to be reused for a new query without needing to create a new instance.
 func (m *Impl) Reset() Controller {
 	m.reset()
 	return m
 }
 
+// Filter adds a filter condition containing objects that match the given lookup parameters
+// It only accepts norm.Cond / norm.AND / norm.OR.
 func (m *Impl) Filter(filter ...any) Controller {
 	m.setCalled(ctlFilter)
 
@@ -203,6 +213,8 @@ func (m *Impl) Filter(filter ...any) Controller {
 	return m
 }
 
+// Exclude adds an exclusion condition containing objects that do not match the given lookup parameters.
+// It only accepts norm.Cond / norm.AND/norm.OR.
 func (m *Impl) Exclude(exclude ...any) Controller {
 	m.setCalled(ctlExclude)
 
@@ -211,6 +223,9 @@ func (m *Impl) Exclude(exclude ...any) Controller {
 	return m
 }
 
+// Where adds a WHERE clause to the query.
+// It accepts a condition string and optional arguments.
+// The condition string should be a valid SQL WHERE clause, and the arguments will be used to replace placeholders in the condition.
 func (m *Impl) Where(cond string, args ...any) Controller {
 	m.setCalled(ctlWhere)
 
@@ -219,6 +234,10 @@ func (m *Impl) Where(cond string, args ...any) Controller {
 	return m
 }
 
+// Select adds a SELECT clause to the query.
+// It accepts a string or a slice of strings for selecting columns.
+// If you pass a string, it should be a comma-separated list of columns and will not be validated.
+// If you pass a slice, it will validate each column against the model's field names.
 func (m *Impl) Select(selects any) Controller {
 	m.setCalled(ctlSelect)
 
@@ -247,6 +266,10 @@ func (m *Impl) Select(selects any) Controller {
 	return m
 }
 
+// Limit adds a LIMIT clause to the query.
+// It accepts pageSize and pageNum to control the number of records returned.
+// It requires OrderBy to be called first. If OrderBy has not been called, it will return an error.
+// Both Page size and page number should be greater than 0.
 func (m *Impl) Limit(pageSize, pageNum int64) Controller {
 	m.setCalled(ctlLimit)
 
@@ -259,6 +282,10 @@ func (m *Impl) Limit(pageSize, pageNum int64) Controller {
 	return m
 }
 
+// OrderBy adds an ORDER BY clause to the query.
+// It accepts a string or a slice of strings for ordering columns.
+// If you pass a string, it should be a comma-separated list of columns and will not be validated.
+// If you pass a slice, it will validate each column against the model's field names.
 func (m *Impl) OrderBy(orderBy any) Controller {
 	m.setCalled(ctlOrderBy)
 
@@ -304,6 +331,10 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 	return m
 }
 
+// GroupBy adds a GROUP BY clause to the query.
+// It accepts a string or a slice of strings for grouping columns.
+// If you pass a string, it should be a comma-separated list of columns and will not be validated.
+// If you pass a slice, it will validate each column against the model's field names.
 func (m *Impl) GroupBy(groupBy any) Controller {
 	m.setCalled(ctlGroupBy)
 
@@ -333,6 +364,7 @@ func (m *Impl) GroupBy(groupBy any) Controller {
 	return m
 }
 
+// Having adds a HAVING clause to the query.
 func (m *Impl) Having(having string, args ...any) Controller {
 	m.setCalled(ctlHaving)
 	m.qs.HavingToSQL(having, args)
@@ -393,6 +425,8 @@ func (m *Impl) bulkCreate(data []map[string]any) (num int64, err error) {
 	return m.operator.BulkInsert(m.ctx(), m.conn, sql, args, data)
 }
 
+// Create creates a new record in the database with the provided data map.
+// It returns the ID of the created record or the number of records inserted, and any error encountered.
 func (m *Impl) Create(data any) (idOrNum int64, err error) {
 	if methods, called := m.checkCalled(ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); called {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Create")
@@ -417,6 +451,9 @@ func (m *Impl) Create(data any) (idOrNum int64, err error) {
 	return 0, fmt.Errorf(CreateDataTypeError, reflect.TypeOf(data).Kind())
 }
 
+// Remove deletes the records matching the current query set.
+// It returns the number of records deleted and any error encountered.
+// Note: This method will really remove records from the database
 func (m *Impl) Remove() (num int64, err error) {
 	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Remove")
@@ -459,6 +496,8 @@ func (m *Impl) update(data map[string]any) (num int64, err error) {
 	return m.operator.Update(m.ctx(), m.conn, sql, args...)
 }
 
+// Update updates the records matching the current query set with the provided data map.
+// It returns the number of records updated and any error encountered.
 func (m *Impl) Update(data map[string]any) (num int64, err error) {
 	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Update")
@@ -475,6 +514,8 @@ func (m *Impl) Update(data map[string]any) (num int64, err error) {
 	return m.update(data)
 }
 
+// Count retrieves the total number of records matching the current query set.
+// It returns the total count and any error encountered.
 func (m *Impl) Count() (num int64, err error) {
 	if err = m.haveError(); err != nil {
 		return num, err
@@ -512,6 +553,8 @@ func (m *Impl) findOne() (result map[string]any, err error) {
 	}
 }
 
+// FindOne retrieves a single record matching the current query set into a map.
+// It returns the data as a map, or an error if the operation fails.
 func (m *Impl) FindOne() (result map[string]any, err error) {
 	if methods, called := m.checkCalled(ctlSelect, ctlHaving); called {
 		return result, fmt.Errorf(UnsupportedControllerError, methods, "FindOne")
@@ -524,6 +567,8 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 	return m.findOne()
 }
 
+// FindOneModel retrieves a single record matching the current query set into a model.
+// It returns an error if the model type is not a pointer to a struct.
 func (m *Impl) FindOneModel(modelPtr any) (err error) {
 	if err = m.haveError(); err != nil {
 		return err
@@ -556,6 +601,8 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 	return m.operator.FindOne(m.ctx(), m.conn, modelPtr, query, filterArgs...)
 }
 
+// FindAll retrieves all records matching the current query set into a slice of maps.
+// It returns the data as a slice of maps, or an error if the operation fails.
 func (m *Impl) FindAll() (result []map[string]any, err error) {
 	if methods, called := m.checkCalled(ctlSelect, ctlHaving); called {
 		return result, fmt.Errorf(UnsupportedControllerError, methods, "FindAll")
@@ -589,6 +636,8 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 	}
 }
 
+// FindAllModel retrieves all records matching the current query set into a slice of models.
+// It returns an error if the model type is not a pointer to a slice.
 func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 	if err = m.haveError(); err != nil {
 		return err
@@ -630,6 +679,9 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 	}
 }
 
+// Delete marks the records as deleted by setting the 'is_deleted' field to true.
+// It returns the number of records marked as deleted.
+// Note: This method is not a true delete operation; it only marks records as deleted.
 func (m *Impl) Delete() (int64, error) {
 	if methods, called := m.checkCalled(ctlGroupBy, ctlSelect, ctlOrderBy); called {
 		return 0, fmt.Errorf(UnsupportedControllerError, methods, "Delete")
@@ -646,6 +698,7 @@ func (m *Impl) exist() (exist bool, err error) {
 	return m.operator.Exist(m.ctx(), m.conn, filterSQL, filterArgs...)
 }
 
+// Exist checks if any record exists that matches the current query set.
 func (m *Impl) Exist() (exist bool, err error) {
 	if methods, called := m.checkCalled(ctlGroupBy, ctlSelect); called {
 		return false, fmt.Errorf(UnsupportedControllerError, methods, "Exist")
@@ -658,6 +711,8 @@ func (m *Impl) Exist() (exist bool, err error) {
 	return m.exist()
 }
 
+// List retrieves the total count and all data matching the current query set.
+// It returns the total count, data as a slice of maps, and any error encountered.
 func (m *Impl) List() (total int64, data []map[string]any, err error) {
 	if total, err = m.Count(); err != nil {
 		return
@@ -670,6 +725,7 @@ func (m *Impl) List() (total int64, data []map[string]any, err error) {
 	return total, data, nil
 }
 
+// GetOrCreate creates a new record if it does not already exist, or returns the existing record.
 func (m *Impl) GetOrCreate(data map[string]any) (res map[string]any, err error) {
 	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
 		return res, fmt.Errorf(UnsupportedControllerError, methods, "GetOrCreate")
@@ -695,6 +751,7 @@ func (m *Impl) GetOrCreate(data map[string]any) (res map[string]any, err error) 
 	return m.findOne()
 }
 
+// CreateOrUpdate creates a new record if it does not already exist, or updates the existing record.
 func (m *Impl) CreateOrUpdate(data map[string]any) (created bool, numOrID int64, err error) {
 	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
 		return false, 0, fmt.Errorf(UnsupportedControllerError, methods, "CreateOrUpdate")
@@ -727,7 +784,8 @@ func (m *Impl) CreateOrUpdate(data map[string]any) (created bool, numOrID int64,
 }
 
 // CreateIfNotExist creates a new record if it does not already exist.
-// If data not exist, it will create a new record and return the ID and created status.
+// If data not exist, it will create a new record and return the 'id' column value(if exists) and created true.
+// if data exist, it will return 0 and created false
 func (m *Impl) CreateIfNotExist(data map[string]any) (id int64, created bool, err error) {
 	if methods, called := m.checkCalled(ctlSelect, ctlGroupBy, ctlHaving); called {
 		return 0, false, fmt.Errorf(UnsupportedControllerError, methods, "CreateIfNotExist")
