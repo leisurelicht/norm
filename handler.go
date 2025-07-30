@@ -714,6 +714,10 @@ func (m *Impl) Exist() (exist bool, err error) {
 // List retrieves the total count and all data matching the current query set.
 // It returns the total count, data as a slice of maps, and any error encountered.
 func (m *Impl) List() (total int64, data []map[string]any, err error) {
+	if methods, called := m.checkCalled(ctlSelect, ctlHaving); called {
+		return total, data, fmt.Errorf(UnsupportedControllerError, methods, "List")
+	}
+
 	if total, err = m.Count(); err != nil {
 		return
 	}
