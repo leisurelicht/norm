@@ -47,6 +47,7 @@ prepare:
 .PHONY: clean
 clean:
 	@docker stop norm_test_mysql && docker rm norm_test_mysql
+	@docker stop norm_test_clickhouse && docker rm norm_test_clickhouse
 
 .PHONY: benchmark
 benchmark:
