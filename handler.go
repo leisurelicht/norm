@@ -284,7 +284,7 @@ func (m *Impl) Limit(pageSize, pageNum int64) Controller {
 
 // OrderBy adds an ORDER BY clause to the query.
 // It accepts a string or a slice of strings for ordering columns.
-// If you pass a string, it should be a comma-separated list of columns and will not be validated.
+// If you pass a string, it should be a comma-separated list of columns and will not be validated. So never pass a parameter from user directly.
 // If you pass a slice, it will validate each column against the model's field names.
 func (m *Impl) OrderBy(orderBy any) Controller {
 	m.setCalled(ctlOrderBy)
