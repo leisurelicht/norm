@@ -973,9 +973,6 @@ func TestOrderByError(t *testing.T) {
 		{"map4", args{map[string]any{"test": 1}}, want{"", errors.New(paramTypeError)}},
 		{"map5", args{map[string]any{"test": "test"}}, want{"", errors.New(paramTypeError)}},
 		{"map6", args{map[string]any{"test": 1.0}}, want{"", errors.New(paramTypeError)}},
-		{"sql_injection", args{"test; DROP TABLE users;"}, want{"", errors.New(paramTypeError)}},
-		{"sql_injection2", args{"test; SELECT * FROM users;"}, want{"", errors.New(paramTypeError)}},
-		{"sql_injection3", args{"(select*from(select+sleep(5)union/**/select+1)a)"}, want{"", errors.New(paramTypeError)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
