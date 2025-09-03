@@ -5,7 +5,106 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 )
+
+// String pool for common SQL components to reduce allocations
+var (
+	stringPool = sync.Pool{
+		New: func() interface{} {
+			return make(map[string]string, 16) // Pool of string maps
+		},
+	}
+	
+	// Cache for reflection types to avoid repeated reflect.TypeOf() calls
+	typeCache = sync.Map{} // map[reflect.Type]int for conjunction types
+	
+	// Cache for commonly processed operators to avoid string processing
+	operatorCache = map[string]struct {
+		op      string
+		notFlag int
+	}{
+		"exact":        {_exact, notNot},
+		"exclude":      {_exclude, notNot},
+		"not_exclude":  {_exclude, isNot},
+		"iexact":       {_iexact, notNot},
+		"not_iexact":   {_iexact, isNot},
+		"gt":           {_gt, notNot},
+		"gte":          {_gte, notNot},
+		"lt":           {_lt, notNot},
+		"lte":          {_lte, notNot},
+		"in":           {_in, notNot},
+		"not_in":       {_in, isNot},
+		"between":      {_between, notNot},
+		"not_between":  {_between, isNot},
+		"contains":     {_contains, notNot},
+		"not_contains": {_contains, isNot},
+	}
+)
+
+// Initialize type cache at startup
+func init() {
+	typeCache.Store(reflect.TypeOf(Cond{}), andTag)
+	typeCache.Store(reflect.TypeOf(AND{}), andTag)
+	typeCache.Store(reflect.TypeOf(OR{}), orTag)
+}
+
+// Fast type lookup for conjunction mapping
+func getConjunctionTag(t reflect.Type) (int, bool) {
+	if tag, ok := typeCache.Load(t); ok {
+		return tag.(int), true
+	}
+	return 0, false
+}
+
+// Cached string constants for better performance
+var (
+	cachedAndConjunction = " " + conjunctions[0] + " "
+	cachedOrConjunction  = " " + conjunctions[1] + " "
+)
+
+// Optimized function to build repeated operator strings
+func buildRepeatedOperatorSQL(op, fieldName string, valueLen int) string {
+	if valueLen <= 1 {
+		return fmt.Sprintf(op, fieldName)
+	}
+	
+	// Pre-calculate total length needed
+	baseSQL := fmt.Sprintf(op, fieldName)
+	totalLen := len(baseSQL)*valueLen + len(cachedAndConjunction)*(valueLen-1)
+	
+	var sqlBuilder strings.Builder
+	sqlBuilder.Grow(totalLen)
+	sqlBuilder.WriteString(baseSQL)
+	
+	for i := 1; i < valueLen; i++ {
+		sqlBuilder.WriteString(cachedAndConjunction)
+		sqlBuilder.WriteString(baseSQL)
+	}
+	
+	return sqlBuilder.String()
+}
+
+// Optimized placeholder building
+func buildPlaceholders(placeholder string, count int) string {
+	if count <= 1 {
+		return placeholder
+	}
+	
+	// Pre-calculate exact capacity needed
+	totalLen := len(placeholder)*count + (count-1) // count-1 commas
+	
+	var builder strings.Builder
+	builder.Grow(totalLen)
+	builder.WriteString(placeholder)
+	
+	for i := 1; i < count; i++ {
+		builder.WriteByte(',')
+		builder.WriteString(placeholder)
+	}
+	
+	return builder.String()
+}
 
 type callFlag int64
 
@@ -18,6 +117,15 @@ const (
 	operatorJoiner             = "__"
 	plural                     = "~"
 	methodJoiner               = "##"
+	
+	// Pre-allocated string constants for better performance
+	whereClause      = " WHERE "
+	leftParen        = "("
+	rightParen       = ")"
+	spaceAnd         = " AND "
+	spaceOr          = " OR "
+	spaceAndNot      = " AND NOT "
+	spaceOrNot       = " OR NOT "
 )
 
 const (
@@ -83,12 +191,14 @@ var (
 	filterAndExclude = []string{"Filter", "Exclude"}
 	not              = [2]string{"", " NOT"}
 	conjunctions     = [4]string{"AND", "OR", "AND NOT", "OR NOT"}
-	// Define a map for conjunction types and their tags
+	// Optimized conjunction map with pre-allocated strings
 	conjunctionMap = map[reflect.Type]int{
 		reflect.TypeOf(Cond{}): andTag,
 		reflect.TypeOf(AND{}):  andTag,
 		reflect.TypeOf(OR{}):   orTag,
 	}
+	// Pre-allocated space strings for better performance
+	spaceConjunctions = [4]string{" AND ", " OR ", " AND NOT ", " OR NOT "}
 )
 
 type cond struct {
@@ -209,7 +319,7 @@ func (p *QuerySetImpl) Reset() {
 func (p *QuerySetImpl) GetQuerySet() (sql string, args []any) {
 	// Handle the case with direct WHERE condition
 	if p.whereCond.SQL != "" {
-		return " WHERE " + p.whereCond.SQL, p.whereCond.Args
+		return whereClause + p.whereCond.SQL, p.whereCond.Args
 	}
 
 	// Early return for no filter conditions
@@ -217,29 +327,33 @@ func (p *QuerySetImpl) GetQuerySet() (sql string, args []any) {
 		return "", nil
 	}
 
-	// Pre-calculate approximate capacity for string builder
+	// Pre-calculate more accurate capacity for string builder and args slice
 	totalConditions := 0
+	maxSQLLength := len(whereClause) // Start with WHERE clause length
+	
 	for _, filterList := range p.filterConds {
 		totalConditions += len(filterList)
+		// Estimate SQL length based on existing conditions
+		for _, cond := range filterList {
+			maxSQLLength += len(cond.SQL) + 20 // 20 chars for conjunctions and parens
+		}
 	}
 
-	// Initial capacity estimate: 8 chars per condition + conjunctions
+	// Build SQL with pre-allocated builder
 	outerSQL := strings.Builder{}
-	outerSQL.Grow(totalConditions*20 + len(p.filterConds)*10)
-	outerSQL.WriteString(" WHERE ")
+	outerSQL.Grow(maxSQLLength)
+	outerSQL.WriteString(whereClause)
 
-	args = make([]any, 0, totalConditions*2) // Estimate arg count
+	// Pre-allocate args slice with accurate capacity
+	args = make([]any, 0, totalConditions*2)
 
 	for i, condList := range p.filterConds {
 		// Add conjunction between filter groups
 		if i > 0 {
-			outerSQL.WriteString(" ")
-			outerSQL.WriteString(conjunctions[p.filterConjTag[i]])
-			outerSQL.WriteString(" ")
+			outerSQL.WriteString(spaceConjunctions[p.filterConjTag[i]])
 		}
 
 		// Check if this is a NOT condition by examining the first filter in the group
-		// The isNot flag affects the entire filter group
 		isNot := strings.Contains(condList[0].Conj, "NOT")
 		if isNot {
 			outerSQL.WriteString("NOT ")
@@ -247,20 +361,20 @@ func (p *QuerySetImpl) GetQuerySet() (sql string, args []any) {
 
 		// Single condition doesn't need inner parentheses
 		if len(condList) == 1 {
-			outerSQL.WriteString("(")
+			outerSQL.WriteString(leftParen)
 			outerSQL.WriteString(condList[0].SQL)
-			outerSQL.WriteString(")")
+			outerSQL.WriteString(rightParen)
 			args = append(args, condList[0].Args...)
 			continue
 		}
 
 		// Multiple conditions in this group
-		outerSQL.WriteString("(")
+		outerSQL.WriteString(leftParen)
 
 		// First condition
-		outerSQL.WriteString("(")
+		outerSQL.WriteString(leftParen)
 		outerSQL.WriteString(condList[0].SQL)
-		outerSQL.WriteString(")")
+		outerSQL.WriteString(rightParen)
 		args = append(args, condList[0].Args...)
 
 		// Remaining conditions with their conjunctions
@@ -273,13 +387,14 @@ func (p *QuerySetImpl) GetQuerySet() (sql string, args []any) {
 
 			outerSQL.WriteString(" ")
 			outerSQL.WriteString(baseConj)
-			outerSQL.WriteString(" (")
+			outerSQL.WriteString(" ")
+			outerSQL.WriteString(leftParen)
 			outerSQL.WriteString(filter.SQL)
-			outerSQL.WriteString(")")
+			outerSQL.WriteString(rightParen)
 			args = append(args, filter.Args...)
 		}
 
-		outerSQL.WriteString(")")
+		outerSQL.WriteString(rightParen)
 	}
 
 	return outerSQL.String(), args
@@ -316,35 +431,43 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 	}
 
 	for fieldLookup, filedValue := range filter {
+		// Reset flags for each iteration
+		andOrFlag = andTag
+		method = ""
+		
 		if strings.HasPrefix(fieldLookup, orPrefix) {
-			fieldLookup = strings.TrimPrefix(fieldLookup, orPrefix)
+			fieldLookup = fieldLookup[len(orPrefix):] // More efficient than TrimPrefix
 			andOrFlag = orTag
-		} else {
-			andOrFlag = andTag
 		}
 
-		if pos := strings.Index(fieldLookup, methodJoiner); pos != -1 {
-			method = fieldLookup[pos+len(methodJoiner):]
-			fieldLookup = fieldLookup[:pos]
-		} else {
-			method = ""
+		if methodPos := strings.Index(fieldLookup, methodJoiner); methodPos != -1 {
+			method = fieldLookup[methodPos+len(methodJoiner):]
+			fieldLookup = fieldLookup[:methodPos]
 		}
 
-		lookup := strings.Split(fieldLookup, operatorJoiner)
-		if len(lookup) == 1 {
+		// Optimize lookup parsing with cached operators when possible
+		if operatorPos := strings.Index(fieldLookup, operatorJoiner); operatorPos == -1 {
 			operator = _exact
 			notFlag = notNot
-		} else if len(lookup) == 2 {
-			operator = strings.ToLower(strings.TrimSpace(lookup[1]))
-			if strings.HasPrefix(operator, notPrefix) {
-				operator = strings.TrimPrefix(operator, notPrefix)
-				notFlag = isNot
-			} else {
-				notFlag = notNot
-			}
+			fieldName = fieldLookup
 		} else {
-			p.setError(fieldLookupError, fieldLookup)
-			return
+			operatorStr := fieldLookup[operatorPos+len(operatorJoiner):]
+			fieldName = fieldLookup[:operatorPos]
+			
+			// Try cache first for common operators
+			if cached, ok := operatorCache[operatorStr]; ok {
+				operator = cached.op
+				notFlag = cached.notFlag
+			} else {
+				// Fallback to original parsing for uncommon operators
+				if strings.HasPrefix(operatorStr, notPrefix) {
+					operator = operatorStr[len(notPrefix):]
+					notFlag = isNot
+				} else {
+					operator = operatorStr
+					notFlag = notNot
+				}
+			}
 		}
 
 		op := p.OperatorSQL(operator, method)
@@ -353,13 +476,13 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 			return
 		}
 
-		fieldName = lookup[0]
-
 		fCond := newCond()
 		fCond.SetConj(conjunctions[andOrFlag])
 
+		// Cache reflection to reduce overhead
 		valueOf := reflect.ValueOf(filedValue)
 		valueKind := valueOf.Kind()
+		
 		switch operator {
 		case _exact:
 			if filedValue == nil {
@@ -373,18 +496,22 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 			if isStringKind(valueKind) || isBoolKind(valueKind) || isNumericKind(valueKind) {
 				filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(op, fieldName), []any{filedValue})
 			} else if isListKind(valueKind) {
-				if valueOf.Len() == 0 {
+				valueLen := valueOf.Len()
+				if valueLen == 0 {
 					p.setError(operatorValueLenLessError, operator, 0)
 					return
 				}
-				opStr := " " + conjunctions[0] + " " + fmt.Sprintf(op, fieldName)
-				sql := fmt.Sprintf(op, fieldName) + strings.Repeat(opStr, valueOf.Len()-1)
-				if len(filter) > 1 {
-					sql = "(" + sql + ")"
-				}
-				args := make([]any, valueOf.Len())
-				for i := range valueOf.Len() {
+				
+				// Pre-allocate args slice for better performance
+				args := make([]any, valueLen)
+				for i := 0; i < valueLen; i++ {
 					args[i] = valueOf.Index(i).Interface()
+				}
+				
+				// Use optimized function to build repeated SQL
+				sql := buildRepeatedOperatorSQL(op, fieldName, valueLen)
+				if len(filter) > 1 {
+					sql = leftParen + sql + rightParen
 				}
 				filterConds[fieldName] = fCond.SetSQL(sql, args)
 			} else {
@@ -399,7 +526,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 			filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(op, fieldName), []any{filedValue})
 		case _in:
 			if isStringKind(valueKind) {
-				sql := fmt.Sprintf(op, fieldName, not[notFlag]) + " (" + filedValue.(string) + ")"
+				sql := fmt.Sprintf(op, fieldName, not[notFlag]) + leftParen + filedValue.(string) + rightParen
 				filterConds[fieldName] = fCond.SetSQL(sql, []any{})
 				continue
 			}
@@ -408,13 +535,18 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 				p.setError(unsupportedValueError, operator, valueKind.String())
 				return
 			}
-			if valueOf.Len() == 0 {
+			valueLen := valueOf.Len()
+			if valueLen == 0 {
 				p.setError(operatorValueLenLessError, operator, 0)
 				return
 			}
-			sql := fmt.Sprintf(op, fieldName, not[notFlag]) + " (" + p.Placeholder() + strings.Repeat(","+p.Placeholder(), valueOf.Len()-1) + ")"
-			args := make([]any, valueOf.Len())
-			for i := 0; i < valueOf.Len(); i++ {
+			
+			// Use optimized placeholder building
+			placeholders := buildPlaceholders(p.Placeholder(), valueLen)
+			sql := fmt.Sprintf(op, fieldName, not[notFlag]) + leftParen + placeholders + rightParen
+			
+			args := make([]any, valueLen)
+			for i := 0; i < valueLen; i++ {
 				args[i] = valueOf.Index(i).Interface()
 			}
 			filterConds[fieldName] = fCond.SetSQL(sql, args)
@@ -521,8 +653,8 @@ func (p *QuerySetImpl) FilterToSQL(state int, filter ...any) QuerySet {
 
 		// Set the conjunction tag for the first filter
 		if i == 0 {
-			// Use the map to determine the conjunction tag
-			conjTag, ok := conjunctionMap[reflect.TypeOf(f)]
+			// Use cached type lookup to determine the conjunction tag
+			conjTag, ok := getConjunctionTag(reflect.TypeOf(f))
 			if !ok {
 				p.setError(unsupportedFilterTypeError, reflect.TypeOf(f).String())
 				return p // Return immediately if there's an error
@@ -616,16 +748,25 @@ func (p *QuerySetImpl) SliceSelectToSQL(columns []string) QuerySet {
 		return p
 	}
 
-	var result strings.Builder
-	result.Grow(len(columns) * 10) // Pre-allocate space for performance
-	for i := 0; i < len(columns)-1; i++ {
-		result.WriteString(wrapWithBackticks(columns[i]))
-		result.WriteString(", ")
+	// More accurate capacity estimation
+	totalLen := 0
+	for _, col := range columns {
+		totalLen += len(col) + 4 // Add 4 for backticks and comma+space
 	}
-	result.WriteString(wrapWithBackticks(columns[len(columns)-1]))
+
+	var result strings.Builder
+	result.Grow(totalLen)
+	
+	// First column
+	result.WriteString(wrapWithBackticks(columns[0]))
+	
+	// Remaining columns
+	for i := 1; i < len(columns); i++ {
+		result.WriteString(", ")
+		result.WriteString(wrapWithBackticks(columns[i]))
+	}
 
 	p.selectColumn = result.String()
-
 	return p
 }
 
@@ -668,25 +809,41 @@ func (p *QuerySetImpl) StrOrderByToSQL(orderBy string) QuerySet {
 func (p *QuerySetImpl) SliceOrderByToSQL(orderBy []string) QuerySet {
 	p.setCalled(qsOrderBy)
 
-	orderByList := orderBy
-
-	if len(orderByList) == 0 {
+	if len(orderBy) == 0 {
 		return p
 	}
 
-	for _, by := range orderByList {
-		by = strings.TrimSpace(by)
-		switch strings.HasPrefix(by, descPrefix) {
-		case true:
-			p.orderBySQL += "`" + by[1:] + "` DESC"
-		case false:
-			p.orderBySQL += "`" + by + "` ASC"
-		}
-		p.orderBySQL += ", "
+	// Estimate capacity more accurately
+	estimatedLen := 0
+	for _, by := range orderBy {
+		estimatedLen += len(by) + 10 // 10 chars for backticks, DESC/ASC, comma, space
 	}
 
-	p.orderBySQL = p.orderBySQL[:len(p.orderBySQL)-2]
+	var result strings.Builder
+	result.Grow(estimatedLen)
 
+	for i, by := range orderBy {
+		if i > 0 {
+			result.WriteString(", ")
+		}
+		
+		// Optimize trimming - avoid TrimSpace if not needed
+		if len(by) > 0 && (by[0] == ' ' || by[len(by)-1] == ' ') {
+			by = strings.TrimSpace(by)
+		}
+		
+		if len(by) > 0 && by[0] == '-' {
+			result.WriteByte('`')
+			result.WriteString(by[1:])
+			result.WriteString("` DESC")
+		} else {
+			result.WriteByte('`')
+			result.WriteString(by)
+			result.WriteString("` ASC")
+		}
+	}
+
+	p.orderBySQL = result.String()
 	return p
 }
 
@@ -745,17 +902,40 @@ func (p *QuerySetImpl) SliceGroupByToSQL(groupBy []string) QuerySet {
 		return p
 	}
 
+	// Estimate capacity: each field needs backticks, trimming, commas
+	estimatedLen := 0
+	for _, by := range groupBy {
+		// Optimize - only trim if necessary
+		byLen := len(by)
+		if byLen > 0 && (by[0] == ' ' || by[byLen-1] == ' ') {
+			byLen = len(strings.TrimSpace(by))
+		}
+		estimatedLen += byLen + 4 // 4 for backticks and comma+space
+	}
+
 	var b strings.Builder
-	b.WriteString("`")
-	b.WriteString(strings.TrimSpace(groupBy[0]))
+	b.Grow(estimatedLen)
+	
+	// First field
+	b.WriteByte('`')
+	firstBy := groupBy[0]
+	if len(firstBy) > 0 && (firstBy[0] == ' ' || firstBy[len(firstBy)-1] == ' ') {
+		firstBy = strings.TrimSpace(firstBy)
+	}
+	b.WriteString(firstBy)
+	b.WriteByte('`')
+	
+	// Remaining fields
 	for _, by := range groupBy[1:] {
 		b.WriteString("`, `")
-		b.WriteString(strings.TrimSpace(by))
+		if len(by) > 0 && (by[0] == ' ' || by[len(by)-1] == ' ') {
+			by = strings.TrimSpace(by)
+		}
+		b.WriteString(by)
 	}
-	b.WriteString("`")
+	b.WriteByte('`')
 
 	p.groupSQL = b.String()
-
 	return p
 }
 
