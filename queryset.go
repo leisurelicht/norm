@@ -15,7 +15,47 @@ var (
 			return make(map[string]string, 16) // Pool of string maps
 		},
 	}
+	
+	// Cache for reflection types to avoid repeated reflect.TypeOf() calls
+	typeCache = sync.Map{} // map[reflect.Type]int for conjunction types
+	
+	// Cache for commonly processed operators to avoid string processing
+	operatorCache = map[string]struct {
+		op      string
+		notFlag int
+	}{
+		"exact":        {_exact, notNot},
+		"exclude":      {_exclude, notNot},
+		"not_exclude":  {_exclude, isNot},
+		"iexact":       {_iexact, notNot},
+		"not_iexact":   {_iexact, isNot},
+		"gt":           {_gt, notNot},
+		"gte":          {_gte, notNot},
+		"lt":           {_lt, notNot},
+		"lte":          {_lte, notNot},
+		"in":           {_in, notNot},
+		"not_in":       {_in, isNot},
+		"between":      {_between, notNot},
+		"not_between":  {_between, isNot},
+		"contains":     {_contains, notNot},
+		"not_contains": {_contains, isNot},
+	}
 )
+
+// Initialize type cache at startup
+func init() {
+	typeCache.Store(reflect.TypeOf(Cond{}), andTag)
+	typeCache.Store(reflect.TypeOf(AND{}), andTag)
+	typeCache.Store(reflect.TypeOf(OR{}), orTag)
+}
+
+// Fast type lookup for conjunction mapping
+func getConjunctionTag(t reflect.Type) (int, bool) {
+	if tag, ok := typeCache.Load(t); ok {
+		return tag.(int), true
+	}
+	return 0, false
+}
 
 // Cached string constants for better performance
 var (
@@ -405,21 +445,29 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 			fieldLookup = fieldLookup[:methodPos]
 		}
 
-		// Optimize lookup parsing with fewer allocations
+		// Optimize lookup parsing with cached operators when possible
 		if operatorPos := strings.Index(fieldLookup, operatorJoiner); operatorPos == -1 {
 			operator = _exact
 			notFlag = notNot
 			fieldName = fieldLookup
 		} else {
-			parts := fieldLookup[operatorPos+len(operatorJoiner):]
-			if strings.HasPrefix(parts, notPrefix) {
-				operator = parts[len(notPrefix):]
-				notFlag = isNot
-			} else {
-				operator = parts
-				notFlag = notNot
-			}
+			operatorStr := fieldLookup[operatorPos+len(operatorJoiner):]
 			fieldName = fieldLookup[:operatorPos]
+			
+			// Try cache first for common operators
+			if cached, ok := operatorCache[operatorStr]; ok {
+				operator = cached.op
+				notFlag = cached.notFlag
+			} else {
+				// Fallback to original parsing for uncommon operators
+				if strings.HasPrefix(operatorStr, notPrefix) {
+					operator = operatorStr[len(notPrefix):]
+					notFlag = isNot
+				} else {
+					operator = operatorStr
+					notFlag = notNot
+				}
+			}
 		}
 
 		op := p.OperatorSQL(operator, method)
@@ -605,8 +653,8 @@ func (p *QuerySetImpl) FilterToSQL(state int, filter ...any) QuerySet {
 
 		// Set the conjunction tag for the first filter
 		if i == 0 {
-			// Use the map to determine the conjunction tag
-			conjTag, ok := conjunctionMap[reflect.TypeOf(f)]
+			// Use cached type lookup to determine the conjunction tag
+			conjTag, ok := getConjunctionTag(reflect.TypeOf(f))
 			if !ok {
 				p.setError(unsupportedFilterTypeError, reflect.TypeOf(f).String())
 				return p // Return immediately if there's an error
@@ -779,8 +827,12 @@ func (p *QuerySetImpl) SliceOrderByToSQL(orderBy []string) QuerySet {
 			result.WriteString(", ")
 		}
 		
-		by = strings.TrimSpace(by)
-		if strings.HasPrefix(by, descPrefix) {
+		// Optimize trimming - avoid TrimSpace if not needed
+		if len(by) > 0 && (by[0] == ' ' || by[len(by)-1] == ' ') {
+			by = strings.TrimSpace(by)
+		}
+		
+		if len(by) > 0 && by[0] == '-' {
 			result.WriteByte('`')
 			result.WriteString(by[1:])
 			result.WriteString("` DESC")
@@ -853,7 +905,12 @@ func (p *QuerySetImpl) SliceGroupByToSQL(groupBy []string) QuerySet {
 	// Estimate capacity: each field needs backticks, trimming, commas
 	estimatedLen := 0
 	for _, by := range groupBy {
-		estimatedLen += len(strings.TrimSpace(by)) + 4 // 4 for backticks and comma+space
+		// Optimize - only trim if necessary
+		byLen := len(by)
+		if byLen > 0 && (by[0] == ' ' || by[byLen-1] == ' ') {
+			byLen = len(strings.TrimSpace(by))
+		}
+		estimatedLen += byLen + 4 // 4 for backticks and comma+space
 	}
 
 	var b strings.Builder
@@ -861,13 +918,20 @@ func (p *QuerySetImpl) SliceGroupByToSQL(groupBy []string) QuerySet {
 	
 	// First field
 	b.WriteByte('`')
-	b.WriteString(strings.TrimSpace(groupBy[0]))
+	firstBy := groupBy[0]
+	if len(firstBy) > 0 && (firstBy[0] == ' ' || firstBy[len(firstBy)-1] == ' ') {
+		firstBy = strings.TrimSpace(firstBy)
+	}
+	b.WriteString(firstBy)
 	b.WriteByte('`')
 	
 	// Remaining fields
 	for _, by := range groupBy[1:] {
 		b.WriteString("`, `")
-		b.WriteString(strings.TrimSpace(by))
+		if len(by) > 0 && (by[0] == ' ' || by[len(by)-1] == ' ') {
+			by = strings.TrimSpace(by)
+		}
+		b.WriteString(by)
 	}
 	b.WriteByte('`')
 
