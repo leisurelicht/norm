@@ -30,13 +30,15 @@ func rawFieldNames(in any, tag string, pg bool) []string {
 		v = v.Elem()
 	}
 
-	out := make([]string, 0, v.NumField())
+	fieldCount := v.NumField()
+	out := make([]string, 0, fieldCount) // Pre-allocate with exact capacity
 
 	typ := v.Type()
-	for i := range v.NumField() {
+	for i := 0; i < fieldCount; i++ {
 		// gets us a StructField
 		fi := typ.Field(i)
 		tagv := fi.Tag.Get(tag)
+		
 		switch tagv {
 		case "-":
 			continue
@@ -44,27 +46,25 @@ func rawFieldNames(in any, tag string, pg bool) []string {
 			if pg {
 				out = append(out, fi.Name)
 			} else {
-				out = append(out, fmt.Sprintf("`%s`", fi.Name))
+				out = append(out, "`"+fi.Name+"`") // Avoid fmt.Sprintf for simple concatenation
 			}
 		default:
-			// get tag name with the tag option, e.g.:
-			// `db:"id"`
-			// `db:"id,type=char,length=16"`
-			// `db:",type=char,length=16"`
-			// `db:"-,type=char,length=16"`
-			if strings.Contains(tagv, ",") {
-				tagv = strings.TrimSpace(strings.Split(tagv, ",")[0])
+			// get tag name with the tag option, optimized parsing
+			if commaPos := strings.Index(tagv, ","); commaPos != -1 {
+				tagv = strings.TrimSpace(tagv[:commaPos]) // More efficient than Split
 			}
+			
 			if tagv == "-" {
 				continue
 			}
 			if len(tagv) == 0 {
 				tagv = fi.Name
 			}
+			
 			if pg {
 				out = append(out, tagv)
 			} else {
-				out = append(out, fmt.Sprintf("`%s`", tagv))
+				out = append(out, "`"+tagv+"`") // Avoid fmt.Sprintf for simple concatenation
 			}
 		}
 	}
@@ -246,17 +246,46 @@ func isListKind(kind reflect.Kind) bool {
 
 func genStrListValueLikeSQL(p *QuerySetImpl, filterConditions map[string]*cond, fieldName string, valueOf reflect.Value, notFlag int, operator, valueFormat string) {
 	op := p.OperatorSQL(operator, "")
+	valueLen := valueOf.Len()
 
-	filterConditions[fieldName] = newCondByValue("", fmt.Sprintf(op, fieldName, not[notFlag]), []any{fmt.Sprintf(valueFormat, valueOf.Index(0).Interface())})
-	for i := 1; i < valueOf.Len(); i++ {
+	// Pre-allocate args slice
+	args := make([]any, valueLen)
+	
+	// First value and condition
+	if valueOf.Index(0).IsZero() {
+		p.setError(operatorValueEmptyError, operator)
+		return
+	}
+	args[0] = fmt.Sprintf(valueFormat, valueOf.Index(0).Interface())
+	
+	// If only one value, create simple condition
+	if valueLen == 1 {
+		filterConditions[fieldName] = newCondByValue("", fmt.Sprintf(op, fieldName, not[notFlag]), args[:1])
+		return
+	}
+	
+	// Build optimized SQL for multiple values
+	baseSQL := fmt.Sprintf(op, fieldName, not[notFlag])
+	conjunctionStr := " " + conjunctions[notFlag^1] + " " + baseSQL
+	
+	// Calculate total SQL length and pre-allocate
+	totalLen := len(baseSQL) + len(conjunctionStr)*(valueLen-1)
+	var sqlBuilder strings.Builder
+	sqlBuilder.Grow(totalLen)
+	sqlBuilder.WriteString(baseSQL)
+	
+	// Process remaining values
+	for i := 1; i < valueLen; i++ {
 		if valueOf.Index(i).IsZero() {
 			p.setError(operatorValueEmptyError, operator)
 			return
 		}
-
-		filterConditions[fieldName].SQL += fmt.Sprintf(" "+conjunctions[notFlag^1]+" "+op, fieldName, not[notFlag])
-		filterConditions[fieldName].Args = append(filterConditions[fieldName].Args, fmt.Sprintf(valueFormat, valueOf.Index(i).Interface()))
+		
+		args[i] = fmt.Sprintf(valueFormat, valueOf.Index(i).Interface())
+		sqlBuilder.WriteString(conjunctionStr)
 	}
+	
+	filterConditions[fieldName] = newCondByValue("", sqlBuilder.String(), args)
 }
 
 func joinSQL(filterSql *string, filterArgs *[]any, index int, condition *cond) {
@@ -287,17 +316,22 @@ func deepCopyModelPtrStructure(src any) any {
 	return reflect.New(srcValue.Elem().Type()).Interface()
 }
 
-// 用反引号包裹字段
+// wrapWithBackticks wraps field name with backticks
 func wrapWithBackticks(str string) string {
 	if str == "" {
 		return str
 	}
-	// 如果已经被包裹，不做修改
+	// If already wrapped, don't modify (optimized check)
 	if len(str) > 1 && str[0] == '`' && str[len(str)-1] == '`' {
 		return str
 	}
-	// 包裹字段
-	return "`" + str + "`"
+	// Wrap field with pre-allocated string builder for better performance
+	var result strings.Builder
+	result.Grow(len(str) + 2) // Exact capacity needed
+	result.WriteByte('`')
+	result.WriteString(str)
+	result.WriteByte('`')
+	return result.String()
 }
 
 func getTableName(m any) string {
