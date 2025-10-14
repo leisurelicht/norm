@@ -89,7 +89,6 @@ type (
 
 	Impl struct {
 		context        context.Context
-		conn           any
 		modelPtr       any
 		modelSlicePtr  any
 		operator       Operator
@@ -108,7 +107,7 @@ type (
 // The model can be a struct or a slice of structs, and the operator must implement the Operator interface.
 // The connection is used to execute queries, and the operator provides methods for database operations.
 // It returns a function that takes a context and returns a Controller instance.
-func NewController(conn any, op Operator, m any) func(ctx context.Context) Controller {
+func NewController(op Operator, m any) func(ctx context.Context) Controller {
 	// createModelPointerAndSlice call must be at the beginning of this function,
 	// for it will check type of the m(model) is a struct
 	mPtr, mSlicePtr := createModelPointerAndSlice(m)
@@ -125,7 +124,6 @@ func NewController(conn any, op Operator, m any) func(ctx context.Context) Contr
 		}
 		return &Impl{
 			context:        ctx,
-			conn:           conn,
 			modelPtr:       mPtr,
 			modelSlicePtr:  mSlicePtr,
 			operator:       op,
@@ -391,7 +389,7 @@ func (m *Impl) create(data map[string]any) (id int64, err error) {
 
 	sql := fmt.Sprintf(InsertTemp, m.tableName, strings.Join(rows, ","), strings.Repeat("?,", len(rows)-1)+"?")
 
-	return m.operator.Insert(m.ctx(), m.conn, sql, args...)
+	return m.operator.Insert(m.ctx(), sql, args...)
 }
 
 func (m *Impl) bulkCreate(data []map[string]any) (num int64, err error) {
@@ -422,7 +420,7 @@ func (m *Impl) bulkCreate(data []map[string]any) (num int64, err error) {
 
 	sql := fmt.Sprintf(InsertTemp, m.tableName, strings.Join(rows, ","), strings.Repeat("?,", len(rows)-1)+"?")
 
-	return m.operator.BulkInsert(m.ctx(), m.conn, sql, args, data)
+	return m.operator.BulkInsert(m.ctx(), sql, args, data)
 }
 
 // Create creates a new record in the database with the provided data map.
@@ -468,7 +466,7 @@ func (m *Impl) Remove() (num int64, err error) {
 	filterSQL, filterArgs := m.qs.GetQuerySet()
 	sql += filterSQL
 
-	return m.operator.Remove(m.ctx(), m.conn, sql, filterArgs...)
+	return m.operator.Remove(m.ctx(), sql, filterArgs...)
 }
 
 func (m *Impl) update(data map[string]any) (num int64, err error) {
@@ -493,7 +491,7 @@ func (m *Impl) update(data map[string]any) (num int64, err error) {
 	sql += filterSQL
 	args = append(args, filterArgs...)
 
-	return m.operator.Update(m.ctx(), m.conn, sql, args...)
+	return m.operator.Update(m.ctx(), sql, args...)
 }
 
 // Update updates the records matching the current query set with the provided data map.
@@ -523,7 +521,7 @@ func (m *Impl) Count() (num int64, err error) {
 
 	filterSQL, filterArgs := m.qs.GetQuerySet()
 
-	return m.operator.Count(m.ctx(), m.conn, filterSQL, filterArgs...)
+	return m.operator.Count(m.ctx(), filterSQL, filterArgs...)
 }
 
 func (m *Impl) findOne() (result map[string]any, err error) {
@@ -541,7 +539,7 @@ func (m *Impl) findOne() (result map[string]any, err error) {
 
 	res := deepCopyModelPtrStructure(m.modelPtr)
 
-	err = m.operator.FindOne(m.ctx(), m.conn, res, query, filterArgs...)
+	err = m.operator.FindOne(m.ctx(), res, query, filterArgs...)
 
 	switch {
 	case err == nil:
@@ -598,7 +596,7 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 	query += m.qs.GetOrderBySQL()
 	query += " LIMIT 1"
 
-	return m.operator.FindOne(m.ctx(), m.conn, modelPtr, query, filterArgs...)
+	return m.operator.FindOne(m.ctx(), modelPtr, query, filterArgs...)
 }
 
 // FindAll retrieves all records matching the current query set into a slice of maps.
@@ -624,7 +622,7 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 
 	res := deepCopyModelPtrStructure(m.modelSlicePtr)
 
-	err = m.operator.FindAll(m.ctx(), m.conn, res, query, filterArgs...)
+	err = m.operator.FindAll(m.ctx(), res, query, filterArgs...)
 
 	switch {
 	case err == nil:
@@ -667,7 +665,7 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 	query += m.qs.GetOrderBySQL()
 	query += m.qs.GetLimitSQL()
 
-	err = m.operator.FindAll(m.ctx(), m.conn, modelSlicePtr, query, filterArgs...)
+	err = m.operator.FindAll(m.ctx(), modelSlicePtr, query, filterArgs...)
 
 	switch {
 	case err == nil:
@@ -695,7 +693,7 @@ func (m *Impl) Delete() (int64, error) {
 func (m *Impl) exist() (exist bool, err error) {
 	filterSQL, filterArgs := m.qs.GetQuerySet()
 
-	return m.operator.Exist(m.ctx(), m.conn, filterSQL, filterArgs...)
+	return m.operator.Exist(m.ctx(), filterSQL, filterArgs...)
 }
 
 // Exist checks if any record exists that matches the current query set.

@@ -36,9 +36,34 @@ func TestCharacterEncoding(t *testing.T) {
 	}
 }
 
+func TestGoZeroMysqlTransaction(t *testing.T) {
+	//conn := sqlx.NewMysql(mysqlAddress)
+	//sourceCli := NewController(go_zero.NewOperator(conn), test.Source{})
+	// propertyCli := NewController(conn, go_zero.NewOperator(), test.Property{})
+
+	//sourceCli(nil).Transact(func(ctx context.Context, tx sqlx.Session) error {
+	// Your transaction logic here
+	// _, err := sourceCli(ctx).Create(map[string]any{"id": 1000, "name": "transaction2", "description": "test transaction2"})
+	// if err != nil {
+	// 	t.Errorf("Create error: %s", err)
+	// 	return err
+	// }
+
+	// _, _, err = propertyCli(ctx).CreateOrUpdate(map[string]any{"column_name": "test65432", "description": "Test65432"})
+	// if err != nil {
+	// 	t.Errorf("CreateOrUpdate error: %s", err)
+	// 	return nil
+	// }
+	//_, _ = tx.ExecCtx(ctx, "INSERT INTO `source` (`id`,`name`,`description`) VALUES (1001,'transaction3','test transaction3')")
+	//
+	//return nil
+	//})
+
+}
+
 func TestGoZeroMysqlMethods(t *testing.T) {
-	sourceCli := NewController(sqlx.NewMysql(mysqlAddress), go_zero.NewOperator(), test.Source{})
-	propertyCli := NewController(sqlx.NewMysql(mysqlAddress), go_zero.NewOperator(), test.Property{})
+	sourceCli := NewController(go_zero.NewOperator(sqlx.NewMysql(mysqlAddress)), test.Source{})
+	propertyCli := NewController(go_zero.NewOperator(sqlx.NewMysql(mysqlAddress)), test.Property{})
 
 	if num, err := sourceCli(nil).Count(); err != nil {
 		t.Error(err)
@@ -478,7 +503,7 @@ func TestGoZeroMysqlMethods(t *testing.T) {
 }
 
 func TestGoZeroMysqlHandlerError(t *testing.T) {
-	ctl := NewController(sqlx.NewMysql(mysqlAddress), go_zero.NewOperator(), test.Source{})
+	ctl := NewController(go_zero.NewOperator(sqlx.NewMysql(mysqlAddress)), test.Source{})
 
 	if _, err := ctl(nil).Filter(Cond{}).Where("").FindOne(); err != nil && err.Error() != fmt.Sprintf(filterOrWhereError, "Filter") {
 		t.Errorf("expect nil but got %v", err)

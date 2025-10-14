@@ -675,7 +675,7 @@ func Test_genStrListValueLikeSQL(t *testing.T) {
 		{
 			name: "test contains value empty error",
 			args: args{
-				p:                &QuerySetImpl{Operator: go_zero.NewOperator(), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
+				p:                &QuerySetImpl{Operator: go_zero.NewOperator(nil), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
 				filterConditions: make(map[string]*cond),
 				fieldName:        "name",
 				valueOf:          reflect.ValueOf([]string{"", ""}),
@@ -690,7 +690,7 @@ func Test_genStrListValueLikeSQL(t *testing.T) {
 		{
 			name: "test icontains value empty error",
 			args: args{
-				p:                &QuerySetImpl{Operator: go_zero.NewOperator(), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
+				p:                &QuerySetImpl{Operator: go_zero.NewOperator(nil), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
 				filterConditions: make(map[string]*cond),
 				fieldName:        "name",
 				valueOf:          reflect.ValueOf([]string{"", ""}),
@@ -705,7 +705,7 @@ func Test_genStrListValueLikeSQL(t *testing.T) {
 		{
 			name: "test startswith value empty error",
 			args: args{
-				p:                &QuerySetImpl{Operator: go_zero.NewOperator(), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
+				p:                &QuerySetImpl{Operator: go_zero.NewOperator(nil), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
 				filterConditions: make(map[string]*cond),
 				fieldName:        "name",
 				valueOf:          reflect.ValueOf([]string{"", ""}),
@@ -720,7 +720,7 @@ func Test_genStrListValueLikeSQL(t *testing.T) {
 		{
 			name: "test istartswith value empty error",
 			args: args{
-				p:                &QuerySetImpl{Operator: go_zero.NewOperator(), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
+				p:                &QuerySetImpl{Operator: go_zero.NewOperator(nil), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
 				filterConditions: make(map[string]*cond),
 				fieldName:        "name",
 				valueOf:          reflect.ValueOf([]string{"", ""}),
@@ -735,7 +735,7 @@ func Test_genStrListValueLikeSQL(t *testing.T) {
 		{
 			name: "test endswitch value empty error",
 			args: args{
-				p:                &QuerySetImpl{Operator: go_zero.NewOperator(), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
+				p:                &QuerySetImpl{Operator: go_zero.NewOperator(nil), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
 				filterConditions: make(map[string]*cond),
 				fieldName:        "name",
 				valueOf:          reflect.ValueOf([]string{"", ""}),
@@ -750,7 +750,7 @@ func Test_genStrListValueLikeSQL(t *testing.T) {
 		{
 			name: "test iendswitch value empty error",
 			args: args{
-				p:                &QuerySetImpl{Operator: go_zero.NewOperator(), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
+				p:                &QuerySetImpl{Operator: go_zero.NewOperator(nil), called: 1, selectColumn: "*", filterConds: [][]cond{}, filterConjTag: []int{0}},
 				filterConditions: make(map[string]*cond),
 				fieldName:        "name",
 				valueOf:          reflect.ValueOf([]string{"", ""}),
@@ -765,7 +765,7 @@ func Test_genStrListValueLikeSQL(t *testing.T) {
 		{
 			name: "test with string list not contains",
 			args: args{
-				p:                &QuerySetImpl{Operator: go_zero.NewOperator()},
+				p:                &QuerySetImpl{Operator: go_zero.NewOperator(nil)},
 				filterConditions: make(map[string]*cond),
 				fieldName:        "test_field",
 				valueOf:          reflect.ValueOf([]string{"value1", "value2"}),
@@ -779,7 +779,7 @@ func Test_genStrListValueLikeSQL(t *testing.T) {
 		{
 			name: "test with string list startswith",
 			args: args{
-				p:                &QuerySetImpl{Operator: go_zero.NewOperator()},
+				p:                &QuerySetImpl{Operator: go_zero.NewOperator(nil)},
 				filterConditions: make(map[string]*cond),
 				fieldName:        "test_field",
 				valueOf:          reflect.ValueOf([]string{"value1", "value2"}),
@@ -793,7 +793,7 @@ func Test_genStrListValueLikeSQL(t *testing.T) {
 		{
 			name: "test with string list endswith",
 			args: args{
-				p:                &QuerySetImpl{Operator: go_zero.NewOperator()},
+				p:                &QuerySetImpl{Operator: go_zero.NewOperator(nil)},
 				filterConditions: make(map[string]*cond),
 				fieldName:        "test_field",
 				valueOf:          reflect.ValueOf([]string{"value1", "value2"}),
@@ -807,7 +807,7 @@ func Test_genStrListValueLikeSQL(t *testing.T) {
 		{
 			name: "test with single string",
 			args: args{
-				p:                &QuerySetImpl{Operator: go_zero.NewOperator()},
+				p:                &QuerySetImpl{Operator: go_zero.NewOperator(nil)},
 				filterConditions: make(map[string]*cond),
 				fieldName:        "test_field",
 				valueOf:          reflect.ValueOf([]string{"value1"}),
@@ -821,7 +821,7 @@ func Test_genStrListValueLikeSQL(t *testing.T) {
 		{
 			name: "test with icontains operator",
 			args: args{
-				p:                &QuerySetImpl{Operator: go_zero.NewOperator()},
+				p:                &QuerySetImpl{Operator: go_zero.NewOperator(nil)},
 				filterConditions: make(map[string]*cond),
 				fieldName:        "test_field",
 				valueOf:          reflect.ValueOf([]string{"value1", "value2"}),
@@ -835,7 +835,7 @@ func Test_genStrListValueLikeSQL(t *testing.T) {
 		{
 			name: "test with istartswith operator",
 			args: args{
-				p:                &QuerySetImpl{Operator: go_zero.NewOperator()},
+				p:                &QuerySetImpl{Operator: go_zero.NewOperator(nil)},
 				filterConditions: make(map[string]*cond),
 				fieldName:        "test_field",
 				valueOf:          reflect.ValueOf([]string{"value1", "value2"}),
@@ -849,7 +849,7 @@ func Test_genStrListValueLikeSQL(t *testing.T) {
 		{
 			name: "test with iendswith operator",
 			args: args{
-				p:                &QuerySetImpl{Operator: go_zero.NewOperator()},
+				p:                &QuerySetImpl{Operator: go_zero.NewOperator(nil)},
 				filterConditions: make(map[string]*cond),
 				fieldName:        "test_field",
 				valueOf:          reflect.ValueOf([]string{"value1", "value2"}),
@@ -863,7 +863,7 @@ func Test_genStrListValueLikeSQL(t *testing.T) {
 		{
 			name: "test contains more than 2 values",
 			args: args{
-				p:                &QuerySetImpl{Operator: go_zero.NewOperator()},
+				p:                &QuerySetImpl{Operator: go_zero.NewOperator(nil)},
 				filterConditions: make(map[string]*cond),
 				fieldName:        "test_field",
 				valueOf:          reflect.ValueOf([]string{"value1", "value2", "value3"}),

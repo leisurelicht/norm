@@ -167,7 +167,7 @@ func TestFilter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			operator := go_zero.NewOperator()
+			operator := go_zero.NewOperator(nil)
 			p := NewQuerySet(operator)
 			p = p.FilterToSQL(tt.args.state, tt.args.filter...)
 			sql, sqlArgs := p.GetQuerySet()
@@ -222,7 +222,7 @@ func TestMultipleCallFilter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			operator := go_zero.NewOperator()
+			operator := go_zero.NewOperator(nil)
 			p := NewQuerySet(operator)
 
 			for _, f := range tt.args {
@@ -537,7 +537,7 @@ func TestFilterError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			operator := go_zero.NewOperator()
+			operator := go_zero.NewOperator(nil)
 			p := NewQuerySet(operator)
 			p = p.FilterToSQL(tt.args.isNot, tt.args.filter...)
 			p.GetQuerySet()
@@ -577,7 +577,7 @@ func TestWhere(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			operator := go_zero.NewOperator()
+			operator := go_zero.NewOperator(nil)
 			p := NewQuerySet(operator)
 
 			p.WhereToSQL(tt.args.cond, tt.args.args...)
@@ -628,7 +628,7 @@ func TestWhereError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			operator := go_zero.NewOperator()
+			operator := go_zero.NewOperator(nil)
 			p := NewQuerySet(operator)
 			p.WhereToSQL(tt.args.cond, tt.args.args...)
 
@@ -663,7 +663,7 @@ func TestWhereError(t *testing.T) {
 }
 
 func TestFilterAndWhereConflict(t *testing.T) {
-	operator := go_zero.NewOperator()
+	operator := go_zero.NewOperator(nil)
 	p := NewQuerySet(operator)
 
 	p.WhereToSQL("test = ?", 1)
@@ -717,7 +717,7 @@ func TestSelect(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			operator := go_zero.NewOperator()
+			operator := go_zero.NewOperator(nil)
 			p := NewQuerySet(operator)
 
 			sql := p.GetSelectSQL()
@@ -770,7 +770,7 @@ func TestSelectError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator(nil))
 
 			sql := p.GetSelectSQL()
 			if sql != "*" {
@@ -888,7 +888,7 @@ func TestLimit(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator(nil))
 			p.LimitToSQL(tt.args.PageSize, tt.args.PageNum)
 			sql := p.GetLimitSQL()
 
@@ -934,7 +934,7 @@ func TestOrderBy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator(nil))
 			p.OrderByToSQL(tt.args.order)
 			sql := p.GetOrderBySQL()
 
@@ -976,7 +976,7 @@ func TestOrderByError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator(nil))
 
 			p.OrderByToSQL(tt.args.selects)
 			sql := p.GetOrderBySQL()
@@ -1016,7 +1016,7 @@ func TestGroupBy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator(nil))
 			p.GroupByToSQL(tt.args.groupby)
 
 			sql := p.GetGroupBySQL()
@@ -1059,7 +1059,7 @@ func TestGroupByError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator(nil))
 
 			p.GroupByToSQL(tt.args.selects)
 			sql := p.GetGroupBySQL()
@@ -1096,7 +1096,7 @@ func TestHaving(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			operator := go_zero.NewOperator()
+			operator := go_zero.NewOperator(nil)
 			p := NewQuerySet(operator)
 
 			p.HavingToSQL(tt.args.havingSQL, tt.args.havingArgs...)
@@ -1123,7 +1123,7 @@ func TestHaving(t *testing.T) {
 }
 
 func TestFilterResetAndError(t *testing.T) {
-	p := NewQuerySet(go_zero.NewOperator())
+	p := NewQuerySet(go_zero.NewOperator(nil))
 
 	// Create an error
 	p.SelectToSQL("test")
@@ -1166,7 +1166,7 @@ func TestFilterResetAndError(t *testing.T) {
 
 // Test that multiple call flags are properly set
 func TestMultipleCallFlags(t *testing.T) {
-	p := NewQuerySet(go_zero.NewOperator()).(*QuerySetImpl)
+	p := NewQuerySet(go_zero.NewOperator(nil)).(*QuerySetImpl)
 
 	// Test initial state
 	if p.hasCalled(qsFilter) || p.hasCalled(qsExclude) || p.hasCalled(qsWhere) {

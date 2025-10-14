@@ -25,22 +25,20 @@ func Open(opt *clickhouse.Options) (driver.Conn, error) {
 	return clickhouse.Open(opt)
 }
 
-func OpenDB(opt *clickhouse.Options) *sql.DB {
-	return clickhouse.OpenDB(opt)
-}
-
 const (
 	placeholder = "?"
 	dbTag       = "ch"
 )
 
 type Operator struct {
+	conn        driver.Conn
 	tableName   string
 	placeholder string
 }
 
-func NewOperator() *Operator {
+func NewOperator(conn driver.Conn) *Operator {
 	return &Operator{
+		conn:        conn,
 		placeholder: placeholder,
 	}
 }
@@ -71,8 +69,8 @@ func (d *Operator) OperatorSQL(operator, method string) string {
 	return sql
 }
 
-func (d *Operator) Insert(ctx context.Context, conn any, query string, args ...any) (id int64, err error) {
-	err = conn.(driver.Conn).AsyncInsert(ctx, query, true, args...)
+func (d *Operator) Insert(ctx context.Context, query string, args ...any) (id int64, err error) {
+	err = d.conn.AsyncInsert(ctx, query, true, args...)
 	if err != nil {
 		return 0, err
 	}
@@ -80,8 +78,8 @@ func (d *Operator) Insert(ctx context.Context, conn any, query string, args ...a
 	return 0, nil
 }
 
-func (d *Operator) BulkInsert(ctx context.Context, conn any, query string, args []string, data []map[string]any) (num int64, err error) {
-	batch, err := conn.(driver.Conn).PrepareBatch(ctx, query)
+func (d *Operator) BulkInsert(ctx context.Context, query string, args []string, data []map[string]any) (num int64, err error) {
+	batch, err := d.conn.PrepareBatch(ctx, query)
 	if err != nil {
 		return 0, err
 	}
@@ -110,18 +108,18 @@ func (d *Operator) BulkInsert(ctx context.Context, conn any, query string, args 
 	return num, nil
 }
 
-func (d *Operator) Remove(ctx context.Context, conn any, query string, args ...any) (num int64, err error) {
+func (d *Operator) Remove(ctx context.Context, query string, args ...any) (num int64, err error) {
 	return 0, fmt.Errorf("Remove not implemented for ClickHouse")
 }
 
-func (d *Operator) Update(ctx context.Context, conn any, query string, args ...any) (num int64, err error) {
+func (d *Operator) Update(ctx context.Context, query string, args ...any) (num int64, err error) {
 	return 0, fmt.Errorf("Update not implemented for ClickHouse")
 }
 
-func (d *Operator) Count(ctx context.Context, conn any, condition string, args ...any) (num int64, err error) {
+func (d *Operator) Count(ctx context.Context, condition string, args ...any) (num int64, err error) {
 	query := "SELECT count() FROM " + d.tableName + condition
 
-	err = conn.(driver.Conn).QueryRow(ctx, query, args...).Scan(&num)
+	err = d.conn.QueryRow(ctx, query, args...).Scan(&num)
 
 	switch {
 	case err == nil:
@@ -134,11 +132,11 @@ func (d *Operator) Count(ctx context.Context, conn any, condition string, args .
 	}
 }
 
-func (d *Operator) Exist(ctx context.Context, conn any, condition string, args ...any) (bool, error) {
+func (d *Operator) Exist(ctx context.Context, condition string, args ...any) (bool, error) {
 	query := "SELECT count() FROM " + d.tableName + condition
 
 	var num int64
-	err := conn.(driver.Conn).QueryRow(ctx, query, args...).Scan(&num)
+	err := d.conn.QueryRow(ctx, query, args...).Scan(&num)
 
 	switch {
 	case err == nil:
@@ -151,8 +149,8 @@ func (d *Operator) Exist(ctx context.Context, conn any, condition string, args .
 	}
 }
 
-func (d *Operator) FindOne(ctx context.Context, conn any, model any, query string, args ...any) (err error) {
-	err = conn.(driver.Conn).QueryRow(ctx, query, args...).ScanStruct(model)
+func (d *Operator) FindOne(ctx context.Context, model any, query string, args ...any) (err error) {
+	err = d.conn.QueryRow(ctx, query, args...).ScanStruct(model)
 
 	switch {
 	case err == nil:
@@ -166,8 +164,8 @@ func (d *Operator) FindOne(ctx context.Context, conn any, model any, query strin
 
 }
 
-func (d *Operator) FindAll(ctx context.Context, conn any, model any, query string, args ...any) (err error) {
-	rows, err := conn.(driver.Conn).Query(ctx, query, args...)
+func (d *Operator) FindAll(ctx context.Context, model any, query string, args ...any) (err error) {
+	rows, err := d.conn.Query(ctx, query, args...)
 	if err != nil {
 		return err
 	}
