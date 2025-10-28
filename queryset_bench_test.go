@@ -8,7 +8,7 @@ import (
 )
 
 type MockOperator struct {
-	go_zero.Operator // Embed mysql.Operator to inherit its methods
+	go_zero.OperatorImpl // Embed mysql.Operator to inherit its methods
 }
 
 // IsSelectKey implements the Operator interface with the correct signature
