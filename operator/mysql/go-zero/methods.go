@@ -57,12 +57,6 @@ func (d *Operator) SetTableName(tableName string) {
 	d.tableName = tableName
 }
 
-func (d *Operator) SetConn(conn any) {
-	if c, ok := d.conn.(sqlx.SqlConn); ok {
-		d.conn = c
-	}
-}
-
 func (d *Operator) Placeholder() string {
 	return d.placeholder
 }

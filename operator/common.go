@@ -14,7 +14,6 @@ var (
 type Operator interface {
 	OperatorSQL(operator, method string) string
 	SetTableName(tableName string)
-	SetConn(conn any)
 	Placeholder() string
 	DBTag() string
 	Insert(ctx context.Context, query string, args ...any) (id int64, err error)
