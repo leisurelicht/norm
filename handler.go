@@ -91,12 +91,10 @@ type (
 		context        context.Context
 		modelPtr       any
 		modelSlicePtr  any
-		operator       Operator
-		tableName      string
 		fieldNameMap   map[string]struct{}
 		fieldNameSlice []string
 		fieldRows      string
-		mTag           string
+		operator       Operator
 		qs             QuerySet
 		called         callFlag
 	}
@@ -112,11 +110,10 @@ func NewController(op Operator, m any) func(ctx context.Context) Controller {
 	// for it will check type of the m(model) is a struct
 	mPtr, mSlicePtr := createModelPointerAndSlice(m)
 
-	fieldNameSlice := rawFieldNames(m, op.DBTag(), true)
+	fieldNameSlice := rawFieldNames(m, op.GetDBTag(), true)
 
 	tableName := getTableName(m)
-
-	op.SetTableName(tableName)
+	op = op.SetTableName(tableName)
 
 	return func(ctx context.Context) Controller {
 		if ctx == nil {
@@ -126,12 +123,10 @@ func NewController(op Operator, m any) func(ctx context.Context) Controller {
 			context:        ctx,
 			modelPtr:       mPtr,
 			modelSlicePtr:  mSlicePtr,
-			operator:       op,
-			tableName:      tableName,
 			fieldNameMap:   strSlice2Map(fieldNameSlice),
 			fieldNameSlice: fieldNameSlice,
-			fieldRows:      strings.Join(rawFieldNames(m, op.DBTag(), false), ","),
-			mTag:           op.DBTag(),
+			fieldRows:      strings.Join(rawFieldNames(m, op.GetDBTag(), false), ","),
+			operator:       op,
 			qs:             NewQuerySet(op),
 			called:         0,
 		}
@@ -387,7 +382,7 @@ func (m *Impl) create(data map[string]any) (id int64, err error) {
 		args = append(args, data[k])
 	}
 
-	sql := fmt.Sprintf(InsertTemp, m.tableName, strings.Join(rows, ","), strings.Repeat("?,", len(rows)-1)+"?")
+	sql := fmt.Sprintf(InsertTemp, m.operator.GetTableName(), strings.Join(rows, ","), strings.Repeat("?,", len(rows)-1)+"?")
 
 	return m.operator.Insert(m.ctx(), sql, args...)
 }
@@ -418,7 +413,7 @@ func (m *Impl) bulkCreate(data []map[string]any) (num int64, err error) {
 		args = append(args, k)
 	}
 
-	sql := fmt.Sprintf(InsertTemp, m.tableName, strings.Join(rows, ","), strings.Repeat("?,", len(rows)-1)+"?")
+	sql := fmt.Sprintf(InsertTemp, m.operator.GetTableName(), strings.Join(rows, ","), strings.Repeat("?,", len(rows)-1)+"?")
 
 	return m.operator.BulkInsert(m.ctx(), sql, args, data)
 }
@@ -441,9 +436,9 @@ func (m *Impl) Create(data any) (idOrNum int64, err error) {
 			v = v.Elem()
 		}
 		if v.Kind() == reflect.Struct {
-			return m.create(modelStruct2Map(data, m.mTag))
+			return m.create(modelStruct2Map(data, m.operator.GetDBTag()))
 		} else if v.Kind() == reflect.Slice {
-			return m.bulkCreate(modelStructSlice2MapSlice(data, m.mTag))
+			return m.bulkCreate(modelStructSlice2MapSlice(data, m.operator.GetDBTag()))
 		}
 	}
 	return 0, fmt.Errorf(CreateDataTypeError, reflect.TypeOf(data).Kind())
@@ -461,7 +456,7 @@ func (m *Impl) Remove() (num int64, err error) {
 		return num, err
 	}
 
-	sql := fmt.Sprintf(DeleteTemp, m.tableName)
+	sql := fmt.Sprintf(DeleteTemp, m.operator.GetTableName())
 
 	filterSQL, filterArgs := m.qs.GetQuerySet()
 	sql += filterSQL
@@ -484,7 +479,7 @@ func (m *Impl) update(data map[string]any) (num int64, err error) {
 		updateArgs = append(updateArgs, v)
 	}
 
-	sql := fmt.Sprintf(UpdateTemp, m.tableName, strings.Join(updateRows, "=?,")+"=?")
+	sql := fmt.Sprintf(UpdateTemp, m.operator.GetTableName(), strings.Join(updateRows, "=?,")+"=?")
 	args = append(args, updateArgs...)
 
 	filterSQL, filterArgs := m.qs.GetQuerySet()
@@ -528,7 +523,7 @@ func (m *Impl) findOne() (result map[string]any, err error) {
 	filterSQL, filterArgs := m.qs.GetQuerySet()
 
 	query := SelectTemp
-	query = fmt.Sprintf(query, m.fieldRows, m.tableName)
+	query = fmt.Sprintf(query, m.fieldRows, m.operator.GetTableName())
 	query += filterSQL
 	query += m.qs.GetGroupBySQL()
 	havingSQL, havingArgs := m.qs.GetHavingSQL()
@@ -543,7 +538,7 @@ func (m *Impl) findOne() (result map[string]any, err error) {
 
 	switch {
 	case err == nil:
-		return modelStruct2Map(res, m.mTag), nil
+		return modelStruct2Map(res, m.operator.GetDBTag()), nil
 	case errors.Is(err, ErrNotFound):
 		return map[string]any{}, nil
 	default:
@@ -581,9 +576,9 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 
 	selectRows := m.qs.GetSelectSQL()
 	if selectRows != Asterisk {
-		query = fmt.Sprintf(query, selectRows, m.tableName)
+		query = fmt.Sprintf(query, selectRows, m.operator.GetTableName())
 	} else {
-		query = fmt.Sprintf(query, m.fieldRows, m.tableName)
+		query = fmt.Sprintf(query, m.fieldRows, m.operator.GetTableName())
 	}
 
 	filterSQL, filterArgs := m.qs.GetQuerySet()
@@ -613,7 +608,7 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 	filterSQL, filterArgs := m.qs.GetQuerySet()
 
 	query := SelectTemp
-	query = fmt.Sprintf(query, m.fieldRows, m.tableName)
+	query = fmt.Sprintf(query, m.fieldRows, m.operator.GetTableName())
 	query += filterSQL
 
 	query += m.qs.GetGroupBySQL()
@@ -626,7 +621,7 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 
 	switch {
 	case err == nil:
-		return modelStructSlice2MapSlice(res, m.mTag), nil
+		return modelStructSlice2MapSlice(res, m.operator.GetDBTag()), nil
 	case errors.Is(err, ErrNotFound):
 		return []map[string]any{}, nil
 	default:
@@ -650,9 +645,9 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 
 	selectRows := m.qs.GetSelectSQL()
 	if selectRows != Asterisk {
-		query = fmt.Sprintf(query, selectRows, m.tableName)
+		query = fmt.Sprintf(query, selectRows, m.operator.GetTableName())
 	} else {
-		query = fmt.Sprintf(query, m.fieldRows, m.tableName)
+		query = fmt.Sprintf(query, m.fieldRows, m.operator.GetTableName())
 	}
 
 	filterSQL, filterArgs := m.qs.GetQuerySet()

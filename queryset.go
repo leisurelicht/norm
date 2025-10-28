@@ -412,7 +412,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 				p.setError(operatorValueLenLessError, operator, 0)
 				return
 			}
-			sql := fmt.Sprintf(op, fieldName, not[notFlag]) + " (" + p.Placeholder() + strings.Repeat(","+p.Placeholder(), valueOf.Len()-1) + ")"
+			sql := fmt.Sprintf(op, fieldName, not[notFlag]) + " (" + p.GetPlaceholder() + strings.Repeat(","+p.GetPlaceholder(), valueOf.Len()-1) + ")"
 			args := make([]any, valueOf.Len())
 			for i := 0; i < valueOf.Len(); i++ {
 				args[i] = valueOf.Index(i).Interface()

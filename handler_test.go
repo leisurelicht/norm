@@ -3,6 +3,7 @@ package norm
 import (
 	"context"
 	"fmt"
+	"github.com/leisurelicht/norm/operator"
 	"reflect"
 	"testing"
 	"time"
@@ -62,8 +63,8 @@ func TestGoZeroMysqlTransaction(t *testing.T) {
 }
 
 func TestGoZeroMysqlMethods(t *testing.T) {
-	sourceCli := NewController(go_zero.NewOperator(sqlx.NewMysql(mysqlAddress)), test.Source{})
-	propertyCli := NewController(go_zero.NewOperator(sqlx.NewMysql(mysqlAddress)), test.Property{})
+	sourceCli := NewController(go_zero.NewOperator(go_zero.NewMysql(mysqlAddress), operator.WithTableName("source")), test.Source{})
+	propertyCli := NewController(go_zero.NewOperator(go_zero.NewMysql(mysqlAddress)), test.Property{})
 
 	if num, err := sourceCli(nil).Count(); err != nil {
 		t.Error(err)

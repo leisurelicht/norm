@@ -25,37 +25,44 @@ func Open(opt *clickhouse.Options) (driver.Conn, error) {
 	return clickhouse.Open(opt)
 }
 
-const (
-	placeholder = "?"
-	dbTag       = "ch"
-)
+const dbTag = "ch"
 
 type OperatorImpl struct {
-	conn        driver.Conn
-	placeholder string
-	tableName   string
+	conn driver.Conn
+	operator.AddOptions
 }
 
-func NewOperator(conn driver.Conn) *OperatorImpl {
-	return &OperatorImpl{
-		conn:        conn,
-		placeholder: placeholder,
+func NewOperator(conn driver.Conn, opts ...operator.AddFunc) OperatorImpl {
+	addOptions := operator.DefaultAddOptions(dbTag)
+	for _, opt := range opts {
+		opt(&addOptions)
+	}
+	return OperatorImpl{
+		conn:       conn,
+		AddOptions: addOptions,
 	}
 }
 
-func (d *OperatorImpl) SetTableName(tableName string) {
-	d.tableName = tableName
+func (d OperatorImpl) SetTableName(tableName string) operator.Operator {
+	if d.TableName == "" {
+		d.TableName = tableName
+	}
+	return d
 }
 
-func (d *OperatorImpl) Placeholder() string {
-	return d.placeholder
+func (d OperatorImpl) GetTableName() string {
+	return d.TableName
 }
 
-func (d *OperatorImpl) DBTag() string {
-	return dbTag
+func (d OperatorImpl) GetPlaceholder() string {
+	return d.Placeholder
 }
 
-func (d *OperatorImpl) OperatorSQL(operator, method string) string {
+func (d OperatorImpl) GetDBTag() string {
+	return d.DBTag
+}
+
+func (d OperatorImpl) OperatorSQL(operator, method string) string {
 	op, ok := ck.Operators[operator]
 	if !ok {
 		return ""
@@ -69,7 +76,7 @@ func (d *OperatorImpl) OperatorSQL(operator, method string) string {
 	return op
 }
 
-func (d *OperatorImpl) Insert(ctx context.Context, query string, args ...any) (id int64, err error) {
+func (d OperatorImpl) Insert(ctx context.Context, query string, args ...any) (id int64, err error) {
 	err = d.conn.AsyncInsert(ctx, query, true, args...)
 	if err != nil {
 		return 0, err
@@ -78,7 +85,7 @@ func (d *OperatorImpl) Insert(ctx context.Context, query string, args ...any) (i
 	return 0, nil
 }
 
-func (d *OperatorImpl) BulkInsert(ctx context.Context, query string, args []string, data []map[string]any) (num int64, err error) {
+func (d OperatorImpl) BulkInsert(ctx context.Context, query string, args []string, data []map[string]any) (num int64, err error) {
 	batch, err := d.conn.PrepareBatch(ctx, query)
 	if err != nil {
 		return 0, err
@@ -108,16 +115,16 @@ func (d *OperatorImpl) BulkInsert(ctx context.Context, query string, args []stri
 	return num, nil
 }
 
-func (d *OperatorImpl) Remove(ctx context.Context, query string, args ...any) (num int64, err error) {
-	return 0, fmt.Errorf("Remove not implemented for ClickHouse")
+func (d OperatorImpl) Remove(ctx context.Context, query string, args ...any) (num int64, err error) {
+	return 0, fmt.Errorf("remove not implemented for clickhouse")
 }
 
-func (d *OperatorImpl) Update(ctx context.Context, query string, args ...any) (num int64, err error) {
-	return 0, fmt.Errorf("Update not implemented for ClickHouse")
+func (d OperatorImpl) Update(ctx context.Context, query string, args ...any) (num int64, err error) {
+	return 0, fmt.Errorf("update not implemented for clickhouse")
 }
 
-func (d *OperatorImpl) Count(ctx context.Context, condition string, args ...any) (num int64, err error) {
-	query := "SELECT count() FROM " + d.tableName + condition
+func (d OperatorImpl) Count(ctx context.Context, condition string, args ...any) (num int64, err error) {
+	query := "SELECT count() FROM " + d.TableName + condition
 
 	err = d.conn.QueryRow(ctx, query, args...).Scan(&num)
 
@@ -132,8 +139,8 @@ func (d *OperatorImpl) Count(ctx context.Context, condition string, args ...any)
 	}
 }
 
-func (d *OperatorImpl) Exist(ctx context.Context, condition string, args ...any) (bool, error) {
-	query := "SELECT count() FROM " + d.tableName + condition
+func (d OperatorImpl) Exist(ctx context.Context, condition string, args ...any) (bool, error) {
+	query := "SELECT count() FROM " + d.TableName + condition
 
 	var num int64
 	err := d.conn.QueryRow(ctx, query, args...).Scan(&num)
@@ -149,7 +156,7 @@ func (d *OperatorImpl) Exist(ctx context.Context, condition string, args ...any)
 	}
 }
 
-func (d *OperatorImpl) FindOne(ctx context.Context, model any, query string, args ...any) (err error) {
+func (d OperatorImpl) FindOne(ctx context.Context, model any, query string, args ...any) (err error) {
 	err = d.conn.QueryRow(ctx, query, args...).ScanStruct(model)
 
 	switch {
@@ -164,7 +171,7 @@ func (d *OperatorImpl) FindOne(ctx context.Context, model any, query string, arg
 
 }
 
-func (d *OperatorImpl) FindAll(ctx context.Context, model any, query string, args ...any) (err error) {
+func (d OperatorImpl) FindAll(ctx context.Context, model any, query string, args ...any) (err error) {
 	rows, err := d.conn.Query(ctx, query, args...)
 	if err != nil {
 		return err

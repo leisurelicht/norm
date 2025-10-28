@@ -11,7 +11,13 @@ var (
 	ErrNotFound     = operator.ErrNotFound
 )
 
-type Operator operator.Operator
+type (
+	Operator operator.Operator
+)
+
+func WithTableName(tableName string) operator.AddFunc {
+	return operator.WithTableName(tableName)
+}
 
 const (
 	SortKey = "~sort~"

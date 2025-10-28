@@ -176,7 +176,7 @@ func TestFilter(t *testing.T) {
 				t.Errorf("TestFilter SQL Occur Error -> error:%+v", p.Error())
 			}
 
-			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.Placeholder())
+			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.GetPlaceholder())
 
 			if sql != wantSQL {
 				t.Errorf("TestFilter SQL Gen Error -> sql :%v", sql)
@@ -234,7 +234,7 @@ func TestMultipleCallFilter(t *testing.T) {
 				t.Errorf("TestFilter SQL Occur Error -> error:%+v", p.Error())
 			}
 
-			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.Placeholder())
+			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.GetPlaceholder())
 
 			if sql != wantSQL {
 				t.Errorf("TestFilter SQL Gen Error -> sql :%v", sql)
@@ -584,7 +584,7 @@ func TestWhere(t *testing.T) {
 
 			sql, sqlArgs := p.GetQuerySet()
 
-			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.Placeholder())
+			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.GetPlaceholder())
 
 			if sql != wantSQL {
 				t.Errorf("TestWhere SQL Gen Error -> sql :%v", sql)
@@ -639,7 +639,7 @@ func TestWhereError(t *testing.T) {
 				t.Errorf("TestWhereError SQL Occur Error -> want:%+v", tt.want.err)
 			}
 
-			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.Placeholder())
+			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.GetPlaceholder())
 
 			if sql != wantSQL {
 				t.Errorf("TestWhereError SQL Gen Error -> sql :%v", sql)
@@ -729,7 +729,7 @@ func TestSelect(t *testing.T) {
 			p.SelectToSQL(tt.args.selects)
 			sql = p.GetSelectSQL()
 
-			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.Placeholder())
+			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.GetPlaceholder())
 			if sql != wantSQL {
 				t.Errorf("TestSelect SQL Gen Error -> sql : %v", sql)
 				t.Errorf("TestSelect SQL Gen Error -> want: %v", wantSQL)
@@ -1107,7 +1107,7 @@ func TestHaving(t *testing.T) {
 				t.Errorf("TestHaving SQL Occur Error -> error:%+v", p.Error())
 			}
 
-			wantSQL := strings.ReplaceAll(tt.want.havingSQL, "?", operator.Placeholder())
+			wantSQL := strings.ReplaceAll(tt.want.havingSQL, "?", operator.GetPlaceholder())
 
 			if sql != wantSQL {
 				t.Errorf("TestHaving SQL Gen Error -> sql :%v", sql)
