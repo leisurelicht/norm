@@ -42,8 +42,8 @@ const (
 
 type OperatorImpl struct {
 	conn        sqlx.SqlConn
-	tableName   string
 	placeholder string
+	tableName   string
 }
 
 func NewOperator(conn sqlx.SqlConn) *OperatorImpl {
@@ -66,17 +66,17 @@ func (d *OperatorImpl) DBTag() string {
 }
 
 func (d *OperatorImpl) OperatorSQL(operator, method string) string {
-	sql, ok := mysql.Operators[operator]
+	op, ok := mysql.Operators[operator]
 	if !ok {
 		return ""
 	}
 	if method == "" {
-		return sql
+		return op
 	}
 	if methodSQL, ok := mysql.Methods[method]; ok {
-		sql = strings.ReplaceAll(sql, "?", methodSQL)
+		op = strings.ReplaceAll(op, "?", methodSQL)
 	}
-	return sql
+	return op
 }
 
 func (d *OperatorImpl) Insert(ctx context.Context, query string, args ...any) (id int64, err error) {

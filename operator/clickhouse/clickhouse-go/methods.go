@@ -32,8 +32,8 @@ const (
 
 type OperatorImpl struct {
 	conn        driver.Conn
-	tableName   string
 	placeholder string
+	tableName   string
 }
 
 func NewOperator(conn driver.Conn) *OperatorImpl {
@@ -56,17 +56,17 @@ func (d *OperatorImpl) DBTag() string {
 }
 
 func (d *OperatorImpl) OperatorSQL(operator, method string) string {
-	sql, ok := ck.Operators[operator]
+	op, ok := ck.Operators[operator]
 	if !ok {
 		return ""
 	}
 	if method == "" {
-		return sql
+		return op
 	}
 	if methodSQL, ok := ck.Methods[method]; ok {
-		sql = strings.ReplaceAll(sql, "?", methodSQL)
+		op = strings.ReplaceAll(op, "?", methodSQL)
 	}
-	return sql
+	return op
 }
 
 func (d *OperatorImpl) Insert(ctx context.Context, query string, args ...any) (id int64, err error) {
