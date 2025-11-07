@@ -91,8 +91,8 @@ type (
 		context        context.Context
 		modelPtr       any
 		modelSlicePtr  any
-		fieldNameMap   map[string]struct{}
 		fieldNameSlice []string
+		fieldNameMap   map[string]struct{}
 		fieldRows      string
 		operator       Operator
 		qs             QuerySet
@@ -112,8 +112,11 @@ func NewController(op Operator, m any) func(ctx context.Context) Controller {
 
 	fieldNameSlice := rawFieldNames(m, op.GetDBTag(), true)
 
-	tableName := getTableName(m)
-	op = op.SetTableName(tableName)
+	filedNameMap := strSlice2Map(fieldNameSlice)
+
+	fieldRows := strings.Join(rawFieldNames(m, op.GetDBTag(), false), ",")
+
+	op = op.SetTableName(getTableName(m))
 
 	return func(ctx context.Context) Controller {
 		if ctx == nil {
@@ -123,9 +126,9 @@ func NewController(op Operator, m any) func(ctx context.Context) Controller {
 			context:        ctx,
 			modelPtr:       mPtr,
 			modelSlicePtr:  mSlicePtr,
-			fieldNameMap:   strSlice2Map(fieldNameSlice),
 			fieldNameSlice: fieldNameSlice,
-			fieldRows:      strings.Join(rawFieldNames(m, op.GetDBTag(), false), ","),
+			fieldNameMap:   filedNameMap,
+			fieldRows:      fieldRows,
 			operator:       op,
 			qs:             NewQuerySet(op),
 			called:         0,
