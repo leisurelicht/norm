@@ -4,11 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/leisurelicht/norm/internal/operator"
+	"github.com/leisurelicht/norm/internal/operator/mysql"
 	"strings"
 
 	"github.com/leisurelicht/norm/internal/config"
-	"github.com/leisurelicht/norm/operator"
-	"github.com/leisurelicht/norm/operator/mysql"
 	"github.com/zeromicro/go-zero/core/logc"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
@@ -51,6 +51,10 @@ func NewOperator(conn sqlx.SqlConn, opts ...operator.AddFunc) OperatorImpl {
 		conn:       conn,
 		AddOptions: addOptions,
 	}
+}
+
+func WithTableName(tableName string) operator.AddFunc {
+	return operator.WithTableName(tableName)
 }
 
 func (d OperatorImpl) SetTableName(tableName string) operator.Operator {

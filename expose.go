@@ -1,9 +1,8 @@
 package norm
 
 import (
+	"github.com/leisurelicht/norm/internal/operator"
 	"strings"
-
-	"github.com/leisurelicht/norm/operator"
 )
 
 var (
