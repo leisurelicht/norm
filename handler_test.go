@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -556,25 +557,25 @@ func TestGoZeroMysqlHandlerError(t *testing.T) {
 
 	if id, err := ctl(ctx).Filter(Cond{}).Where("").Create(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where] not supported for Create" {
+	} else if err != nil && err.Error() != "[Filter, Where] not supported for Create" {
 		t.Error(err)
 	}
 
 	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").Create(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where OrderBy] not supported for Create" {
+	} else if err != nil && err.Error() != "[Filter, Where, OrderBy] not supported for Create" {
 		t.Error(err)
 	}
 
 	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Create(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where OrderBy GroupBy] not supported for Create" {
+	} else if err != nil && err.Error() != "[Filter, Where, OrderBy, GroupBy] not supported for Create" {
 		t.Error(err)
 	}
 
 	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Select("").Create(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where Select OrderBy GroupBy] not supported for Create" {
+	} else if err != nil && err.Error() != "[Filter, Where, Select, OrderBy, GroupBy] not supported for Create" {
 		t.Error(err)
 	}
 
@@ -586,25 +587,25 @@ func TestGoZeroMysqlHandlerError(t *testing.T) {
 
 	if id, err := ctl(ctx).Filter(Cond{}).Where("").Create(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where] not supported for Create" {
+	} else if err != nil && err.Error() != "[Filter, Where] not supported for Create" {
 		t.Error(err)
 	}
 
 	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").Create(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where OrderBy] not supported for Create" {
+	} else if err != nil && err.Error() != "[Filter, Where, OrderBy] not supported for Create" {
 		t.Error(err)
 	}
 
 	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Create(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where OrderBy GroupBy] not supported for Create" {
+	} else if err != nil && err.Error() != "[Filter, Where, OrderBy, GroupBy] not supported for Create" {
 		t.Error(err)
 	}
 
 	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Select("").Create(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where Select OrderBy GroupBy] not supported for Create" {
+	} else if err != nil && err.Error() != "[Filter, Where, Select, OrderBy, GroupBy] not supported for Create" {
 		t.Error(err)
 	}
 
@@ -617,7 +618,7 @@ func TestGoZeroMysqlHandlerError(t *testing.T) {
 
 	if num, err := ctl(ctx).GroupBy("").Select("").Update(map[string]any{}); num != 0 {
 		t.Errorf("expect 0 but got %d", num)
-	} else if err != nil && err.Error() != "[Select GroupBy] not supported for Update" {
+	} else if err != nil && err.Error() != "[Select, GroupBy] not supported for Update" {
 		t.Error(err)
 	}
 
@@ -630,7 +631,7 @@ func TestGoZeroMysqlHandlerError(t *testing.T) {
 
 	if num, err := ctl(ctx).GroupBy("").Select("").Remove(); num != 0 {
 		t.Errorf("expect 0 but got %d", num)
-	} else if err != nil && err.Error() != "[Select GroupBy] not supported for Remove" {
+	} else if err != nil && err.Error() != "[Select, GroupBy] not supported for Remove" {
 		t.Error(err)
 	}
 
@@ -643,57 +644,57 @@ func TestGoZeroMysqlHandlerError(t *testing.T) {
 
 	if num, err := ctl(ctx).GroupBy("").Select("").Delete(); num != 0 {
 		t.Errorf("expect 0 but got %d", num)
-	} else if err != nil && err.Error() != "[GroupBy Select] not supported for Delete" {
+	} else if err != nil && err.Error() != "[GroupBy, Select] not supported for Delete" {
 		t.Error(err)
 	}
 
 	// Exist unsupported operations
 	if _, err := ctl(ctx).GroupBy("").Exist(); err != nil {
-		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlGroupBy.Name}, "Exist").Error() {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, ctlGroupBy.Name, "Exist").Error() {
 			t.Error(err)
 		}
 	}
 
 	if _, err := ctl(ctx).Select("").Exist(); err != nil {
-		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlSelect.Name}, "Exist").Error() {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, ctlSelect.Name, "Exist").Error() {
 			t.Error(err)
 		}
 	}
 
 	// GetOrCreate unsupported operations
 	if _, err := ctl(ctx).GroupBy("").Having("").GetOrCreate(map[string]any{}); err != nil {
-		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlGroupBy.Name, ctlHaving.Name}, "GetOrCreate").Error() {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, strings.Join([]string{ctlGroupBy.Name, ctlHaving.Name}, ", "), "GetOrCreate").Error() {
 			t.Error(err)
 		}
 	}
 
 	if _, err := ctl(ctx).Select("").GetOrCreate(map[string]any{}); err != nil {
-		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlSelect.Name}, "GetOrCreate").Error() {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, ctlSelect.Name, "GetOrCreate").Error() {
 			t.Error(err)
 		}
 	}
 
 	// CreateOrUpdate unsupported operations
 	if _, _, err := ctl(ctx).GroupBy("").Having("").CreateOrUpdate(map[string]any{}); err != nil {
-		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlGroupBy.Name, ctlHaving.Name}, "CreateOrUpdate").Error() {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, strings.Join([]string{ctlGroupBy.Name, ctlHaving.Name}, ", "), "CreateOrUpdate").Error() {
 			t.Error(err)
 		}
 	}
 	if _, _, err := ctl(ctx).Select("").CreateOrUpdate(map[string]any{}); err != nil {
-		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlSelect.Name}, "CreateOrUpdate").Error() {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, ctlSelect.Name, "CreateOrUpdate").Error() {
 			t.Error(err)
 		}
 	}
 
 	// CreateIfNotExists unsupported operations
 	if _, _, err := ctl(ctx).GroupBy("").Having("").CreateIfNotExist(map[string]any{}); err != nil {
-		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlGroupBy.Name, ctlHaving.Name}, "CreateIfNotExist").Error() {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, strings.Join([]string{ctlGroupBy.Name, ctlHaving.Name}, ", "), "CreateIfNotExist").Error() {
 			t.Error(err)
 
 		}
 	}
 	if _, _, err := ctl(ctx).Select("").CreateIfNotExist(map[string]any{}); err != nil {
-		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlSelect.Name}, "CreateIfNotExist").Error() {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, ctlSelect.Name, "CreateIfNotExist").Error() {
 			t.Error(err)
 		}
 	}
