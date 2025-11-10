@@ -57,11 +57,6 @@ var _ Controller = (*Impl)(nil)
 type (
 	Controller interface {
 		ctx() context.Context
-		setCalled(f controllerCall)
-		checkCalled(f ...controllerCall) ([]string, bool)
-		validateColumns(columns []string) (validatedColumns []string, err error)
-		setError(format string, a ...any)
-		haveError() error
 		Reset() Controller
 		Filter(filter ...any) Controller
 		Exclude(exclude ...any) Controller
@@ -172,7 +167,7 @@ func (m *Impl) validateColumns(columns []string) (validatedColumns []string, err
 		return nil, errors.New("[" + strings.Join(unknownColumns, "; ") + "] not exist")
 	}
 
-	return
+	return validatedColumns, nil
 }
 
 func (m *Impl) setError(format string, a ...any) {
