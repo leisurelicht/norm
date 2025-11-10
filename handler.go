@@ -179,6 +179,10 @@ func (m *Impl) haveError() error {
 	return nil
 }
 
+// precheck checks if any unsupported methods have been called for the given operation.
+// It returns an error if any unsupported methods were called or if there is an existing error in the query set.
+// opName: The name of the operation being performed (e.g., "Create", "Update").
+// unsupportedMethods: A variadic list of controllerCall representing methods that are not supported for the operation.
 func (m *Impl) precheck(opName string, unsupportedMethods ...controllerCall) error {
 	if methods, called := m.checkCalled(unsupportedMethods...); called {
 		return fmt.Errorf(UnsupportedControllerError, strings.Join(methods, ", "), opName)
@@ -189,8 +193,15 @@ func (m *Impl) precheck(opName string, unsupportedMethods ...controllerCall) err
 	return nil
 }
 
-func (m *Impl) precheckData(opName string, data map[string]any, disallowed ...controllerCall) error {
-	if err := m.precheck(opName, disallowed...); err != nil {
+// precheckData performs a precheck for the given operation and data map.
+// It first calls the precheck method to ensure that no unsupported methods have been called.
+// Then, it checks if the provided data map is empty.
+// If the data map is empty, it returns an error indicating that the data is empty.
+// opName: The name of the operation being performed (e.g., "Create", "Update").
+// data: The data map to be checked.
+// unsupportedMethods: A variadic list of controllerCall representing methods that are not supported for the operation.
+func (m *Impl) precheckData(opName string, data map[string]any, unsupportedMethods ...controllerCall) error {
+	if err := m.precheck(opName, unsupportedMethods...); err != nil {
 		return err
 	}
 	if len(data) == 0 {
