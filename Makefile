@@ -9,8 +9,13 @@ help: Makefile
 ## format: Run code format
 .PHONY: format
 format:
-	@gofmt -w .; echo "gofmt over"
-	@for file in $(shell find . -name '*.go'); do goimports-reviser -rm-unused -set-alias -format $$file; echo "goimports-reviser ["$$file"] over"; done
+	@find . -type d \( -name '.history' -o -name '.vscode' \) -prune -o \
+        -name '*.go' -type f -exec gofmt -w {} +; \
+    echo "gofmt over"
+	@for file in $(shell find . -type d \( -name '.history' -o -name '.vscode' \) -prune -o -name '*.go' -print); do \
+        goimports-reviser -rm-unused -set-alias -format $$file; \
+        echo "goimports-reviser [$$file] over"; \
+    done
 
 ## test: Run code test
 .PHONY: test
