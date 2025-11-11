@@ -1,8 +1,9 @@
 package norm
 
 import (
-	"github.com/leisurelicht/norm/internal/operator"
 	"strings"
+
+	"github.com/leisurelicht/norm/internal/operator"
 )
 
 var (
@@ -13,10 +14,6 @@ var (
 type (
 	Operator operator.Operator
 )
-
-func WithTableName(tableName string) operator.AddFunc {
-	return operator.WithTableName(tableName)
-}
 
 const (
 	SortKey = "~sort~"

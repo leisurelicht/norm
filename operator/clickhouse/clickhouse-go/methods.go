@@ -5,16 +5,17 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/leisurelicht/norm/internal/operator"
-	ck "github.com/leisurelicht/norm/internal/operator/clickhouse"
 	"log"
 	"reflect"
 	"strings"
 
-	"github.com/ClickHouse/clickhouse-go/v2"
+	clickhouse "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+
 	"github.com/leisurelicht/norm/internal/config"
 	"github.com/leisurelicht/norm/internal/logger"
+	"github.com/leisurelicht/norm/internal/operator"
+	ck "github.com/leisurelicht/norm/internal/operator/clickhouse"
 )
 
 func Open(opt *clickhouse.Options) (driver.Conn, error) {
