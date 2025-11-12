@@ -20,7 +20,7 @@ format:
 ## test: Run code test
 .PHONY: test
 test:
-	go test -count=1 .
+	go test -count=1 ./...
 
 ## prepare: Prepare test environment
 .PHONY: prepare
@@ -56,7 +56,7 @@ clean:
 
 .PHONY: benchmark
 benchmark:
-	go test -bench=. -benchmem
+	go test -bench=. -benchmem ./...
 
 ## benchnote: Run benchmark tests and save results to a timestamped file
 .PHONY: benchnote
@@ -67,7 +67,7 @@ benchnote:
 	NEXT_NUM=$$(($$LATEST_NUM + 1)); \
 	FILENAME=bench/$${DATE}_$${NEXT_NUM}; \
 	echo "Running benchmark tests, saving results to $${FILENAME}"; \
-	go test -bench=. -benchmem | tee $${FILENAME}
+	go test -bench=. -benchmem ./... | tee $${FILENAME}
 
 ## coverage: Run tests with coverage and generate a report
 .PHONY: coverage

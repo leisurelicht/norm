@@ -3,7 +3,6 @@ package queryset
 import (
 	"errors"
 	"fmt"
-	"github.com/leisurelicht/norm"
 	"reflect"
 	"strings"
 	"testing"
@@ -92,11 +91,11 @@ func TestFilter(t *testing.T) {
 		{"not_not_iendswith_cond", args{isExclude, []any{Cond{"test__iendswith": "sT"}}}, want{" WHERE NOT (`test` LIKE ?)", []any{"%sT"}}},
 		{"not_not_iendswith_cond", args{isExclude, []any{Cond{"test__not_iendswith": "sT"}}}, want{" WHERE NOT (`test` NOT LIKE ?)", []any{"%sT"}}},
 
-		{"two_default_column", args{isFilter, []any{Cond{norm.SortKey: []string{"test1", "test2"}, "test1": 1, "test2": 2}}}, want{" WHERE (`test1` = ? AND `test2` = ?)", []any{1, 2}}},
-		{"reverse_default_column", args{isFilter, []any{Cond{norm.SortKey: []string{"test2", "test1"}, "test1": 1, "test2": 2}}}, want{" WHERE (`test2` = ? AND `test1` = ?)", []any{2, 1}}},
-		{"three_default_column", args{isFilter, []any{Cond{norm.SortKey: []string{"test1", "test2", "test3"}, "test1__gt": 1, "test2": 2, "test3": 3}}}, want{" WHERE (`test1` > ? AND `test2` = ? AND `test3` = ?)", []any{1, 2, 3}}},
-		{"reverse_three_default_column", args{isFilter, []any{Cond{norm.SortKey: []string{"test3", "test2", "test1"}, "test1__lt": 1, "test2": 2, "test3": 3}}}, want{" WHERE (`test3` = ? AND `test2` = ? AND `test1` < ?)", []any{3, 2, 1}}},
-		{"out_order_three_default_column", args{isFilter, []any{Cond{norm.SortKey: []string{"test1", "test3", "test2"}, "test3__in": []int{1, 4, 6}, "test2": 2, "test1": 3}}}, want{" WHERE (`test1` = ? AND `test3` IN (?,?,?) AND `test2` = ?)", []any{3, 1, 4, 6, 2}}},
+		{"two_default_column", args{isFilter, []any{Cond{SortKey: []string{"test1", "test2"}, "test1": 1, "test2": 2}}}, want{" WHERE (`test1` = ? AND `test2` = ?)", []any{1, 2}}},
+		{"reverse_default_column", args{isFilter, []any{Cond{SortKey: []string{"test2", "test1"}, "test1": 1, "test2": 2}}}, want{" WHERE (`test2` = ? AND `test1` = ?)", []any{2, 1}}},
+		{"three_default_column", args{isFilter, []any{Cond{SortKey: []string{"test1", "test2", "test3"}, "test1__gt": 1, "test2": 2, "test3": 3}}}, want{" WHERE (`test1` > ? AND `test2` = ? AND `test3` = ?)", []any{1, 2, 3}}},
+		{"reverse_three_default_column", args{isFilter, []any{Cond{SortKey: []string{"test3", "test2", "test1"}, "test1__lt": 1, "test2": 2, "test3": 3}}}, want{" WHERE (`test3` = ? AND `test2` = ? AND `test1` < ?)", []any{3, 2, 1}}},
+		{"out_order_three_default_column", args{isFilter, []any{Cond{SortKey: []string{"test1", "test3", "test2"}, "test3__in": []int{1, 4, 6}, "test2": 2, "test1": 3}}}, want{" WHERE (`test1` = ? AND `test3` IN (?,?,?) AND `test2` = ?)", []any{3, 1, 4, 6, 2}}},
 
 		{"default_conj", args{isFilter, []any{Cond{"test": 1}, Cond{"test2": 2}}}, want{" WHERE ((`test` = ?) AND (`test2` = ?))", []any{1, 2}}},
 		{"and_conj", args{isFilter, []any{Cond{"test": 1}, AND{"test2": 2}}}, want{" WHERE ((`test` = ?) AND (`test2` = ?))", []any{1, 2}}},
@@ -120,32 +119,32 @@ func TestFilter(t *testing.T) {
 
 		{"default_mix_contains_conj", args{isFilter, []any{Cond{"test": 1}, Cond{"test2__contains": []string{"e", "s"}}}}, want{" WHERE ((`test` = ?) AND (`test2` LIKE BINARY ? OR `test2` LIKE BINARY ?))", []any{1, "%e%", "%s%"}}},
 
-		{"exact_one_and_one_cond", args{isFilter, []any{Cond{norm.SortKey: []string{"test", "test2"}, "test": 1, "test2": 2}}}, want{" WHERE (`test` = ? AND `test2` = ?)", []any{1, 2}}},
-		{"exact_one_and_list_and_cond", args{isFilter, []any{Cond{norm.SortKey: []string{"test", "test2"}, "test": 1, "test2": []any{3, 4}}}}, want{" WHERE (`test` = ? AND (`test2` = ? AND `test2` = ?))", []any{1, 3, 4}}},
-		{"exact_list_and_list_cond", args{isFilter, []any{Cond{norm.SortKey: []string{"test", "test2"}, "test": []any{1, 2}, "test2": []any{3, 4}}}}, want{" WHERE ((`test` = ? AND `test` = ?) AND (`test2` = ? AND `test2` = ?))", []any{1, 2, 3, 4}}},
+		{"exact_one_and_one_cond", args{isFilter, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, "test2": 2}}}, want{" WHERE (`test` = ? AND `test2` = ?)", []any{1, 2}}},
+		{"exact_one_and_list_and_cond", args{isFilter, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, "test2": []any{3, 4}}}}, want{" WHERE (`test` = ? AND (`test2` = ? AND `test2` = ?))", []any{1, 3, 4}}},
+		{"exact_list_and_list_cond", args{isFilter, []any{Cond{SortKey: []string{"test", "test2"}, "test": []any{1, 2}, "test2": []any{3, 4}}}}, want{" WHERE ((`test` = ? AND `test` = ?) AND (`test2` = ? AND `test2` = ?))", []any{1, 2, 3, 4}}},
 
-		{"test_value_is_null", args{isFilter, []any{Cond{norm.SortKey: []string{"test", "test2"}, "test": 1, "test2": nil}}}, want{" WHERE (`test` = ? AND `test2` IS NULL)", []any{1}}},
-		{"test_value_is_null", args{isFilter, []any{Cond{norm.SortKey: []string{"test", "test2"}, "test": nil, "test2": nil}}}, want{" WHERE (`test` IS NULL AND `test2` IS NULL)", []any{}}},
+		{"test_value_is_null", args{isFilter, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, "test2": nil}}}, want{" WHERE (`test` = ? AND `test2` IS NULL)", []any{1}}},
+		{"test_value_is_null", args{isFilter, []any{Cond{SortKey: []string{"test", "test2"}, "test": nil, "test2": nil}}}, want{" WHERE (`test` IS NULL AND `test2` IS NULL)", []any{}}},
 
 		{"test_empty_in_midst", args{isFilter, []any{Cond{"test1": 1}, Cond{}, Cond{"test3": 3}}}, want{" WHERE ((`test1` = ?) AND (`test3` = ?))", []any{1, 3}}},
 
 		// ToOR
-		{"exact_one_or_one_cond", args{isFilter, []any{Cond{norm.SortKey: []string{"test", "test2"}, "test": 1, norm.ToOR("test2"): 2}}}, want{" WHERE (`test` = ? OR `test2` = ?)", []any{1, 2}}},
-		{"exact_one_or_list_and_cond", args{isFilter, []any{Cond{norm.SortKey: []string{"test", "test2"}, "test": 1, norm.ToOR("test2"): []any{3, 4}}}}, want{" WHERE (`test` = ? OR (`test2` = ? AND `test2` = ?))", []any{1, 3, 4}}},
-		{"exact_list_or_list_cond", args{isFilter, []any{Cond{norm.SortKey: []string{"test", "test2"}, "test": []any{1, 2}, norm.ToOR("test2"): []any{3, 4}}}}, want{" WHERE ((`test` = ? AND `test` = ?) OR (`test2` = ? AND `test2` = ?))", []any{1, 2, 3, 4}}},
+		{"exact_one_or_one_cond", args{isFilter, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, ToOR("test2"): 2}}}, want{" WHERE (`test` = ? OR `test2` = ?)", []any{1, 2}}},
+		{"exact_one_or_list_and_cond", args{isFilter, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, ToOR("test2"): []any{3, 4}}}}, want{" WHERE (`test` = ? OR (`test2` = ? AND `test2` = ?))", []any{1, 3, 4}}},
+		{"exact_list_or_list_cond", args{isFilter, []any{Cond{SortKey: []string{"test", "test2"}, "test": []any{1, 2}, ToOR("test2"): []any{3, 4}}}}, want{" WHERE ((`test` = ? AND `test` = ?) OR (`test2` = ? AND `test2` = ?))", []any{1, 2, 3, 4}}},
 
 		// EachOR
-		{"each_or", args{isFilter, []any{norm.EachOR(Cond{"test": 1})}}, want{" WHERE (`test` = ?)", []any{1}}},
-		{"each_or_list", args{isFilter, []any{norm.EachOR(Cond{"test": []any{1, 2}})}}, want{" WHERE (`test` = ? AND `test` = ?)", []any{1, 2}}},
-		{"each_or_and", args{isFilter, []any{Cond{"test": 1}, norm.EachOR(AND{norm.SortKey: []string{"test1", "test2"}, "test1": 1, "test2": 2})}}, want{" WHERE ((`test` = ?) AND (`test1` = ? OR `test2` = ?))", []any{1, 1, 2}}},
-		{"each_or_or", args{isFilter, []any{Cond{"test": 1}, norm.EachOR(OR{norm.SortKey: []string{"test1", "test2"}, "test1": 1, "test2": 2})}}, want{" WHERE ((`test` = ?) OR (`test1` = ? OR `test2` = ?))", []any{1, 1, 2}}},
+		{"each_or", args{isFilter, []any{EachOR(Cond{"test": 1})}}, want{" WHERE (`test` = ?)", []any{1}}},
+		{"each_or_list", args{isFilter, []any{EachOR(Cond{"test": []any{1, 2}})}}, want{" WHERE (`test` = ? AND `test` = ?)", []any{1, 2}}},
+		{"each_or_and", args{isFilter, []any{Cond{"test": 1}, EachOR(AND{SortKey: []string{"test1", "test2"}, "test1": 1, "test2": 2})}}, want{" WHERE ((`test` = ?) AND (`test1` = ? OR `test2` = ?))", []any{1, 1, 2}}},
+		{"each_or_or", args{isFilter, []any{Cond{"test": 1}, EachOR(OR{SortKey: []string{"test1", "test2"}, "test1": 1, "test2": 2})}}, want{" WHERE ((`test` = ?) OR (`test1` = ? OR `test2` = ?))", []any{1, 1, 2}}},
 
 		// complex
 		{
 			"complex_nested_conditions",
 			args{isFilter, []any{
 				Cond{"test1": 1},
-				AND{norm.SortKey: []string{"test2", "test3"}, "test2": 2, "test3__contains": "val"},
+				AND{SortKey: []string{"test2", "test3"}, "test2": 2, "test3__contains": "val"},
 				OR{"test4__in": []int{4, 5, 6}},
 			}},
 			want{
@@ -219,7 +218,7 @@ func TestMultipleCallFilter(t *testing.T) {
 		{"double_call", []args{{isFilter, []any{Cond{"test1": 1}}}, {0, []any{Cond{"test2": 1}}}}, want{" WHERE (`test1` = ?) AND (`test2` = ?)", []any{1, 1}}},
 
 		// meet by accident
-		{"meet1", []args{{isFilter, []any{Cond{norm.SortKey: []string{"delete_flag", "devise_sn"}, "delete_flag": 0, "devise_sn__len": 22}}}, {0, []any{Cond{norm.SortKey: []string{"device_name", "devise_sn", "belong_to_company"}, "device_name__icontains": "test", "devise_sn__icontains": "test", "belong_to_company__icontains": "test"}}}}, want{" WHERE (`delete_flag` = ? AND LENGTH(`devise_sn`) = ?) AND (`device_name` LIKE ? AND `devise_sn` LIKE ? AND `belong_to_company` LIKE ?)", []any{0, 22, "%test%", "%test%", "%test%"}}},
+		{"meet1", []args{{isFilter, []any{Cond{SortKey: []string{"delete_flag", "devise_sn"}, "delete_flag": 0, "devise_sn__len": 22}}}, {0, []any{Cond{SortKey: []string{"device_name", "devise_sn", "belong_to_company"}, "device_name__icontains": "test", "devise_sn__icontains": "test", "belong_to_company__icontains": "test"}}}}, want{" WHERE (`delete_flag` = ? AND LENGTH(`devise_sn`) = ?) AND (`device_name` LIKE ? AND `devise_sn` LIKE ? AND `belong_to_company` LIKE ?)", []any{0, 22, "%test%", "%test%", "%test%"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -274,8 +273,8 @@ func TestFilterError(t *testing.T) {
 	}{
 		{"empty", args{isFilter, []any{}}, want{nil}},
 		{"InvalidStat", args{2, []any{Cond{"test": 1}}}, want{errors.New(isNotValueError)}},
-		{"order key type", args{isFilter, []any{Cond{norm.SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyTypeError)}},
-		{"order key len", args{isFilter, []any{Cond{norm.SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyLenError)}},
+		{"order key type", args{isFilter, []any{Cond{SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyTypeError)}},
+		{"order key len", args{isFilter, []any{Cond{SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyLenError)}},
 		{"field lookup", args{isFilter, []any{Cond{"1__not__contains": "b"}}}, want{fmt.Errorf(fieldLookupError, "1__not__contains")}},
 		{"unknown operator", args{isFilter, []any{Cond{"1__contain": "b"}}}, want{fmt.Errorf(unknownOperatorError, "contain")}},
 		{"operator value len", args{isFilter, []any{Cond{"test__between": []int{}}}}, want{fmt.Errorf(operatorValueLenError, "between", 2)}},
@@ -318,8 +317,8 @@ func TestFilterError(t *testing.T) {
 		{"unsupported value28", args{isFilter, []any{Cond{"test__contains": 0}}}, want{err: fmt.Errorf(unsupportedValueError, "contains", "int")}},
 		{"unsupported value29", args{isFilter, []any{Cond{"test__contains": 1}}}, want{err: fmt.Errorf(unsupportedValueError, "contains", "int")}},
 		{"unsupported value30", args{isFilter, []any{Cond{"test__contains": 1.0}}}, want{err: fmt.Errorf(unsupportedValueError, "contains", "float64")}},
-		{"order key type", args{isFilter, []any{Cond{norm.SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{err: errors.New(orderKeyTypeError)}},
-		{"order key len", args{isFilter, []any{Cond{norm.SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{err: errors.New(orderKeyLenError)}},
+		{"order key type", args{isFilter, []any{Cond{SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{err: errors.New(orderKeyTypeError)}},
+		{"order key len", args{isFilter, []any{Cond{SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{err: errors.New(orderKeyLenError)}},
 		{"field lookup", args{isFilter, []any{Cond{"1__not__contains": "b"}}}, want{err: fmt.Errorf(fieldLookupError, "1__not__contains")}},
 		{"unknown operator", args{isFilter, []any{Cond{"1__contain": "b"}}}, want{fmt.Errorf(unknownOperatorError, "contain")}},
 		{"operator value len", args{isFilter, []any{Cond{"test__between": []int{}}}}, want{fmt.Errorf(operatorValueLenError, "between", 2)}},
@@ -362,8 +361,8 @@ func TestFilterError(t *testing.T) {
 		{"unsupported value28", args{isFilter, []any{Cond{"test__contains": 0}}}, want{fmt.Errorf(unsupportedValueError, "contains", "int")}},
 		{"unsupported value29", args{isFilter, []any{Cond{"test__contains": 1}}}, want{fmt.Errorf(unsupportedValueError, "contains", "int")}},
 		{"unsupported value30", args{isFilter, []any{Cond{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedValueError, "contains", "float64")}},
-		{"order key type", args{isFilter, []any{AND{norm.SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyTypeError)}},
-		{"order key len", args{isFilter, []any{AND{norm.SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyLenError)}},
+		{"order key type", args{isFilter, []any{AND{SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyTypeError)}},
+		{"order key len", args{isFilter, []any{AND{SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyLenError)}},
 		{"field lookup", args{isFilter, []any{AND{"1__not__contains": "b"}}}, want{fmt.Errorf(fieldLookupError, "1__not__contains")}},
 		{"unknown operator", args{isFilter, []any{AND{"1__contain": "b"}}}, want{fmt.Errorf(unknownOperatorError, "contain")}},
 		{"operator value len", args{isFilter, []any{AND{"test__between": []int{}}}}, want{fmt.Errorf(operatorValueLenError, "between", 2)}},
@@ -406,8 +405,8 @@ func TestFilterError(t *testing.T) {
 		{"unsupported value28", args{isFilter, []any{AND{"test__contains": 0}}}, want{fmt.Errorf(unsupportedValueError, "contains", "int")}},
 		{"unsupported value29", args{isFilter, []any{AND{"test__contains": 1}}}, want{fmt.Errorf(unsupportedValueError, "contains", "int")}},
 		{"unsupported value30", args{isFilter, []any{AND{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedValueError, "contains", "float64")}},
-		{"order key type", args{isFilter, []any{OR{norm.SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyTypeError)}},
-		{"order key len", args{isFilter, []any{OR{norm.SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyLenError)}},
+		{"order key type", args{isFilter, []any{OR{SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyTypeError)}},
+		{"order key len", args{isFilter, []any{OR{SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyLenError)}},
 		{"field lookup", args{isFilter, []any{OR{"1__not__contains": "b"}}}, want{fmt.Errorf(fieldLookupError, "1__not__contains")}},
 		{"unknown operator", args{isFilter, []any{OR{"1__contain": "b"}}}, want{fmt.Errorf(unknownOperatorError, "contain")}},
 		{"operator value len", args{isFilter, []any{OR{"test__between": []int{}}}}, want{fmt.Errorf(operatorValueLenError, "between", 2)}},

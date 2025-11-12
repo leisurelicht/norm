@@ -64,6 +64,7 @@ func TestGoZeroMysqlTransaction(t *testing.T) {
 }
 
 func TestGoZeroMysqlMethods(t *testing.T) {
+	SetLevel(Debug)
 	sourceCli := NewController(go_zero.NewOperator(go_zero.NewMysql(mysqlAddress), go_zero.WithTableName("source")), test.Source{})
 	propertyCli := NewController(go_zero.NewOperator(go_zero.NewMysql(mysqlAddress)), test.Property{})
 
