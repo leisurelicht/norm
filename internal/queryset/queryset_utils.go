@@ -1,4 +1,4 @@
-package norm
+package queryset
 
 import (
 	"fmt"
@@ -64,7 +64,7 @@ func genStrListValueLikeSQL(p *QuerySetImpl, filterConditions map[string]*cond, 
 	filterConditions[fieldName] = newCondByValue("", fmt.Sprintf(op, fieldName, not[notFlag]), []any{fmt.Sprintf(valueFormat, valueOf.Index(0).Interface())})
 	for i := 1; i < valueOf.Len(); i++ {
 		if valueOf.Index(i).IsZero() {
-			p.setError(operatorValueEmptyError, operator)
+			p.SetError(operatorValueEmptyError, operator)
 			return
 		}
 

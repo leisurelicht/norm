@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/leisurelicht/norm/internal/queryset"
 	"reflect"
 	"strings"
 )
@@ -36,18 +37,18 @@ const (
 
 type controllerCall struct {
 	Name string
-	Flag callFlag
+	Flag queryset.CallFlag
 }
 
 var (
-	ctlFilter  = controllerCall{Name: "Filter", Flag: qsFilter}
-	ctlExclude = controllerCall{Name: "Exclude", Flag: qsExclude}
-	ctlWhere   = controllerCall{Name: "Where", Flag: qsWhere}
-	ctlSelect  = controllerCall{Name: "Select", Flag: qsSelect}
-	ctlLimit   = controllerCall{Name: "Limit", Flag: qsLimit}
-	ctlOrderBy = controllerCall{Name: "OrderBy", Flag: qsOrderBy}
-	ctlGroupBy = controllerCall{Name: "GroupBy", Flag: qsGroupBy}
-	ctlHaving  = controllerCall{Name: "Having", Flag: qsHaving}
+	ctlFilter  = controllerCall{Name: "Filter", Flag: queryset.QsFilter}
+	ctlExclude = controllerCall{Name: "Exclude", Flag: queryset.QsExclude}
+	ctlWhere   = controllerCall{Name: "Where", Flag: queryset.QsWhere}
+	ctlSelect  = controllerCall{Name: "Select", Flag: queryset.QsSelect}
+	ctlLimit   = controllerCall{Name: "Limit", Flag: queryset.QsLimit}
+	ctlOrderBy = controllerCall{Name: "OrderBy", Flag: queryset.QsOrderBy}
+	ctlGroupBy = controllerCall{Name: "GroupBy", Flag: queryset.QsGroupBy}
+	ctlHaving  = controllerCall{Name: "Having", Flag: queryset.QsHaving}
 )
 
 var _ Controller = (*Impl)(nil)
@@ -88,8 +89,8 @@ type (
 		fieldNameMap   map[string]struct{}
 		fieldRows      string
 		operator       Operator
-		qs             QuerySet
-		called         callFlag
+		qs             queryset.QuerySet
+		called         queryset.CallFlag
 	}
 )
 
@@ -123,7 +124,7 @@ func NewController(op Operator, m any) func(ctx context.Context) Controller {
 			fieldNameMap:   filedNameMap,
 			fieldRows:      fieldRows,
 			operator:       op,
-			qs:             NewQuerySet(op),
+			qs:             queryset.NewQuerySet(op),
 			called:         0,
 		}
 	}
@@ -169,7 +170,7 @@ func (m *Impl) validateColumns(columns []string) (validatedColumns []string, err
 }
 
 func (m *Impl) setError(format string, a ...any) {
-	m.qs.setError(format, a...)
+	m.qs.SetError(format, a...)
 }
 
 func (m *Impl) haveError() error {
@@ -179,11 +180,11 @@ func (m *Impl) haveError() error {
 	return nil
 }
 
-// precheck checks if any unsupported methods have been called for the given operation.
+// preCheck checks if any unsupported methods have been called for the given operation.
 // It returns an error if any unsupported methods were called or if there is an existing error in the query set.
 // opName: The name of the operation being performed (e.g., "Create", "Update").
 // unsupportedMethods: A variadic list of controllerCall representing methods that are not supported for the operation.
-func (m *Impl) precheck(opName string, unsupportedMethods ...controllerCall) error {
+func (m *Impl) preCheck(opName string, unsupportedMethods ...controllerCall) error {
 	if methods, called := m.checkCalled(unsupportedMethods...); called {
 		return fmt.Errorf(UnsupportedControllerError, strings.Join(methods, ", "), opName)
 	}
@@ -193,15 +194,15 @@ func (m *Impl) precheck(opName string, unsupportedMethods ...controllerCall) err
 	return nil
 }
 
-// precheckData performs a precheck for the given operation and data map.
-// It first calls the precheck method to ensure that no unsupported methods have been called.
+// preCheckData performs a preCheck for the given operation and data map.
+// It first calls the preCheck method to ensure that no unsupported methods have been called.
 // Then, it checks if the provided data map is empty.
 // If the data map is empty, it returns an error indicating that the data is empty.
 // opName: The name of the operation being performed (e.g., "Create", "Update").
 // data: The data map to be checked.
 // unsupportedMethods: A variadic list of controllerCall representing methods that are not supported for the operation.
-func (m *Impl) precheckData(opName string, data map[string]any, unsupportedMethods ...controllerCall) error {
-	if err := m.precheck(opName, unsupportedMethods...); err != nil {
+func (m *Impl) preCheckData(opName string, data map[string]any, unsupportedMethods ...controllerCall) error {
+	if err := m.preCheck(opName, unsupportedMethods...); err != nil {
 		return err
 	}
 	if len(data) == 0 {
@@ -228,7 +229,7 @@ func (m *Impl) Reset() Controller {
 func (m *Impl) Filter(filter ...any) Controller {
 	m.setCalled(ctlFilter)
 
-	m.qs.FilterToSQL(notNot, filter...)
+	m.qs.FilterToSQL(queryset.NotNot, filter...)
 
 	return m
 }
@@ -238,7 +239,7 @@ func (m *Impl) Filter(filter ...any) Controller {
 func (m *Impl) Exclude(exclude ...any) Controller {
 	m.setCalled(ctlExclude)
 
-	m.qs.FilterToSQL(isNot, exclude...)
+	m.qs.FilterToSQL(queryset.IsNot, exclude...)
 
 	return m
 }
@@ -440,7 +441,7 @@ func (m *Impl) bulkCreate(data []map[string]any) (num int64, err error) {
 // Create creates a new record in the database with the provided data map.
 // It returns the ID of the created record or the number of records inserted, and any error encountered.
 func (m *Impl) Create(data any) (idOrNum int64, err error) {
-	if err = m.precheck("Create", ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); err != nil {
+	if err = m.preCheck("Create", ctlFilter, ctlExclude, ctlWhere, ctlSelect, ctlOrderBy, ctlGroupBy, ctlHaving); err != nil {
 		return 0, err
 	}
 
@@ -467,7 +468,7 @@ func (m *Impl) Create(data any) (idOrNum int64, err error) {
 // It returns the number of records deleted and any error encountered.
 // Note: This method will really remove records from the database
 func (m *Impl) Remove() (num int64, err error) {
-	if err = m.precheck("Remove", ctlSelect, ctlGroupBy, ctlHaving); err != nil {
+	if err = m.preCheck("Remove", ctlSelect, ctlGroupBy, ctlHaving); err != nil {
 		return 0, err
 	}
 
@@ -507,7 +508,7 @@ func (m *Impl) update(data map[string]any) (num int64, err error) {
 // Update updates the records matching the current query set with the provided data map.
 // It returns the number of records updated and any error encountered.
 func (m *Impl) Update(data map[string]any) (num int64, err error) {
-	if err = m.precheckData("Update", data, ctlSelect, ctlGroupBy, ctlHaving); err != nil {
+	if err = m.preCheckData("Update", data, ctlSelect, ctlGroupBy, ctlHaving); err != nil {
 		return 0, err
 	}
 
@@ -517,7 +518,7 @@ func (m *Impl) Update(data map[string]any) (num int64, err error) {
 // Count retrieves the total number of records matching the current query set.
 // It returns the total count and any error encountered.
 func (m *Impl) Count() (num int64, err error) {
-	if err = m.precheck("Count"); err != nil {
+	if err = m.preCheck("Count"); err != nil {
 		return num, err
 	}
 
@@ -556,7 +557,7 @@ func (m *Impl) findOne() (result map[string]any, err error) {
 // FindOne retrieves a single record matching the current query set into a map.
 // It returns the data as a map, or an error if the operation fails.
 func (m *Impl) FindOne() (result map[string]any, err error) {
-	if err = m.precheck("FindOne", ctlSelect, ctlHaving); err != nil {
+	if err = m.preCheck("FindOne", ctlSelect, ctlHaving); err != nil {
 		return result, err
 	}
 
@@ -566,7 +567,7 @@ func (m *Impl) FindOne() (result map[string]any, err error) {
 // FindOneModel retrieves a single record matching the current query set into a model.
 // It returns an error if the model type is not a pointer to a struct.
 func (m *Impl) FindOneModel(modelPtr any) (err error) {
-	if err = m.precheck("FindOneModel"); err != nil {
+	if err = m.preCheck("FindOneModel"); err != nil {
 		return err
 	}
 
@@ -600,7 +601,7 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 // FindAll retrieves all records matching the current query set into a slice of maps.
 // It returns the data as a slice of maps, or an error if the operation fails.
 func (m *Impl) FindAll() (result []map[string]any, err error) {
-	if err = m.precheck("FindAll", ctlSelect, ctlHaving); err != nil {
+	if err = m.preCheck("FindAll", ctlSelect, ctlHaving); err != nil {
 		return result, err
 	}
 
@@ -631,7 +632,7 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 // FindAllModel retrieves all records matching the current query set into a slice of models.
 // It returns an error if the model type is not a pointer to a slice.
 func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
-	if err = m.precheck("FindAllModel"); err != nil {
+	if err = m.preCheck("FindAllModel"); err != nil {
 		return err
 	}
 
@@ -675,7 +676,7 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 // It returns the number of records marked as deleted.
 // Note: This method is not a true delete operation; it only marks records as deleted.
 func (m *Impl) Delete() (num int64, err error) {
-	if err = m.precheck("Delete", ctlGroupBy, ctlSelect, ctlOrderBy); err != nil {
+	if err = m.preCheck("Delete", ctlGroupBy, ctlSelect, ctlOrderBy); err != nil {
 		return 0, err
 	}
 
@@ -692,7 +693,7 @@ func (m *Impl) exist() (exist bool, err error) {
 
 // Exist checks if any record exists that matches the current query set.
 func (m *Impl) Exist() (exist bool, err error) {
-	if err = m.precheck("Exist", ctlGroupBy, ctlSelect); err != nil {
+	if err = m.preCheck("Exist", ctlGroupBy, ctlSelect); err != nil {
 		return false, err
 	}
 
@@ -702,7 +703,7 @@ func (m *Impl) Exist() (exist bool, err error) {
 // List retrieves the total count and all data matching the current query set.
 // It returns the total count, data as a slice of maps, and any error encountered.
 func (m *Impl) List() (total int64, data []map[string]any, err error) {
-	if err = m.precheck("List", ctlSelect, ctlHaving); err != nil {
+	if err = m.preCheck("List", ctlSelect, ctlHaving); err != nil {
 		return 0, data, err
 	}
 
@@ -719,7 +720,7 @@ func (m *Impl) List() (total int64, data []map[string]any, err error) {
 
 // GetOrCreate creates a new record if it does not already exist, or returns the existing record.
 func (m *Impl) GetOrCreate(data map[string]any) (res map[string]any, err error) {
-	if err = m.precheckData("GetOrCreate", data, ctlSelect, ctlGroupBy, ctlHaving); err != nil {
+	if err = m.preCheckData("GetOrCreate", data, ctlSelect, ctlGroupBy, ctlHaving); err != nil {
 		return res, err
 	}
 
@@ -730,14 +731,14 @@ func (m *Impl) GetOrCreate(data map[string]any) (res map[string]any, err error) 
 	}
 
 	m.setCalled(ctlFilter)
-	m.qs.FilterToSQL(notNot, Cond(data))
+	m.qs.FilterToSQL(queryset.NotNot, queryset.Cond(data))
 
 	return m.findOne()
 }
 
 // CreateOrUpdate creates a new record if it does not already exist, or updates the existing record.
 func (m *Impl) CreateOrUpdate(data map[string]any) (created bool, numOrID int64, err error) {
-	if err = m.precheckData("CreateOrUpdate", data, ctlSelect, ctlGroupBy, ctlHaving); err != nil {
+	if err = m.preCheckData("CreateOrUpdate", data, ctlSelect, ctlGroupBy, ctlHaving); err != nil {
 		return false, 0, err
 	}
 
@@ -763,12 +764,12 @@ func (m *Impl) CreateOrUpdate(data map[string]any) (created bool, numOrID int64,
 // If data not exist, it will create a new record and return the 'id' column value(if exists) and created true.
 // if data exist, it will return 0 and created false
 func (m *Impl) CreateIfNotExist(data map[string]any) (id int64, created bool, err error) {
-	if err = m.precheckData("CreateIfNotExist", data, ctlSelect, ctlGroupBy, ctlHaving); err != nil {
+	if err = m.preCheckData("CreateIfNotExist", data, ctlSelect, ctlGroupBy, ctlHaving); err != nil {
 		return 0, false, err
 	}
 
 	m.setCalled(ctlFilter)
-	m.qs.FilterToSQL(notNot, Cond(data))
+	m.qs.FilterToSQL(queryset.NotNot, queryset.Cond(data))
 
 	if exist, err := m.exist(); err != nil {
 		return 0, false, err
