@@ -17,11 +17,6 @@ format:
         echo "goimports-reviser [$$file] over"; \
     done
 
-## test: Run code test
-.PHONY: test
-test:
-	go test -count=1 ./...
-
 ## prepare: Prepare test environment
 .PHONY: prepare
 prepare:
@@ -54,6 +49,12 @@ clean:
 	@docker stop norm_test_mysql && docker rm norm_test_mysql
 	@docker stop norm_test_clickhouse && docker rm norm_test_clickhouse
 
+## test: Run code test
+.PHONY: test
+test:
+	go test -count=1 ./...
+
+## benchmark: Run benchmark tests
 .PHONY: benchmark
 benchmark:
 	go test -bench=. -benchmem ./...
@@ -74,7 +75,7 @@ benchnote:
 coverage:
 	@mkdir -p test
 	@echo "Running tests with coverage..."
-	@go test -coverprofile=./test/coverage.out ./...
+	@go test -coverprofile=./coverage.out ./...
 	@echo "Generating coverage report..."
-	@go tool cover -html=./test/coverage.out
-	@echo "Coverage report generated at ./test/coverage.html"
+	@go tool cover -html=./coverage.out
+	@echo "Coverage report generated at ./coverage.html"
