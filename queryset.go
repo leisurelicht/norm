@@ -7,8 +7,6 @@ import (
 	"strings"
 )
 
-type callFlag int64
-
 const (
 	defaultOuterFilterCondsLen = 10
 	defaultInnerFilterCondsLen = 10
@@ -18,6 +16,7 @@ const (
 	operatorJoiner             = "__"
 	plural                     = "~"
 	methodJoiner               = "##"
+	sortKey                    = "~sort~"
 )
 
 const (
@@ -61,6 +60,8 @@ const (
 	unsupportedFilterTypeError  = "unsupported filter type [%s], Please use be [Cond | AND | OR]"
 	operatorValueEmptyError     = "operator [%s] unsupported value empty"
 )
+
+type callFlag int64
 
 const (
 	qsFilter callFlag = 1 << iota
@@ -490,11 +491,12 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 
 func (p *QuerySetImpl) FilterToSQL(state int, filter ...any) QuerySet {
 	if !p.hasCalled(qsWhere) {
-		if state == isFilter {
+		switch state {
+		case isFilter:
 			p.setCalled(qsFilter)
-		} else if state == isExclude {
+		case isExclude:
 			p.setCalled(qsExclude)
-		} else {
+		default:
 			p.setError(isNotValueError)
 			return p
 		}
