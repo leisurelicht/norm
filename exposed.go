@@ -31,7 +31,7 @@ var (
 
 // 泛型包装：在本包重新导出 EachOR
 func EachOR[T Cond | AND | OR](conditions T) T {
-	return queryset.EachOR[T](conditions)
+	return queryset.EachOR(conditions)
 }
 
 const (
