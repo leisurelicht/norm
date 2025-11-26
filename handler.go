@@ -55,8 +55,8 @@ var _ Controller = (*Impl)(nil)
 
 type (
 	Controller interface {
-		ctx() context.Context
 		Reset() Controller
+		WithSession(session any) Controller
 		Filter(filter ...any) Controller
 		Exclude(exclude ...any) Controller
 		Where(cond string, args ...any) Controller
@@ -221,6 +221,11 @@ func (m *Impl) reset() {
 // This allows the controller to be reused for a new query without needing to create a new instance.
 func (m *Impl) Reset() Controller {
 	m.reset()
+	return m
+}
+
+func (m *Impl) WithSession(session any) Controller {
+	m.operator = m.operator.WithSession(session)
 	return m
 }
 

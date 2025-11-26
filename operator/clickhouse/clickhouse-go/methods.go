@@ -51,6 +51,10 @@ func (d OperatorImpl) SetTableName(tableName string) operator.Operator {
 	return d
 }
 
+func (d OperatorImpl) WithSession(session any) operator.Operator {
+	return d
+}
+
 func (d OperatorImpl) GetTableName() string {
 	return d.TableName
 }

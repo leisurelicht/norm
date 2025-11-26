@@ -2,6 +2,7 @@ package norm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/leisurelicht/norm/internal/queryset"
 	"reflect"
@@ -39,28 +40,87 @@ func TestCharacterEncoding(t *testing.T) {
 }
 
 func TestGoZeroMysqlTransaction(t *testing.T) {
-	//conn := sqlx.NewMysql(mysqlAddress)
-	//sourceCli := NewController(go_zero.NewOperator(conn), test.Source{})
-	// propertyCli := NewController(conn, go_zero.NewOperator(), test.Property{})
+	var err error
+	ctx := context.Background()
+	conn := sqlx.NewMysql(mysqlAddress)
+	sourceCli := NewController(go_zero.NewOperator(conn), test.Source{})
+	propertyCli := NewController(go_zero.NewOperator(conn), test.Property{})
 
-	//sourceCli(nil).Transact(func(ctx context.Context, tx sqlx.Session) error {
-	// Your transaction logic here
-	// _, err := sourceCli(ctx).Create(map[string]any{"id": 1000, "name": "transaction2", "description": "test transaction2"})
-	// if err != nil {
-	// 	t.Errorf("Create error: %s", err)
-	// 	return err
-	// }
+	err = conn.Transact(func(tx sqlx.Session) error {
+		_, err := sourceCli(ctx).WithSession(tx).Create(map[string]any{"id": 1000, "name": "transaction2", "description": "test transaction2"})
+		if err != nil {
+			t.Errorf("Create error: %s", err)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		t.Errorf("Transaction error: %s", err)
+	}
 
-	// _, _, err = propertyCli(ctx).CreateOrUpdate(map[string]any{"column_name": "test65432", "description": "Test65432"})
-	// if err != nil {
-	// 	t.Errorf("CreateOrUpdate error: %s", err)
-	// 	return nil
-	// }
-	//_, _ = tx.ExecCtx(ctx, "INSERT INTO `source` (`id`,`name`,`description`) VALUES (1001,'transaction3','test transaction3')")
-	//
-	//return nil
-	//})
+	tmpConn := sourceCli(ctx).Filter(Cond{"id": 1000, "name": "transaction2"})
 
+	if exist, err := tmpConn.Exist(); err != nil {
+		t.Error(err)
+	} else if !exist {
+		t.Error("Exist error: Expect [exist] but got [not exist]")
+	}
+
+	if num, err := tmpConn.Remove(); err != nil {
+		t.Error(err)
+	} else if num != 1 {
+		t.Errorf("Remove error: Expect [1] but got %d", num)
+	}
+
+	err = conn.Transact(func(tx sqlx.Session) error {
+		_, err := sourceCli(ctx).WithSession(tx).Create(map[string]any{"id": 1000, "name": "transaction2", "description": "test transaction2"})
+		if err != nil {
+			t.Errorf("Create error: %s", err)
+			return err
+		}
+
+		_, _, err = propertyCli(ctx).WithSession(tx).CreateOrUpdate(map[string]any{"column_name": "test65432", "description": "Test65432"})
+		if err != nil {
+			t.Errorf("CreateOrUpdate error: %s", err)
+			return nil
+		}
+
+		return errors.New("rollback transaction")
+	})
+	if err == nil {
+		t.Errorf("Expected transaction to rollback, but it committed")
+	}
+
+	if exist, err := sourceCli(ctx).Filter(Cond{"id": 1000, "name": "transaction2"}).Exist(); err != nil {
+		t.Error(err)
+	} else if exist {
+		t.Error("Exist error: Expect [not exist] but got [exist]")
+	}
+
+	err = conn.TransactCtx(ctx, func(innerCtx context.Context, tx sqlx.Session) error {
+		_, err := sourceCli(innerCtx).WithSession(tx).Create(map[string]any{"id": 1000, "name": "transaction2", "description": "test transaction2"})
+		if err != nil {
+			t.Errorf("Create error: %s", err)
+			return err
+		}
+
+		_, _, err = propertyCli(innerCtx).WithSession(tx).CreateOrUpdate(map[string]any{"column_name": "test65432", "description": "Test65432"})
+		if err != nil {
+			t.Errorf("CreateOrUpdate error: %s", err)
+			return nil
+		}
+
+		return errors.New("rollback transaction")
+	})
+	if err == nil {
+		t.Errorf("Expected transaction to rollback, but it committed")
+	}
+
+	if exist, err := sourceCli(ctx).Filter(Cond{"id": 1000, "name": "transaction2"}).Exist(); err != nil {
+		t.Error(err)
+	} else if exist {
+		t.Error("Exist error: Expect [not exist] but got [exist]")
+	}
 }
 
 func TestGoZeroMysqlMethods(t *testing.T) {

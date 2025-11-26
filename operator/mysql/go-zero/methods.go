@@ -77,6 +77,13 @@ func (d OperatorImpl) GetDBTag() string {
 	return d.DBTag
 }
 
+func (d OperatorImpl) WithSession(session any) operator.Operator {
+	if sqlSession, ok := session.(sqlx.Session); ok {
+		d.conn = sqlx.NewSqlConnFromSession(sqlSession)
+	}
+	return d
+}
+
 func (d OperatorImpl) OperatorSQL(operator, method string) string {
 	op, ok := mysql.Operators[operator]
 	if !ok {

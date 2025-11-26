@@ -8,6 +8,7 @@ type Operator interface {
 	GetDBTag() string
 	GetTableName() string
 	SetTableName(tableName string) Operator
+	WithSession(session any) Operator
 	Insert(ctx context.Context, query string, args ...any) (id int64, err error)
 	BulkInsert(ctx context.Context, query string, args []string, data []map[string]any) (num int64, err error)
 	Remove(ctx context.Context, query string, args ...any) (num int64, err error)
