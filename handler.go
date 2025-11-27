@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/leisurelicht/norm/internal/queryset"
 	"reflect"
 	"strings"
+
+	"github.com/leisurelicht/norm/internal/queryset"
 )
 
 const (
@@ -18,21 +19,18 @@ const (
 )
 
 const (
-	SelectColumsValidateError   = "Select columns validate error: %s"
-	SelectColumnsTypeError      = "Select type should be string or string slice"
-	OrderByColumnsValidateError = "OrderBy columns validate error: [%s] not exist"
-	OrderByColumnsTypeError     = "OrderBy type should be string or string slice"
-	GroupByColumnsValidateError = "GroupBy columns validate error: %s"
-	GroupByColumnsTypeError     = "GroupBy type should be string or string slice"
+	SelectColumsValidateError   = "select columns validate error: %s"
+	SelectColumnsTypeError      = "select type should be string or string slice"
+	OrderByColumnsValidateError = "orderBy columns validate error: [%s] not exist"
+	OrderByColumnsTypeError     = "orderBy type should be string or string slice"
+	GroupByColumnsValidateError = "groupBy columns validate error: %s"
+	GroupByColumnsTypeError     = "groupBy type should be string or string slice"
 	CreateDataTypeError         = "create data type is wrong, should not be [%s]"
 	DataEmptyError              = "data is empty"
 	UpdateColumnNotExistError   = "update column [%s] not exist"
 	ColumnNotExistError         = "column [%s] not exist"
 	MustBeCalledError           = "[%s] must be called after [%s]"
-)
-
-const (
-	UnsupportedControllerError = "[%s] not supported for %s"
+	UnsupportedControllerError  = "[%s] not supported for %s"
 )
 
 type controllerCall struct {

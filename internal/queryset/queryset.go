@@ -2,10 +2,11 @@ package queryset
 
 import (
 	"fmt"
-	"github.com/leisurelicht/norm/internal/operator"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/leisurelicht/norm/internal/operator"
 )
 
 type (

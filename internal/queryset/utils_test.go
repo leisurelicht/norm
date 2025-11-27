@@ -2,9 +2,10 @@ package queryset
 
 import (
 	"fmt"
-	go_zero "github.com/leisurelicht/norm/operator/mysql/go-zero"
 	"reflect"
 	"testing"
+
+	go_zero "github.com/leisurelicht/norm/operator/mysql/go-zero"
 )
 
 func Test_isStrList(t *testing.T) {
