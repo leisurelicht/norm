@@ -153,11 +153,11 @@ func (m *Impl) checkCalled(f ...controllerCall) ([]string, bool) {
 func (m *Impl) validateColumns(columns []string) (validatedColumns []string, err error) {
 	var unknownColumns []string
 	for _, v := range columns {
-		if _, ok := m.fieldNameMap[v]; !ok {
+		if _, ok := m.fieldNameMap[v]; ok {
+			validatedColumns = append(validatedColumns, v)
+		} else {
 			unknownColumns = append(unknownColumns, v)
-			continue
 		}
-		validatedColumns = append(validatedColumns, v)
 	}
 
 	if len(unknownColumns) > 0 {
@@ -207,6 +207,28 @@ func (m *Impl) preCheckData(opName string, data map[string]any, unsupportedMetho
 		return errors.New(strings.ToLower(opName) + " " + DataEmptyError)
 	}
 	return nil
+}
+
+func (m *Impl) buildQuery(selectRows string) (query string, args []any) {
+	if selectRows == "" || selectRows == Asterisk {
+		selectRows = m.fieldRows
+	}
+
+	query = fmt.Sprintf(SelectTemp, selectRows, m.operator.GetTableName())
+
+	filterSQL, filterArgs := m.qs.GetQuerySet()
+	query += filterSQL
+	args = append(args, filterArgs...)
+
+	query += m.qs.GetGroupBySQL()
+
+	havingSQL, havingArgs := m.qs.GetHavingSQL()
+	query += havingSQL
+	args = append(args, havingArgs...)
+
+	query += m.qs.GetOrderBySQL()
+
+	return query, args
 }
 
 func (m *Impl) reset() {
@@ -531,21 +553,12 @@ func (m *Impl) Count() (num int64, err error) {
 }
 
 func (m *Impl) findOne() (result map[string]any, err error) {
-	filterSQL, filterArgs := m.qs.GetQuerySet()
-
-	query := SelectTemp
-	query = fmt.Sprintf(query, m.fieldRows, m.operator.GetTableName())
-	query += filterSQL
-	query += m.qs.GetGroupBySQL()
-	havingSQL, havingArgs := m.qs.GetHavingSQL()
-	query += havingSQL
-	filterArgs = append(filterArgs, havingArgs...)
-	query += m.qs.GetOrderBySQL()
+	query, args := m.buildQuery(m.fieldRows)
 	query += " LIMIT 1"
 
 	res := deepCopyModelPtrStructure(m.modelPtr)
 
-	err = m.operator.FindOne(m.ctx(), res, query, filterArgs...)
+	err = m.operator.FindOne(m.ctx(), res, query, args...)
 
 	switch {
 	case err == nil:
@@ -579,26 +592,10 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 		return fmt.Errorf("model must be a pointer to struct")
 	}
 
-	query := SelectTemp
-
-	selectRows := m.qs.GetSelectSQL()
-	if selectRows != Asterisk {
-		query = fmt.Sprintf(query, selectRows, m.operator.GetTableName())
-	} else {
-		query = fmt.Sprintf(query, m.fieldRows, m.operator.GetTableName())
-	}
-
-	filterSQL, filterArgs := m.qs.GetQuerySet()
-
-	query += filterSQL
-	query += m.qs.GetGroupBySQL()
-	havingSQL, havingArgs := m.qs.GetHavingSQL()
-	query += havingSQL
-	filterArgs = append(filterArgs, havingArgs...)
-	query += m.qs.GetOrderBySQL()
+	query, args := m.buildQuery(m.qs.GetSelectSQL())
 	query += " LIMIT 1"
 
-	return m.operator.FindOne(m.ctx(), modelPtr, query, filterArgs...)
+	return m.operator.FindOne(m.ctx(), modelPtr, query, args...)
 }
 
 // FindAll retrieves all records matching the current query set into a slice of maps.
@@ -608,19 +605,12 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 		return result, err
 	}
 
-	filterSQL, filterArgs := m.qs.GetQuerySet()
-
-	query := SelectTemp
-	query = fmt.Sprintf(query, m.fieldRows, m.operator.GetTableName())
-	query += filterSQL
-
-	query += m.qs.GetGroupBySQL()
-	query += m.qs.GetOrderBySQL()
+	query, args := m.buildQuery(m.fieldRows)
 	query += m.qs.GetLimitSQL()
 
 	res := deepCopyModelPtrStructure(m.modelSlicePtr)
 
-	err = m.operator.FindAll(m.ctx(), res, query, filterArgs...)
+	err = m.operator.FindAll(m.ctx(), res, query, args...)
 
 	switch {
 	case err == nil:
@@ -644,26 +634,10 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 		return fmt.Errorf("model must be a pointer to slice")
 	}
 
-	query := SelectTemp
-
-	selectRows := m.qs.GetSelectSQL()
-	if selectRows != Asterisk {
-		query = fmt.Sprintf(query, selectRows, m.operator.GetTableName())
-	} else {
-		query = fmt.Sprintf(query, m.fieldRows, m.operator.GetTableName())
-	}
-
-	filterSQL, filterArgs := m.qs.GetQuerySet()
-
-	query += filterSQL
-	query += m.qs.GetGroupBySQL()
-	havingSQL, havingArgs := m.qs.GetHavingSQL()
-	query += havingSQL
-	filterArgs = append(filterArgs, havingArgs...)
-	query += m.qs.GetOrderBySQL()
+	query, args := m.buildQuery(m.qs.GetSelectSQL())
 	query += m.qs.GetLimitSQL()
 
-	err = m.operator.FindAll(m.ctx(), modelSlicePtr, query, filterArgs...)
+	err = m.operator.FindAll(m.ctx(), modelSlicePtr, query, args...)
 
 	switch {
 	case err == nil:

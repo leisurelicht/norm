@@ -10,18 +10,19 @@ import (
 
 // shiftName shift name like DevicePolicyMap to device_policy_map
 func shiftName(s string) string {
-	res := ""
+	var b strings.Builder
+	b.Grow(len(s) + 5) // Pre-allocate with some buffer for underscores
 	for i, c := range s {
 		if c >= 'A' && c <= 'Z' {
 			if i != 0 {
-				res += "_"
+				b.WriteByte('_')
 			}
-			res += string(c + 32)
+			b.WriteByte(byte(c + 32))
 		} else {
-			res += string(c)
+			b.WriteRune(c)
 		}
 	}
-	return "`" + res + "`"
+	return "`" + b.String() + "`"
 }
 
 func rawFieldNames(in any, tag string, pg bool) []string {
