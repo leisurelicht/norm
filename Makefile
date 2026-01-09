@@ -9,13 +9,13 @@ help: Makefile
 ## format: Run code format
 .PHONY: format
 format:
-	@gofmt -w .; echo "gofmt over"
-	@for file in $(shell find . -name '*.go'); do goimports-reviser -rm-unused -set-alias -format $$file; echo "goimports-reviser ["$$file"] over"; done
-
-## test: Run code test
-.PHONY: test
-test:
-	go test -count=1 .
+	@find . -type d \( -name '.history' -o -name '.vscode' \) -prune -o \
+        -name '*.go' -type f -exec gofmt -w {} +; \
+    echo "gofmt over"
+	@for file in $(shell find . -type d \( -name '.history' -o -name '.vscode' \) -prune -o -name '*.go' -print); do \
+        goimports-reviser -rm-unused -set-alias -format $$file; \
+        echo "goimports-reviser [$$file] over"; \
+    done
 
 ## prepare: Prepare test environment
 .PHONY: prepare
@@ -49,9 +49,15 @@ clean:
 	@docker stop norm_test_mysql && docker rm norm_test_mysql
 	@docker stop norm_test_clickhouse && docker rm norm_test_clickhouse
 
+## test: Run code test
+.PHONY: test
+test:
+	go test -count=1 ./...
+
+## benchmark: Run benchmark tests
 .PHONY: benchmark
 benchmark:
-	go test -bench=. -benchmem
+	go test -bench=. -benchmem ./...
 
 ## benchnote: Run benchmark tests and save results to a timestamped file
 .PHONY: benchnote
@@ -62,14 +68,14 @@ benchnote:
 	NEXT_NUM=$$(($$LATEST_NUM + 1)); \
 	FILENAME=bench/$${DATE}_$${NEXT_NUM}; \
 	echo "Running benchmark tests, saving results to $${FILENAME}"; \
-	go test -bench=. -benchmem | tee $${FILENAME}
+	go test -bench=. -benchmem ./... | tee $${FILENAME}
 
 ## coverage: Run tests with coverage and generate a report
 .PHONY: coverage
 coverage:
 	@mkdir -p test
 	@echo "Running tests with coverage..."
-	@go test -coverprofile=./test/coverage.out ./...
+	@go test -coverprofile=./coverage.out ./...
 	@echo "Generating coverage report..."
-	@go tool cover -html=./test/coverage.out
-	@echo "Coverage report generated at ./test/coverage.html"
+	@go tool cover -html=./coverage.out
+	@echo "Coverage report generated at ./coverage.html"

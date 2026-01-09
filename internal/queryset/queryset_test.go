@@ -1,4 +1,4 @@
-package norm
+package queryset
 
 import (
 	"errors"
@@ -167,7 +167,7 @@ func TestFilter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			operator := go_zero.NewOperator()
+			operator := go_zero.NewOperator(nil)
 			p := NewQuerySet(operator)
 			p = p.FilterToSQL(tt.args.state, tt.args.filter...)
 			sql, sqlArgs := p.GetQuerySet()
@@ -176,7 +176,7 @@ func TestFilter(t *testing.T) {
 				t.Errorf("TestFilter SQL Occur Error -> error:%+v", p.Error())
 			}
 
-			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.Placeholder())
+			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.GetPlaceholder())
 
 			if sql != wantSQL {
 				t.Errorf("TestFilter SQL Gen Error -> sql :%v", sql)
@@ -222,7 +222,7 @@ func TestMultipleCallFilter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			operator := go_zero.NewOperator()
+			operator := go_zero.NewOperator(nil)
 			p := NewQuerySet(operator)
 
 			for _, f := range tt.args {
@@ -234,7 +234,7 @@ func TestMultipleCallFilter(t *testing.T) {
 				t.Errorf("TestFilter SQL Occur Error -> error:%+v", p.Error())
 			}
 
-			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.Placeholder())
+			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.GetPlaceholder())
 
 			if sql != wantSQL {
 				t.Errorf("TestFilter SQL Gen Error -> sql :%v", sql)
@@ -449,95 +449,95 @@ func TestFilterError(t *testing.T) {
 		{"unsupported value28", args{isFilter, []any{OR{"test__contains": 0}}}, want{fmt.Errorf(unsupportedValueError, "contains", "int")}},
 		{"unsupported value29", args{isFilter, []any{OR{"test__contains": 1}}}, want{fmt.Errorf(unsupportedValueError, "contains", "int")}},
 		{"unsupported value30", args{isFilter, []any{OR{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedValueError, "contains", "float64")}},
-		{"unsupported supported filter type0", args{isFilter, []any{map[string]any{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]interface {}")}},
-		{"unsupported supported filter type1", args{isFilter, []any{map[string]any{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]interface {}")}},
-		{"unsupported supported filter type2", args{isFilter, []any{map[string]int{"test__contains": 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]int")}},
-		{"unsupported supported filter type3", args{isFilter, []any{map[string]string{"test__contains": "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]string")}},
-		{"unsupported supported filter type4", args{isFilter, []any{map[string]bool{"test__contains": true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]bool")}},
-		{"unsupported supported filter type5", args{isFilter, []any{map[string]float64{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]float64")}},
-		{"unsupported supported filter type6", args{isFilter, []any{map[int]any{1: 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[int]interface {}")}},
-		{"unsupported supported filter type7", args{isFilter, []any{map[int]string{1: "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[int]string")}},
-		{"unsupported supported filter type8", args{isFilter, []any{map[int]bool{1: true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[int]bool")}},
-		{"unsupported supported filter type9", args{isFilter, []any{map[int]float64{1: 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[int]float64")}},
-		{"unsupported supported filter type10", args{isFilter, []any{map[bool]any{true: 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[bool]interface {}")}},
-		{"unsupported supported filter type11", args{isFilter, []any{map[bool]string{true: "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[bool]string")}},
-		{"unsupported supported filter type12", args{isFilter, []any{map[bool]bool{true: true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[bool]bool")}},
-		{"unsupported supported filter type13", args{isFilter, []any{map[bool]float64{true: 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[bool]float64")}},
-		{"unsupported supported filter type14", args{isFilter, []any{map[float64]any{1.0: 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[float64]interface {}")}},
-		{"unsupported supported filter type15", args{isFilter, []any{map[float64]string{1.0: "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[float64]string")}},
-		{"unsupported supported filter type16", args{isFilter, []any{map[float64]bool{1.0: true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[float64]bool")}},
-		{"unsupported supported filter type17", args{isFilter, []any{map[float64]float64{1.0: 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[float64]float64")}},
-		{"unsupported supported filter type18", args{isFilter, []any{map[any]any{"test__contains": 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[interface {}]interface {}")}},
-		{"unsupported supported filter type19", args{isFilter, []any{map[any]string{"test__contains": "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[interface {}]string")}},
-		{"unsupported supported filter type20", args{isFilter, []any{map[any]bool{"test__contains": true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[interface {}]bool")}},
-		{"unsupported supported filter type21", args{isFilter, []any{map[any]float64{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[interface {}]float64")}},
-		{"unsupported supported filter type22", args{isFilter, []any{Cond{}, []any{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]interface {}")}},
-		{"unsupported supported filter type23", args{isFilter, []any{Cond{}, []any{"test__contains"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]interface {}")}},
-		{"unsupported supported filter type24", args{isFilter, []any{Cond{}, 1}}, want{fmt.Errorf(unsupportedFilterTypeError, "int")}},
-		{"unsupported supported filter type25", args{isFilter, []any{Cond{}, "test__contains"}}, want{fmt.Errorf(unsupportedFilterTypeError, "string")}},
-		{"unsupported supported filter type26", args{isFilter, []any{Cond{}, 1.0}}, want{fmt.Errorf(unsupportedFilterTypeError, "float64")}},
-		{"unsupported supported filter type27", args{isFilter, []any{Cond{}, true}}, want{fmt.Errorf(unsupportedFilterTypeError, "bool")}},
-		{"unsupported supported filter type28", args{isFilter, []any{Cond{}, false}}, want{fmt.Errorf(unsupportedFilterTypeError, "bool")}},
-		{"unsupported supported filter type29", args{isFilter, []any{Cond{}, nil}}, want{fmt.Errorf(unsupportedFilterTypeError, "nil")}},
-		{"unsupported supported filter type30", args{isFilter, []any{[]int{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]int")}},
-		{"unsupported supported filter type31", args{isFilter, []any{[]string{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]string")}},
-		{"unsupported supported filter type32", args{isFilter, []any{[]bool{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]bool")}},
-		{"unsupported supported filter type33", args{isFilter, []any{[]float64{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]float64")}},
-		{"unsupported supported filter type34", args{isFilter, []any{[1]int{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[1]int")}},
-		{"unsupported supported filter type35", args{isFilter, []any{[1]string{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[1]string")}},
-		{"unsupported supported filter type36", args{isFilter, []any{[1]bool{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[1]bool")}},
-		{"unsupported supported filter type37", args{isFilter, []any{[1]float64{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[1]float64")}},
-		{"unsupported supported filter type38", args{isFilter, []any{[2]int{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[2]int")}},
-		{"unsupported supported filter type39", args{isFilter, []any{[2]string{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[2]string")}},
-		{"unsupported supported filter type40", args{isFilter, []any{[2]bool{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[2]bool")}},
-		{"unsupported supported filter type41", args{isFilter, []any{[2]float64{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[2]float64")}},
-		{"unsupported supported filter type0", args{isFilter, []any{Cond{}, map[string]any{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]interface {}")}},
-		{"unsupported supported filter type1", args{isFilter, []any{Cond{}, map[string]any{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]interface {}")}},
-		{"unsupported supported filter type2", args{isFilter, []any{Cond{}, map[string]int{"test__contains": 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]int")}},
-		{"unsupported supported filter type3", args{isFilter, []any{Cond{}, map[string]string{"test__contains": "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]string")}},
-		{"unsupported supported filter type4", args{isFilter, []any{Cond{}, map[string]bool{"test__contains": true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]bool")}},
-		{"unsupported supported filter type5", args{isFilter, []any{Cond{}, map[string]float64{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[string]float64")}},
-		{"unsupported supported filter type6", args{isFilter, []any{Cond{}, map[int]any{1: 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[int]interface {}")}},
-		{"unsupported supported filter type7", args{isFilter, []any{Cond{}, map[int]string{1: "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[int]string")}},
-		{"unsupported supported filter type8", args{isFilter, []any{Cond{}, map[int]bool{1: true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[int]bool")}},
-		{"unsupported supported filter type9", args{isFilter, []any{Cond{}, map[int]float64{1: 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[int]float64")}},
-		{"unsupported supported filter type10", args{isFilter, []any{Cond{}, map[bool]any{true: 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[bool]interface {}")}},
-		{"unsupported supported filter type11", args{isFilter, []any{Cond{}, map[bool]string{true: "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[bool]string")}},
-		{"unsupported supported filter type12", args{isFilter, []any{Cond{}, map[bool]bool{true: true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[bool]bool")}},
-		{"unsupported supported filter type13", args{isFilter, []any{Cond{}, map[bool]float64{true: 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[bool]float64")}},
-		{"unsupported supported filter type14", args{isFilter, []any{Cond{}, map[float64]any{1.0: 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[float64]interface {}")}},
-		{"unsupported supported filter type15", args{isFilter, []any{Cond{}, map[float64]string{1.0: "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[float64]string")}},
-		{"unsupported supported filter type16", args{isFilter, []any{Cond{}, map[float64]bool{1.0: true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[float64]bool")}},
-		{"unsupported supported filter type17", args{isFilter, []any{Cond{}, map[float64]float64{1.0: 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[float64]float64")}},
-		{"unsupported supported filter type18", args{isFilter, []any{Cond{}, map[any]any{"test__contains": 1}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[interface {}]interface {}")}},
-		{"unsupported supported filter type19", args{isFilter, []any{Cond{}, map[any]string{"test__contains": "1"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[interface {}]string")}},
-		{"unsupported supported filter type20", args{isFilter, []any{Cond{}, map[any]bool{"test__contains": true}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[interface {}]bool")}},
-		{"unsupported supported filter type21", args{isFilter, []any{Cond{}, map[any]float64{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedFilterTypeError, "map[interface {}]float64")}},
-		{"unsupported supported filter type22", args{isFilter, []any{Cond{}, []any{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]interface {}")}},
-		{"unsupported supported filter type23", args{isFilter, []any{Cond{}, []any{"test__contains"}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]interface {}")}},
-		{"unsupported supported filter type24", args{isFilter, []any{Cond{}, 1}}, want{fmt.Errorf(unsupportedFilterTypeError, "int")}},
-		{"unsupported supported filter type25", args{isFilter, []any{Cond{}, "test__contains"}}, want{fmt.Errorf(unsupportedFilterTypeError, "string")}},
-		{"unsupported supported filter type26", args{isFilter, []any{Cond{}, 1.0}}, want{fmt.Errorf(unsupportedFilterTypeError, "float64")}},
-		{"unsupported supported filter type27", args{isFilter, []any{Cond{}, true}}, want{fmt.Errorf(unsupportedFilterTypeError, "bool")}},
-		{"unsupported supported filter type28", args{isFilter, []any{Cond{}, false}}, want{fmt.Errorf(unsupportedFilterTypeError, "bool")}},
-		{"unsupported supported filter type29", args{isFilter, []any{Cond{}, nil}}, want{fmt.Errorf(unsupportedFilterTypeError, "nil")}},
-		{"unsupported supported filter type30", args{isFilter, []any{Cond{}, []int{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]int")}},
-		{"unsupported supported filter type31", args{isFilter, []any{Cond{}, []string{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]string")}},
-		{"unsupported supported filter type32", args{isFilter, []any{Cond{}, []bool{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]bool")}},
-		{"unsupported supported filter type33", args{isFilter, []any{Cond{}, []float64{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[]float64")}},
-		{"unsupported supported filter type34", args{isFilter, []any{Cond{}, [1]int{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[1]int")}},
-		{"unsupported supported filter type35", args{isFilter, []any{Cond{}, [1]string{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[1]string")}},
-		{"unsupported supported filter type36", args{isFilter, []any{Cond{}, [1]bool{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[1]bool")}},
-		{"unsupported supported filter type37", args{isFilter, []any{Cond{}, [1]float64{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[1]float64")}},
-		{"unsupported supported filter type38", args{isFilter, []any{Cond{}, [2]int{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[2]int")}},
-		{"unsupported supported filter type39", args{isFilter, []any{Cond{}, [2]string{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[2]string")}},
-		{"unsupported supported filter type40", args{isFilter, []any{Cond{}, [2]bool{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[2]bool")}},
-		{"unsupported supported filter type41", args{isFilter, []any{Cond{}, [2]float64{}}}, want{fmt.Errorf(unsupportedFilterTypeError, "[2]float64")}},
+		{"unsupported supported filter type0", args{isFilter, []any{map[string]any{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[string]interface {}")}},
+		{"unsupported supported filter type1", args{isFilter, []any{map[string]any{"test__contains": 1.0}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[string]interface {}")}},
+		{"unsupported supported filter type2", args{isFilter, []any{map[string]int{"test__contains": 1}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[string]int")}},
+		{"unsupported supported filter type3", args{isFilter, []any{map[string]string{"test__contains": "1"}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[string]string")}},
+		{"unsupported supported filter type4", args{isFilter, []any{map[string]bool{"test__contains": true}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[string]bool")}},
+		{"unsupported supported filter type5", args{isFilter, []any{map[string]float64{"test__contains": 1.0}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[string]float64")}},
+		{"unsupported supported filter type6", args{isFilter, []any{map[int]any{1: 1}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[int]interface {}")}},
+		{"unsupported supported filter type7", args{isFilter, []any{map[int]string{1: "1"}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[int]string")}},
+		{"unsupported supported filter type8", args{isFilter, []any{map[int]bool{1: true}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[int]bool")}},
+		{"unsupported supported filter type9", args{isFilter, []any{map[int]float64{1: 1.0}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[int]float64")}},
+		{"unsupported supported filter type10", args{isFilter, []any{map[bool]any{true: 1}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[bool]interface {}")}},
+		{"unsupported supported filter type11", args{isFilter, []any{map[bool]string{true: "1"}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[bool]string")}},
+		{"unsupported supported filter type12", args{isFilter, []any{map[bool]bool{true: true}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[bool]bool")}},
+		{"unsupported supported filter type13", args{isFilter, []any{map[bool]float64{true: 1.0}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[bool]float64")}},
+		{"unsupported supported filter type14", args{isFilter, []any{map[float64]any{1.0: 1}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[float64]interface {}")}},
+		{"unsupported supported filter type15", args{isFilter, []any{map[float64]string{1.0: "1"}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[float64]string")}},
+		{"unsupported supported filter type16", args{isFilter, []any{map[float64]bool{1.0: true}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[float64]bool")}},
+		{"unsupported supported filter type17", args{isFilter, []any{map[float64]float64{1.0: 1.0}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[float64]float64")}},
+		{"unsupported supported filter type18", args{isFilter, []any{map[any]any{"test__contains": 1}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[interface {}]interface {}")}},
+		{"unsupported supported filter type19", args{isFilter, []any{map[any]string{"test__contains": "1"}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[interface {}]string")}},
+		{"unsupported supported filter type20", args{isFilter, []any{map[any]bool{"test__contains": true}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[interface {}]bool")}},
+		{"unsupported supported filter type21", args{isFilter, []any{map[any]float64{"test__contains": 1.0}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[interface {}]float64")}},
+		{"unsupported supported filter type22", args{isFilter, []any{Cond{}, []any{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[]interface {}")}},
+		{"unsupported supported filter type23", args{isFilter, []any{Cond{}, []any{"test__contains"}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[]interface {}")}},
+		{"unsupported supported filter type24", args{isFilter, []any{Cond{}, 1}}, want{fmt.Errorf(UnsupportedFilterTypeError, "int")}},
+		{"unsupported supported filter type25", args{isFilter, []any{Cond{}, "test__contains"}}, want{fmt.Errorf(UnsupportedFilterTypeError, "string")}},
+		{"unsupported supported filter type26", args{isFilter, []any{Cond{}, 1.0}}, want{fmt.Errorf(UnsupportedFilterTypeError, "float64")}},
+		{"unsupported supported filter type27", args{isFilter, []any{Cond{}, true}}, want{fmt.Errorf(UnsupportedFilterTypeError, "bool")}},
+		{"unsupported supported filter type28", args{isFilter, []any{Cond{}, false}}, want{fmt.Errorf(UnsupportedFilterTypeError, "bool")}},
+		{"unsupported supported filter type29", args{isFilter, []any{Cond{}, nil}}, want{fmt.Errorf(UnsupportedFilterTypeError, "nil")}},
+		{"unsupported supported filter type30", args{isFilter, []any{[]int{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[]int")}},
+		{"unsupported supported filter type31", args{isFilter, []any{[]string{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[]string")}},
+		{"unsupported supported filter type32", args{isFilter, []any{[]bool{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[]bool")}},
+		{"unsupported supported filter type33", args{isFilter, []any{[]float64{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[]float64")}},
+		{"unsupported supported filter type34", args{isFilter, []any{[1]int{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[1]int")}},
+		{"unsupported supported filter type35", args{isFilter, []any{[1]string{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[1]string")}},
+		{"unsupported supported filter type36", args{isFilter, []any{[1]bool{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[1]bool")}},
+		{"unsupported supported filter type37", args{isFilter, []any{[1]float64{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[1]float64")}},
+		{"unsupported supported filter type38", args{isFilter, []any{[2]int{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[2]int")}},
+		{"unsupported supported filter type39", args{isFilter, []any{[2]string{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[2]string")}},
+		{"unsupported supported filter type40", args{isFilter, []any{[2]bool{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[2]bool")}},
+		{"unsupported supported filter type41", args{isFilter, []any{[2]float64{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[2]float64")}},
+		{"unsupported supported filter type0", args{isFilter, []any{Cond{}, map[string]any{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[string]interface {}")}},
+		{"unsupported supported filter type1", args{isFilter, []any{Cond{}, map[string]any{"test__contains": 1.0}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[string]interface {}")}},
+		{"unsupported supported filter type2", args{isFilter, []any{Cond{}, map[string]int{"test__contains": 1}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[string]int")}},
+		{"unsupported supported filter type3", args{isFilter, []any{Cond{}, map[string]string{"test__contains": "1"}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[string]string")}},
+		{"unsupported supported filter type4", args{isFilter, []any{Cond{}, map[string]bool{"test__contains": true}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[string]bool")}},
+		{"unsupported supported filter type5", args{isFilter, []any{Cond{}, map[string]float64{"test__contains": 1.0}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[string]float64")}},
+		{"unsupported supported filter type6", args{isFilter, []any{Cond{}, map[int]any{1: 1}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[int]interface {}")}},
+		{"unsupported supported filter type7", args{isFilter, []any{Cond{}, map[int]string{1: "1"}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[int]string")}},
+		{"unsupported supported filter type8", args{isFilter, []any{Cond{}, map[int]bool{1: true}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[int]bool")}},
+		{"unsupported supported filter type9", args{isFilter, []any{Cond{}, map[int]float64{1: 1.0}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[int]float64")}},
+		{"unsupported supported filter type10", args{isFilter, []any{Cond{}, map[bool]any{true: 1}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[bool]interface {}")}},
+		{"unsupported supported filter type11", args{isFilter, []any{Cond{}, map[bool]string{true: "1"}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[bool]string")}},
+		{"unsupported supported filter type12", args{isFilter, []any{Cond{}, map[bool]bool{true: true}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[bool]bool")}},
+		{"unsupported supported filter type13", args{isFilter, []any{Cond{}, map[bool]float64{true: 1.0}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[bool]float64")}},
+		{"unsupported supported filter type14", args{isFilter, []any{Cond{}, map[float64]any{1.0: 1}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[float64]interface {}")}},
+		{"unsupported supported filter type15", args{isFilter, []any{Cond{}, map[float64]string{1.0: "1"}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[float64]string")}},
+		{"unsupported supported filter type16", args{isFilter, []any{Cond{}, map[float64]bool{1.0: true}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[float64]bool")}},
+		{"unsupported supported filter type17", args{isFilter, []any{Cond{}, map[float64]float64{1.0: 1.0}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[float64]float64")}},
+		{"unsupported supported filter type18", args{isFilter, []any{Cond{}, map[any]any{"test__contains": 1}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[interface {}]interface {}")}},
+		{"unsupported supported filter type19", args{isFilter, []any{Cond{}, map[any]string{"test__contains": "1"}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[interface {}]string")}},
+		{"unsupported supported filter type20", args{isFilter, []any{Cond{}, map[any]bool{"test__contains": true}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[interface {}]bool")}},
+		{"unsupported supported filter type21", args{isFilter, []any{Cond{}, map[any]float64{"test__contains": 1.0}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "map[interface {}]float64")}},
+		{"unsupported supported filter type22", args{isFilter, []any{Cond{}, []any{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[]interface {}")}},
+		{"unsupported supported filter type23", args{isFilter, []any{Cond{}, []any{"test__contains"}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[]interface {}")}},
+		{"unsupported supported filter type24", args{isFilter, []any{Cond{}, 1}}, want{fmt.Errorf(UnsupportedFilterTypeError, "int")}},
+		{"unsupported supported filter type25", args{isFilter, []any{Cond{}, "test__contains"}}, want{fmt.Errorf(UnsupportedFilterTypeError, "string")}},
+		{"unsupported supported filter type26", args{isFilter, []any{Cond{}, 1.0}}, want{fmt.Errorf(UnsupportedFilterTypeError, "float64")}},
+		{"unsupported supported filter type27", args{isFilter, []any{Cond{}, true}}, want{fmt.Errorf(UnsupportedFilterTypeError, "bool")}},
+		{"unsupported supported filter type28", args{isFilter, []any{Cond{}, false}}, want{fmt.Errorf(UnsupportedFilterTypeError, "bool")}},
+		{"unsupported supported filter type29", args{isFilter, []any{Cond{}, nil}}, want{fmt.Errorf(UnsupportedFilterTypeError, "nil")}},
+		{"unsupported supported filter type30", args{isFilter, []any{Cond{}, []int{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[]int")}},
+		{"unsupported supported filter type31", args{isFilter, []any{Cond{}, []string{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[]string")}},
+		{"unsupported supported filter type32", args{isFilter, []any{Cond{}, []bool{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[]bool")}},
+		{"unsupported supported filter type33", args{isFilter, []any{Cond{}, []float64{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[]float64")}},
+		{"unsupported supported filter type34", args{isFilter, []any{Cond{}, [1]int{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[1]int")}},
+		{"unsupported supported filter type35", args{isFilter, []any{Cond{}, [1]string{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[1]string")}},
+		{"unsupported supported filter type36", args{isFilter, []any{Cond{}, [1]bool{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[1]bool")}},
+		{"unsupported supported filter type37", args{isFilter, []any{Cond{}, [1]float64{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[1]float64")}},
+		{"unsupported supported filter type38", args{isFilter, []any{Cond{}, [2]int{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[2]int")}},
+		{"unsupported supported filter type39", args{isFilter, []any{Cond{}, [2]string{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[2]string")}},
+		{"unsupported supported filter type40", args{isFilter, []any{Cond{}, [2]bool{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[2]bool")}},
+		{"unsupported supported filter type41", args{isFilter, []any{Cond{}, [2]float64{}}}, want{fmt.Errorf(UnsupportedFilterTypeError, "[2]float64")}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			operator := go_zero.NewOperator()
+			operator := go_zero.NewOperator(nil)
 			p := NewQuerySet(operator)
 			p = p.FilterToSQL(tt.args.isNot, tt.args.filter...)
 			p.GetQuerySet()
@@ -577,14 +577,14 @@ func TestWhere(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			operator := go_zero.NewOperator()
+			operator := go_zero.NewOperator(nil)
 			p := NewQuerySet(operator)
 
 			p.WhereToSQL(tt.args.cond, tt.args.args...)
 
 			sql, sqlArgs := p.GetQuerySet()
 
-			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.Placeholder())
+			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.GetPlaceholder())
 
 			if sql != wantSQL {
 				t.Errorf("TestWhere SQL Gen Error -> sql :%v", sql)
@@ -628,7 +628,7 @@ func TestWhereError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			operator := go_zero.NewOperator()
+			operator := go_zero.NewOperator(nil)
 			p := NewQuerySet(operator)
 			p.WhereToSQL(tt.args.cond, tt.args.args...)
 
@@ -639,7 +639,7 @@ func TestWhereError(t *testing.T) {
 				t.Errorf("TestWhereError SQL Occur Error -> want:%+v", tt.want.err)
 			}
 
-			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.Placeholder())
+			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.GetPlaceholder())
 
 			if sql != wantSQL {
 				t.Errorf("TestWhereError SQL Gen Error -> sql :%v", sql)
@@ -663,35 +663,35 @@ func TestWhereError(t *testing.T) {
 }
 
 func TestFilterAndWhereConflict(t *testing.T) {
-	operator := go_zero.NewOperator()
+	operator := go_zero.NewOperator(nil)
 	p := NewQuerySet(operator)
 
 	p.WhereToSQL("test = ?", 1)
-	p.FilterToSQL(notNot, Cond{"test": 1})
+	p.FilterToSQL(NotNot, Cond{"test": 1})
 	if p.Error() == nil {
 		t.Error("Test Where Filter Conflict Not Occur Error")
-	} else if p.Error().Error() != fmt.Errorf(filterOrWhereError, "Filter").Error() {
+	} else if p.Error().Error() != fmt.Errorf(FilterOrWhereError, "Filter").Error() {
 		t.Errorf("TestFilterAndExcludeConflict not working as expected")
 	}
 
 	p = NewQuerySet(operator)
 	p.WhereToSQL("test = ?", 1)
-	p.FilterToSQL(isNot, Cond{"test": 1})
+	p.FilterToSQL(IsNot, Cond{"test": 1})
 	if p.Error() == nil {
 		t.Error("Test Where Exclude Conflict Not Occur Error")
-	} else if p.Error().Error() != fmt.Errorf(filterOrWhereError, "Exclude").Error() {
+	} else if p.Error().Error() != fmt.Errorf(FilterOrWhereError, "Exclude").Error() {
 		t.Errorf("TestFilterAndExcludeConflict not working as expected")
 	}
 
 	p = NewQuerySet(operator)
-	p.FilterToSQL(notNot, Cond{"test": 1})
+	p.FilterToSQL(NotNot, Cond{"test": 1})
 	p.WhereToSQL("test = ?", 1)
 	if p.Error() == nil {
 		t.Error("Test Filter Where Conflict Not Occur Error")
 		return
-	} else if p.Error().Error() != fmt.Errorf(filterOrWhereError, "Filter").Error() {
+	} else if p.Error().Error() != fmt.Errorf(FilterOrWhereError, "Filter").Error() {
 		t.Errorf("TestFilterAndWhereConflict SQL Occur Error -> error:%+v", p.Error().Error())
-		t.Errorf("TestFilterAndWhereConflict SQL Occur Error -> want:%+v", fmt.Errorf(filterOrWhereError, "Filter").Error())
+		t.Errorf("TestFilterAndWhereConflict SQL Occur Error -> want:%+v", fmt.Errorf(FilterOrWhereError, "Filter").Error())
 	}
 }
 
@@ -717,7 +717,7 @@ func TestSelect(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			operator := go_zero.NewOperator()
+			operator := go_zero.NewOperator(nil)
 			p := NewQuerySet(operator)
 
 			sql := p.GetSelectSQL()
@@ -729,7 +729,7 @@ func TestSelect(t *testing.T) {
 			p.SelectToSQL(tt.args.selects)
 			sql = p.GetSelectSQL()
 
-			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.Placeholder())
+			wantSQL := strings.ReplaceAll(tt.want.sql, "?", operator.GetPlaceholder())
 			if sql != wantSQL {
 				t.Errorf("TestSelect SQL Gen Error -> sql : %v", sql)
 				t.Errorf("TestSelect SQL Gen Error -> want: %v", wantSQL)
@@ -770,7 +770,7 @@ func TestSelectError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator(nil))
 
 			sql := p.GetSelectSQL()
 			if sql != "*" {
@@ -888,7 +888,7 @@ func TestLimit(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator(nil))
 			p.LimitToSQL(tt.args.PageSize, tt.args.PageNum)
 			sql := p.GetLimitSQL()
 
@@ -934,7 +934,7 @@ func TestOrderBy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator(nil))
 			p.OrderByToSQL(tt.args.order)
 			sql := p.GetOrderBySQL()
 
@@ -976,7 +976,7 @@ func TestOrderByError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator(nil))
 
 			p.OrderByToSQL(tt.args.selects)
 			sql := p.GetOrderBySQL()
@@ -1016,7 +1016,7 @@ func TestGroupBy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator(nil))
 			p.GroupByToSQL(tt.args.groupby)
 
 			sql := p.GetGroupBySQL()
@@ -1059,7 +1059,7 @@ func TestGroupByError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewQuerySet(go_zero.NewOperator())
+			p := NewQuerySet(go_zero.NewOperator(nil))
 
 			p.GroupByToSQL(tt.args.selects)
 			sql := p.GetGroupBySQL()
@@ -1096,7 +1096,7 @@ func TestHaving(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			operator := go_zero.NewOperator()
+			operator := go_zero.NewOperator(nil)
 			p := NewQuerySet(operator)
 
 			p.HavingToSQL(tt.args.havingSQL, tt.args.havingArgs...)
@@ -1107,7 +1107,7 @@ func TestHaving(t *testing.T) {
 				t.Errorf("TestHaving SQL Occur Error -> error:%+v", p.Error())
 			}
 
-			wantSQL := strings.ReplaceAll(tt.want.havingSQL, "?", operator.Placeholder())
+			wantSQL := strings.ReplaceAll(tt.want.havingSQL, "?", operator.GetPlaceholder())
 
 			if sql != wantSQL {
 				t.Errorf("TestHaving SQL Gen Error -> sql :%v", sql)
@@ -1123,11 +1123,11 @@ func TestHaving(t *testing.T) {
 }
 
 func TestFilterResetAndError(t *testing.T) {
-	p := NewQuerySet(go_zero.NewOperator())
+	p := NewQuerySet(go_zero.NewOperator(nil))
 
 	// Create an error
 	p.SelectToSQL("test")
-	p.FilterToSQL(notNot, Cond{"test": 1})
+	p.FilterToSQL(NotNot, Cond{"test": 1})
 	p.WhereToSQL("test1 = ?", 1)
 	p.OrderByToSQL("test")
 	p.GroupByToSQL("test")
@@ -1156,7 +1156,7 @@ func TestFilterResetAndError(t *testing.T) {
 	}
 
 	// After reset, functions should work properly
-	p.FilterToSQL(notNot, Cond{"test": 1})
+	p.FilterToSQL(NotNot, Cond{"test": 1})
 	sql, args := p.GetQuerySet()
 
 	if sql != " WHERE (`test` = ?)" || len(args) != 1 || args[0] != 1 {
@@ -1166,30 +1166,30 @@ func TestFilterResetAndError(t *testing.T) {
 
 // Test that multiple call flags are properly set
 func TestMultipleCallFlags(t *testing.T) {
-	p := NewQuerySet(go_zero.NewOperator()).(*QuerySetImpl)
+	p := NewQuerySet(go_zero.NewOperator(nil)).(*QuerySetImpl)
 
 	// Test initial state
-	if p.hasCalled(qsFilter) || p.hasCalled(qsExclude) || p.hasCalled(qsWhere) {
+	if p.hasCalled(QsFilter) || p.hasCalled(QsExclude) || p.hasCalled(QsWhere) {
 		t.Errorf("Initial call flags should be unset")
 	}
 
 	// Test filter flag
-	p.FilterToSQL(notNot, Cond{"test": 1})
-	if !p.hasCalled(qsFilter) {
+	p.FilterToSQL(NotNot, Cond{"test": 1})
+	if !p.hasCalled(QsFilter) {
 		t.Errorf("callFilter flag should be set")
 	}
 
 	// Reset and test exclude flag
 	p.Reset()
-	p.FilterToSQL(isNot, Cond{"test": 1})
-	if !p.hasCalled(qsExclude) {
+	p.FilterToSQL(IsNot, Cond{"test": 1})
+	if !p.hasCalled(QsExclude) {
 		t.Errorf("callExclude flag should be set")
 	}
 
 	// Reset and test where flag
 	p.Reset()
 	p.WhereToSQL("test = ?", 1)
-	if !p.hasCalled(qsWhere) {
+	if !p.hasCalled(QsWhere) {
 		t.Errorf("callWhere flag should be set")
 	}
 
@@ -1201,9 +1201,9 @@ func TestMultipleCallFlags(t *testing.T) {
 	p.GroupByToSQL("test")
 	p.HavingToSQL("test = ?", 1)
 
-	if !p.hasCalled(qsSelect) || !p.hasCalled(qsOrderBy) ||
-		!p.hasCalled(qsLimit) || !p.hasCalled(qsGroupBy) ||
-		!p.hasCalled(qsHaving) {
+	if !p.hasCalled(QsSelect) || !p.hasCalled(QsOrderBy) ||
+		!p.hasCalled(QsLimit) || !p.hasCalled(QsGroupBy) ||
+		!p.hasCalled(QsHaving) {
 		t.Errorf("Multiple call flags were not set correctly")
 	}
 }

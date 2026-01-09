@@ -2,13 +2,16 @@ package norm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 
+	"github.com/leisurelicht/norm/internal/queryset"
 	go_zero "github.com/leisurelicht/norm/operator/mysql/go-zero"
 	"github.com/leisurelicht/norm/test"
 )
@@ -36,9 +39,94 @@ func TestCharacterEncoding(t *testing.T) {
 	}
 }
 
+func TestGoZeroMysqlTransaction(t *testing.T) {
+	var err error
+	ctx := context.Background()
+	conn := sqlx.NewMysql(mysqlAddress)
+	sourceCli := NewController(go_zero.NewOperator(conn), test.Source{})
+	propertyCli := NewController(go_zero.NewOperator(conn), test.Property{})
+
+	err = conn.Transact(func(tx sqlx.Session) error {
+		_, err := sourceCli(ctx).WithSession(tx).Create(map[string]any{"id": 1000, "name": "transaction2", "description": "test transaction2"})
+		if err != nil {
+			t.Errorf("Create error: %s", err)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		t.Errorf("Transaction error: %s", err)
+	}
+
+	tmpConn := sourceCli(ctx).Filter(Cond{"id": 1000, "name": "transaction2"})
+
+	if exist, err := tmpConn.Exist(); err != nil {
+		t.Error(err)
+	} else if !exist {
+		t.Error("Exist error: Expect [exist] but got [not exist]")
+	}
+
+	if num, err := tmpConn.Remove(); err != nil {
+		t.Error(err)
+	} else if num != 1 {
+		t.Errorf("Remove error: Expect [1] but got %d", num)
+	}
+
+	err = conn.Transact(func(tx sqlx.Session) error {
+		_, err := sourceCli(ctx).WithSession(tx).Create(map[string]any{"id": 1000, "name": "transaction2", "description": "test transaction2"})
+		if err != nil {
+			t.Errorf("Create error: %s", err)
+			return err
+		}
+
+		_, _, err = propertyCli(ctx).WithSession(tx).CreateOrUpdate(map[string]any{"column_name": "test65432", "description": "Test65432"})
+		if err != nil {
+			t.Errorf("CreateOrUpdate error: %s", err)
+			return nil
+		}
+
+		return errors.New("rollback transaction")
+	})
+	if err == nil {
+		t.Errorf("Expected transaction to rollback, but it committed")
+	}
+
+	if exist, err := sourceCli(ctx).Filter(Cond{"id": 1000, "name": "transaction2"}).Exist(); err != nil {
+		t.Error(err)
+	} else if exist {
+		t.Error("Exist error: Expect [not exist] but got [exist]")
+	}
+
+	err = conn.TransactCtx(ctx, func(innerCtx context.Context, tx sqlx.Session) error {
+		_, err := sourceCli(innerCtx).WithSession(tx).Create(map[string]any{"id": 1000, "name": "transaction2", "description": "test transaction2"})
+		if err != nil {
+			t.Errorf("Create error: %s", err)
+			return err
+		}
+
+		_, _, err = propertyCli(innerCtx).WithSession(tx).CreateOrUpdate(map[string]any{"column_name": "test65432", "description": "Test65432"})
+		if err != nil {
+			t.Errorf("CreateOrUpdate error: %s", err)
+			return nil
+		}
+
+		return errors.New("rollback transaction")
+	})
+	if err == nil {
+		t.Errorf("Expected transaction to rollback, but it committed")
+	}
+
+	if exist, err := sourceCli(ctx).Filter(Cond{"id": 1000, "name": "transaction2"}).Exist(); err != nil {
+		t.Error(err)
+	} else if exist {
+		t.Error("Exist error: Expect [not exist] but got [exist]")
+	}
+}
+
 func TestGoZeroMysqlMethods(t *testing.T) {
-	sourceCli := NewController(sqlx.NewMysql(mysqlAddress), go_zero.NewOperator(), test.Source{})
-	propertyCli := NewController(sqlx.NewMysql(mysqlAddress), go_zero.NewOperator(), test.Property{})
+	SetLevel(Debug)
+	sourceCli := NewController(go_zero.NewOperator(go_zero.NewMysql(mysqlAddress), go_zero.WithTableName("source")), test.Source{})
+	propertyCli := NewController(go_zero.NewOperator(go_zero.NewMysql(mysqlAddress)), test.Property{})
 
 	if num, err := sourceCli(nil).Count(); err != nil {
 		t.Error(err)
@@ -478,15 +566,15 @@ func TestGoZeroMysqlMethods(t *testing.T) {
 }
 
 func TestGoZeroMysqlHandlerError(t *testing.T) {
-	ctl := NewController(sqlx.NewMysql(mysqlAddress), go_zero.NewOperator(), test.Source{})
+	ctl := NewController(go_zero.NewOperator(sqlx.NewMysql(mysqlAddress)), test.Source{})
 
-	if _, err := ctl(nil).Filter(Cond{}).Where("").FindOne(); err != nil && err.Error() != fmt.Sprintf(filterOrWhereError, "Filter") {
+	if _, err := ctl(nil).Filter(Cond{}).Where("").FindOne(); err != nil && err.Error() != fmt.Sprintf(queryset.FilterOrWhereError, "Filter") {
 		t.Errorf("expect nil but got %v", err)
 	}
 
 	ctx := context.Background()
 
-	if _, err := ctl(ctx).Exclude(Cond{}).Where("").FindOne(); err != nil && err.Error() != fmt.Sprintf(filterOrWhereError, "Exclude") {
+	if _, err := ctl(ctx).Exclude(Cond{}).Where("").FindOne(); err != nil && err.Error() != fmt.Sprintf(queryset.FilterOrWhereError, "Exclude") {
 		t.Errorf("expect nil but got %v", err)
 	}
 
@@ -531,25 +619,25 @@ func TestGoZeroMysqlHandlerError(t *testing.T) {
 
 	if id, err := ctl(ctx).Filter(Cond{}).Where("").Create(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where] not supported for Create" {
+	} else if err != nil && err.Error() != "[Filter, Where] not supported for Create" {
 		t.Error(err)
 	}
 
 	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").Create(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where OrderBy] not supported for Create" {
+	} else if err != nil && err.Error() != "[Filter, Where, OrderBy] not supported for Create" {
 		t.Error(err)
 	}
 
 	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Create(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where OrderBy GroupBy] not supported for Create" {
+	} else if err != nil && err.Error() != "[Filter, Where, OrderBy, GroupBy] not supported for Create" {
 		t.Error(err)
 	}
 
 	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Select("").Create(map[string]any{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where Select OrderBy GroupBy] not supported for Create" {
+	} else if err != nil && err.Error() != "[Filter, Where, Select, OrderBy, GroupBy] not supported for Create" {
 		t.Error(err)
 	}
 
@@ -561,25 +649,25 @@ func TestGoZeroMysqlHandlerError(t *testing.T) {
 
 	if id, err := ctl(ctx).Filter(Cond{}).Where("").Create(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where] not supported for Create" {
+	} else if err != nil && err.Error() != "[Filter, Where] not supported for Create" {
 		t.Error(err)
 	}
 
 	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").Create(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where OrderBy] not supported for Create" {
+	} else if err != nil && err.Error() != "[Filter, Where, OrderBy] not supported for Create" {
 		t.Error(err)
 	}
 
 	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Create(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where OrderBy GroupBy] not supported for Create" {
+	} else if err != nil && err.Error() != "[Filter, Where, OrderBy, GroupBy] not supported for Create" {
 		t.Error(err)
 	}
 
 	if id, err := ctl(ctx).Filter(Cond{}).Where("").OrderBy("").GroupBy("").Select("").Create(&test.Source{}); id != 0 {
 		t.Errorf("expect 0 but got %d", id)
-	} else if err != nil && err.Error() != "[Filter Where Select OrderBy GroupBy] not supported for Create" {
+	} else if err != nil && err.Error() != "[Filter, Where, Select, OrderBy, GroupBy] not supported for Create" {
 		t.Error(err)
 	}
 
@@ -592,7 +680,7 @@ func TestGoZeroMysqlHandlerError(t *testing.T) {
 
 	if num, err := ctl(ctx).GroupBy("").Select("").Update(map[string]any{}); num != 0 {
 		t.Errorf("expect 0 but got %d", num)
-	} else if err != nil && err.Error() != "[Select GroupBy] not supported for Update" {
+	} else if err != nil && err.Error() != "[Select, GroupBy] not supported for Update" {
 		t.Error(err)
 	}
 
@@ -605,7 +693,7 @@ func TestGoZeroMysqlHandlerError(t *testing.T) {
 
 	if num, err := ctl(ctx).GroupBy("").Select("").Remove(); num != 0 {
 		t.Errorf("expect 0 but got %d", num)
-	} else if err != nil && err.Error() != "[Select GroupBy] not supported for Remove" {
+	} else if err != nil && err.Error() != "[Select, GroupBy] not supported for Remove" {
 		t.Error(err)
 	}
 
@@ -618,151 +706,151 @@ func TestGoZeroMysqlHandlerError(t *testing.T) {
 
 	if num, err := ctl(ctx).GroupBy("").Select("").Delete(); num != 0 {
 		t.Errorf("expect 0 but got %d", num)
-	} else if err != nil && err.Error() != "[GroupBy Select] not supported for Delete" {
+	} else if err != nil && err.Error() != "[GroupBy, Select] not supported for Delete" {
 		t.Error(err)
 	}
 
 	// Exist unsupported operations
 	if _, err := ctl(ctx).GroupBy("").Exist(); err != nil {
-		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlGroupBy.Name}, "Exist").Error() {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, ctlGroupBy.Name, "Exist").Error() {
 			t.Error(err)
 		}
 	}
 
 	if _, err := ctl(ctx).Select("").Exist(); err != nil {
-		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlSelect.Name}, "Exist").Error() {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, ctlSelect.Name, "Exist").Error() {
 			t.Error(err)
 		}
 	}
 
 	// GetOrCreate unsupported operations
 	if _, err := ctl(ctx).GroupBy("").Having("").GetOrCreate(map[string]any{}); err != nil {
-		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlGroupBy.Name, ctlHaving.Name}, "GetOrCreate").Error() {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, strings.Join([]string{ctlGroupBy.Name, ctlHaving.Name}, ", "), "GetOrCreate").Error() {
 			t.Error(err)
 		}
 	}
 
 	if _, err := ctl(ctx).Select("").GetOrCreate(map[string]any{}); err != nil {
-		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlSelect.Name}, "GetOrCreate").Error() {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, ctlSelect.Name, "GetOrCreate").Error() {
 			t.Error(err)
 		}
 	}
 
 	// CreateOrUpdate unsupported operations
 	if _, _, err := ctl(ctx).GroupBy("").Having("").CreateOrUpdate(map[string]any{}); err != nil {
-		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlGroupBy.Name, ctlHaving.Name}, "CreateOrUpdate").Error() {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, strings.Join([]string{ctlGroupBy.Name, ctlHaving.Name}, ", "), "CreateOrUpdate").Error() {
 			t.Error(err)
 		}
 	}
 	if _, _, err := ctl(ctx).Select("").CreateOrUpdate(map[string]any{}); err != nil {
-		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlSelect.Name}, "CreateOrUpdate").Error() {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, ctlSelect.Name, "CreateOrUpdate").Error() {
 			t.Error(err)
 		}
 	}
 
 	// CreateIfNotExists unsupported operations
 	if _, _, err := ctl(ctx).GroupBy("").Having("").CreateIfNotExist(map[string]any{}); err != nil {
-		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlGroupBy.Name, ctlHaving.Name}, "CreateIfNotExist").Error() {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, strings.Join([]string{ctlGroupBy.Name, ctlHaving.Name}, ", "), "CreateIfNotExist").Error() {
 			t.Error(err)
 
 		}
 	}
 	if _, _, err := ctl(ctx).Select("").CreateIfNotExist(map[string]any{}); err != nil {
-		if err.Error() != fmt.Errorf(UnsupportedControllerError, []string{ctlSelect.Name}, "CreateIfNotExist").Error() {
+		if err.Error() != fmt.Errorf(UnsupportedControllerError, ctlSelect.Name, "CreateIfNotExist").Error() {
 			t.Error(err)
 		}
 	}
 
 	// send not exist columns to Select
 	if err := ctl(ctx).Select([]string{"age"}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "Select columns validate error: [age] not exist" {
+		if err.Error() != "select columns validate error: [age] not exist" {
 			t.Error(err)
 		}
 	}
 
 	if err := ctl(ctx).Select([]string{"age", "happy"}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "Select columns validate error: [age; happy] not exist" {
+		if err.Error() != "select columns validate error: [age; happy] not exist" {
 			t.Error(err)
 		}
 	}
 
 	if err := ctl(ctx).Select([]string{"age", "happy", "damnit"}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "Select columns validate error: [age; happy; damnit] not exist" {
+		if err.Error() != "select columns validate error: [age; happy; damnit] not exist" {
 			t.Error(err)
 		}
 	}
 
 	// send not exist columns to OrderBy
 	if err := ctl(ctx).OrderBy([]string{"age"}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "OrderBy columns validate error: [age] not exist" {
+		if err.Error() != "orderBy columns validate error: [age] not exist" {
 			t.Error(err)
 		}
 	}
 
 	if err := ctl(ctx).OrderBy([]string{"age", "happy"}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "OrderBy columns validate error: [age; happy] not exist" {
+		if err.Error() != "orderBy columns validate error: [age; happy] not exist" {
 			t.Error(err)
 		}
 	}
 
 	if err := ctl(ctx).OrderBy([]string{"age", "happy", "damnit"}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "OrderBy columns validate error: [age; happy; damnit] not exist" {
+		if err.Error() != "orderBy columns validate error: [age; happy; damnit] not exist" {
 			t.Error(err)
 		}
 	}
 
 	// send not exist columns to GroupBy
 	if err := ctl(ctx).GroupBy([]string{"age"}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "GroupBy columns validate error: [age] not exist" {
+		if err.Error() != "groupBy columns validate error: [age] not exist" {
 			t.Error(err)
 		}
 	}
 
 	if err := ctl(ctx).GroupBy([]string{"age", "happy"}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "GroupBy columns validate error: [age; happy] not exist" {
+		if err.Error() != "groupBy columns validate error: [age; happy] not exist" {
 			t.Error(err)
 		}
 	}
 
 	if err := ctl(ctx).GroupBy([]string{"age", "happy", "damnit"}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "GroupBy columns validate error: [age; happy; damnit] not exist" {
+		if err.Error() != "groupBy columns validate error: [age; happy; damnit] not exist" {
 			t.Error(err)
 		}
 	}
 
 	// send not exist columns and display last error
 	if err := ctl(ctx).GroupBy([]string{"test"}).OrderBy([]string{"age"}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "OrderBy columns validate error: [age] not exist" {
+		if err.Error() != "orderBy columns validate error: [age] not exist" {
 			t.Error(err)
 		}
 	}
 
 	if err := ctl(ctx).GroupBy([]string{"test"}).OrderBy([]string{"age", "happy"}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "OrderBy columns validate error: [age; happy] not exist" {
+		if err.Error() != "orderBy columns validate error: [age; happy] not exist" {
 			t.Error(err)
 		}
 	}
 
 	if err := ctl(ctx).GroupBy([]string{"test"}).OrderBy([]string{"age", "happy", "damnit"}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "OrderBy columns validate error: [age; happy; damnit] not exist" {
+		if err.Error() != "orderBy columns validate error: [age; happy; damnit] not exist" {
 			t.Error(err)
 		}
 	}
 
 	if err := ctl(ctx).OrderBy([]string{"age"}).GroupBy([]string{"test"}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "GroupBy columns validate error: [test] not exist" {
+		if err.Error() != "groupBy columns validate error: [test] not exist" {
 			t.Error(err)
 		}
 	}
 
 	if err := ctl(ctx).OrderBy([]string{"age", "happy"}).GroupBy([]string{"test", "test2"}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "GroupBy columns validate error: [test; test2] not exist" {
+		if err.Error() != "groupBy columns validate error: [test; test2] not exist" {
 			t.Error(err)
 		}
 	}
 
 	if err := ctl(ctx).OrderBy([]string{"age", "happy", "damnit"}).GroupBy([]string{"test", "test2", "test3"}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "GroupBy columns validate error: [test; test2; test3] not exist" {
+		if err.Error() != "groupBy columns validate error: [test; test2; test3] not exist" {
 			t.Error(err)
 		}
 	}
@@ -809,7 +897,7 @@ func TestGoZeroMysqlHandlerError(t *testing.T) {
 	}
 
 	if err := ctl(ctx).Select([]int{1}).FindOneModel(&test.Source{}); err != nil {
-		if err.Error() != "Select type should be string or string slice" {
+		if err.Error() != "select type should be string or string slice" {
 			t.Error(err)
 		}
 	}
@@ -852,14 +940,14 @@ func TestGoZeroMysqlHandlerError(t *testing.T) {
 
 	// have error before count
 	if _, err := ctl(ctx).Filter(nil).Count(); err != nil {
-		if err.Error() != fmt.Errorf(unsupportedFilterTypeError, "nil").Error() {
+		if err.Error() != fmt.Errorf(queryset.UnsupportedFilterTypeError, "nil").Error() {
 			t.Error(err)
 		}
 	}
 
 	// have error before exist
 	if _, err := ctl(ctx).Filter(nil).Exist(); err != nil {
-		if err.Error() != fmt.Errorf(unsupportedFilterTypeError, "nil").Error() {
+		if err.Error() != fmt.Errorf(queryset.UnsupportedFilterTypeError, "nil").Error() {
 			t.Error(err)
 		}
 	}

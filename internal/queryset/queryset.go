@@ -1,23 +1,30 @@
-package norm
+package queryset
 
 import (
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/leisurelicht/norm/internal/operator"
 )
 
-type callFlag int64
+type (
+	Cond map[string]any
+	AND  map[string]any
+	OR   map[string]any
+)
 
 const (
 	defaultOuterFilterCondsLen = 10
 	defaultInnerFilterCondsLen = 10
-	orPrefix                   = "| "
+	OrPrefix                   = "| "
 	notPrefix                  = "not_"
 	descPrefix                 = "-"
 	operatorJoiner             = "__"
 	plural                     = "~"
 	methodJoiner               = "##"
+	SortKey                    = "~sort~"
 )
 
 const (
@@ -46,11 +53,11 @@ const (
 	argsLenError          = "args length must be equal to ? number"
 	orderKeyTypeError     = "order key value must be a list of string"
 	orderKeyLenError      = "order key length must be equal to filter key length"
-	isNotValueError       = "isNot value must be 0 or 1"
+	isNotValueError       = "IsNot value must be 0 or 1"
 	paramTypeError        = "param type must be string or slice of string"
 	pageSizeORNumberError = "page size and page number must be positive"
 
-	filterOrWhereError          = "[%s] or [Where] can not be called at the same time"
+	FilterOrWhereError          = "[%s] or [Where] can not be called at the same time"
 	fieldLookupError            = "field lookups [%s] is invalid"
 	unknownOperatorError        = "unknown operator [%s]"
 	notImplementedOperatorError = "not implemented operator [%s]"
@@ -58,24 +65,27 @@ const (
 	operatorValueLenError       = "operator [%s] value length must be [%d]"
 	operatorValueLenLessError   = "operator [%s] value length must greater than [%d]"
 	operatorValueTypeError      = "operator [%s] value must be string list"
-	unsupportedFilterTypeError  = "unsupported filter type [%s], Please use be [Cond | AND | OR]"
+	UnsupportedFilterTypeError  = "unsupported filter type [%s], Please use be [Cond | AND | OR]"
 	operatorValueEmptyError     = "operator [%s] unsupported value empty"
 )
 
+type CallFlag int64
+
 const (
-	qsFilter callFlag = 1 << iota
-	qsExclude
-	qsWhere
-	qsOrderBy
-	qsLimit
-	qsSelect
-	qsGroupBy
-	qsHaving
+	QsFilter CallFlag = 1 << iota
+	QsExclude
+	QsWhere
+	QsOrderBy
+	QsLimit
+	QsSelect
+	QsGroupBy
+	QsHaving
 )
 
 const (
 	isFilter, isExclude                = 0, 1
-	notNot, isNot                      = 0, 1
+	NotNot                             = 0
+	IsNot                              = 1
 	andTag, orTag, andNotTag, orNotTag = 0, 1, 2, 3
 )
 
@@ -121,9 +131,9 @@ func newCondByValue(conj, sql string, args []any) *cond {
 }
 
 type QuerySet interface {
-	setCalled(f callFlag)
-	hasCalled(f callFlag) bool
-	setError(format string, a ...any)
+	setCalled(f CallFlag)
+	hasCalled(f CallFlag) bool
+	SetError(format string, a ...any)
 	Error() error
 	Reset()
 	GetQuerySet() (string, []any)
@@ -148,7 +158,7 @@ type QuerySet interface {
 }
 
 type QuerySetImpl struct {
-	Operator
+	operator.Operator
 	selectColumn  string
 	whereCond     cond
 	filterConds   [][]cond
@@ -158,12 +168,12 @@ type QuerySetImpl struct {
 	groupSQL      string
 	havingSQL     cond
 	err           error
-	called        callFlag
+	called        CallFlag
 }
 
 var _ QuerySet = (*QuerySetImpl)(nil)
 
-func NewQuerySet(op Operator) QuerySet {
+func NewQuerySet(op operator.Operator) QuerySet {
 	return &QuerySetImpl{
 		Operator:      op,
 		selectColumn:  "*",
@@ -177,15 +187,15 @@ func NewQuerySet(op Operator) QuerySet {
 	}
 }
 
-func (p *QuerySetImpl) setCalled(f callFlag) {
+func (p *QuerySetImpl) setCalled(f CallFlag) {
 	p.called = p.called | f
 }
 
-func (p *QuerySetImpl) hasCalled(f callFlag) bool {
+func (p *QuerySetImpl) hasCalled(f CallFlag) bool {
 	return p.called&f == f
 }
 
-func (p *QuerySetImpl) setError(format string, a ...any) {
+func (p *QuerySetImpl) SetError(format string, a ...any) {
 	p.err = fmt.Errorf(format, a...)
 }
 
@@ -239,7 +249,7 @@ func (p *QuerySetImpl) GetQuerySet() (sql string, args []any) {
 		}
 
 		// Check if this is a NOT condition by examining the first filter in the group
-		// The isNot flag affects the entire filter group
+		// The IsNot flag affects the entire filter group
 		isNot := strings.Contains(condList[0].Conj, "NOT")
 		if isNot {
 			outerSQL.WriteString("NOT ")
@@ -297,7 +307,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 		fieldName   string
 		operator    string
 		andOrFlag   = andTag
-		notFlag     = notNot
+		notFlag     = NotNot
 		method      string
 	)
 
@@ -305,19 +315,19 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 		delete(filter, SortKey)
 		skList, ok = sk.([]string)
 		if !ok {
-			p.setError(orderKeyTypeError)
+			p.SetError(orderKeyTypeError)
 			return
 		}
 		if len(skList) != len(filter) {
-			p.setError(orderKeyLenError)
+			p.SetError(orderKeyLenError)
 			return
 		}
 		isOrder = true
 	}
 
 	for fieldLookup, filedValue := range filter {
-		if strings.HasPrefix(fieldLookup, orPrefix) {
-			fieldLookup = strings.TrimPrefix(fieldLookup, orPrefix)
+		if strings.HasPrefix(fieldLookup, OrPrefix) {
+			fieldLookup = strings.TrimPrefix(fieldLookup, OrPrefix)
 			andOrFlag = orTag
 		} else {
 			andOrFlag = andTag
@@ -333,23 +343,23 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 		lookup := strings.Split(fieldLookup, operatorJoiner)
 		if len(lookup) == 1 {
 			operator = _exact
-			notFlag = notNot
+			notFlag = NotNot
 		} else if len(lookup) == 2 {
 			operator = strings.ToLower(strings.TrimSpace(lookup[1]))
 			if strings.HasPrefix(operator, notPrefix) {
 				operator = strings.TrimPrefix(operator, notPrefix)
-				notFlag = isNot
+				notFlag = IsNot
 			} else {
-				notFlag = notNot
+				notFlag = NotNot
 			}
 		} else {
-			p.setError(fieldLookupError, fieldLookup)
+			p.SetError(fieldLookupError, fieldLookup)
 			return
 		}
 
 		op := p.OperatorSQL(operator, method)
 		if op == "" {
-			p.setError(unknownOperatorError, operator)
+			p.SetError(unknownOperatorError, operator)
 			return
 		}
 
@@ -374,7 +384,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 				filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(op, fieldName), []any{filedValue})
 			} else if isListKind(valueKind) {
 				if valueOf.Len() == 0 {
-					p.setError(operatorValueLenLessError, operator, 0)
+					p.SetError(operatorValueLenLessError, operator, 0)
 					return
 				}
 				opStr := " " + conjunctions[0] + " " + fmt.Sprintf(op, fieldName)
@@ -388,12 +398,12 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 				}
 				filterConds[fieldName] = fCond.SetSQL(sql, args)
 			} else {
-				p.setError(unsupportedValueError, operator, valueKind.String())
+				p.SetError(unsupportedValueError, operator, valueKind.String())
 				return
 			}
 		case _gt, _gte, _lt, _lte, _len:
 			if !isNumericKind(valueKind) {
-				p.setError(unsupportedValueError, operator, valueKind.String())
+				p.SetError(unsupportedValueError, operator, valueKind.String())
 				return
 			}
 			filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(op, fieldName), []any{filedValue})
@@ -405,14 +415,14 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 			}
 
 			if !isListKind(valueKind) {
-				p.setError(unsupportedValueError, operator, valueKind.String())
+				p.SetError(unsupportedValueError, operator, valueKind.String())
 				return
 			}
 			if valueOf.Len() == 0 {
-				p.setError(operatorValueLenLessError, operator, 0)
+				p.SetError(operatorValueLenLessError, operator, 0)
 				return
 			}
-			sql := fmt.Sprintf(op, fieldName, not[notFlag]) + " (" + p.Placeholder() + strings.Repeat(","+p.Placeholder(), valueOf.Len()-1) + ")"
+			sql := fmt.Sprintf(op, fieldName, not[notFlag]) + " (" + p.GetPlaceholder() + strings.Repeat(","+p.GetPlaceholder(), valueOf.Len()-1) + ")"
 			args := make([]any, valueOf.Len())
 			for i := 0; i < valueOf.Len(); i++ {
 				args[i] = valueOf.Index(i).Interface()
@@ -420,11 +430,11 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 			filterConds[fieldName] = fCond.SetSQL(sql, args)
 		case _between:
 			if !isListKind(valueKind) {
-				p.setError(unsupportedValueError, operator, valueKind.String())
+				p.SetError(unsupportedValueError, operator, valueKind.String())
 				return
 			}
 			if valueOf.Len() != 2 {
-				p.setError(operatorValueLenError, operator, 2)
+				p.SetError(operatorValueLenError, operator, 2)
 				return
 			}
 			sql := fmt.Sprintf(op, fieldName, not[notFlag])
@@ -443,26 +453,26 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 
 			if isStringKind(valueKind) {
 				if valueOf.IsZero() {
-					p.setError(unsupportedValueError, operator, "blank string")
+					p.SetError(unsupportedValueError, operator, "blank string")
 					return
 				}
 				filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(op, fieldName, not[notFlag]), []any{fmt.Sprintf(valueFormat, filedValue)})
 			} else if isListKind(valueKind) {
 				if valueOf.Len() == 0 {
-					p.setError(operatorValueLenLessError, operator, 0)
+					p.SetError(operatorValueLenLessError, operator, 0)
 					return
 				}
 				if !isStrList(filedValue) {
-					p.setError(operatorValueTypeError, operator)
+					p.SetError(operatorValueTypeError, operator)
 					return
 				}
 				genStrListValueLikeSQL(p, filterConds, fieldName, valueOf, notFlag, operator, valueFormat)
 			} else {
-				p.setError(unsupportedValueError, operator, valueKind.String())
+				p.SetError(unsupportedValueError, operator, valueKind.String())
 				return
 			}
 		default:
-			p.setError(notImplementedOperatorError, op)
+			p.SetError(notImplementedOperatorError, op)
 			continue
 		}
 	}
@@ -489,17 +499,18 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 }
 
 func (p *QuerySetImpl) FilterToSQL(state int, filter ...any) QuerySet {
-	if !p.hasCalled(qsWhere) {
-		if state == isFilter {
-			p.setCalled(qsFilter)
-		} else if state == isExclude {
-			p.setCalled(qsExclude)
-		} else {
-			p.setError(isNotValueError)
+	if !p.hasCalled(QsWhere) {
+		switch state {
+		case isFilter:
+			p.setCalled(QsFilter)
+		case isExclude:
+			p.setCalled(QsExclude)
+		default:
+			p.SetError(isNotValueError)
 			return p
 		}
 	} else {
-		p.setError(filterOrWhereError, filterAndExclude[state])
+		p.SetError(FilterOrWhereError, filterAndExclude[state])
 		return p
 	}
 
@@ -515,7 +526,7 @@ func (p *QuerySetImpl) FilterToSQL(state int, filter ...any) QuerySet {
 
 	for i, f := range filter {
 		if f == nil {
-			p.setError(unsupportedFilterTypeError, "nil")
+			p.SetError(UnsupportedFilterTypeError, "nil")
 			return p
 		}
 
@@ -524,7 +535,7 @@ func (p *QuerySetImpl) FilterToSQL(state int, filter ...any) QuerySet {
 			// Use the map to determine the conjunction tag
 			conjTag, ok := conjunctionMap[reflect.TypeOf(f)]
 			if !ok {
-				p.setError(unsupportedFilterTypeError, reflect.TypeOf(f).String())
+				p.SetError(UnsupportedFilterTypeError, reflect.TypeOf(f).String())
 				return p // Return immediately if there's an error
 			}
 			p.filterConjTag = append(p.filterConjTag, conjTag)
@@ -538,7 +549,7 @@ func (p *QuerySetImpl) FilterToSQL(state int, filter ...any) QuerySet {
 		case OR:
 			arg, conjFlag = v, orTag
 		default:
-			p.setError(unsupportedFilterTypeError, reflect.TypeOf(f).String())
+			p.SetError(UnsupportedFilterTypeError, reflect.TypeOf(f).String())
 		}
 
 		if filterSQL, filterArgs := p.filterHandler(arg); filterSQL == "" {
@@ -562,19 +573,19 @@ func (p *QuerySetImpl) FilterToSQL(state int, filter ...any) QuerySet {
 }
 
 func (p *QuerySetImpl) WhereToSQL(cond string, args ...any) QuerySet {
-	if !p.hasCalled(qsFilter) && !p.hasCalled(qsExclude) {
-		p.setCalled(qsWhere)
-	} else if p.hasCalled(qsFilter) {
-		p.setError(filterOrWhereError, filterAndExclude[isFilter])
+	if !p.hasCalled(QsFilter) && !p.hasCalled(QsExclude) {
+		p.setCalled(QsWhere)
+	} else if p.hasCalled(QsFilter) {
+		p.SetError(FilterOrWhereError, filterAndExclude[isFilter])
 		return p
-	} else if p.hasCalled(qsExclude) {
-		p.setError(filterOrWhereError, filterAndExclude[isExclude])
+	} else if p.hasCalled(QsExclude) {
+		p.SetError(FilterOrWhereError, filterAndExclude[isExclude])
 		return p
 	}
 
 	num := strings.Count(cond, "?")
 	if num > 0 && len(args) != num {
-		p.setError(argsLenError)
+		p.SetError(argsLenError)
 		return p
 	}
 	p.whereCond.SQL = cond
@@ -588,7 +599,7 @@ func (p *QuerySetImpl) GetSelectSQL() string {
 }
 
 func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
-	p.setCalled(qsSelect)
+	p.setCalled(QsSelect)
 
 	switch cols := columns.(type) {
 	case string:
@@ -596,21 +607,21 @@ func (p *QuerySetImpl) SelectToSQL(columns any) QuerySet {
 	case []string:
 		p.SliceSelectToSQL(cols)
 	default:
-		p.setError(paramTypeError)
+		p.SetError(paramTypeError)
 	}
 
 	return p
 }
 
 func (p *QuerySetImpl) StrSelectToSQL(columns string) QuerySet {
-	p.setCalled(qsSelect)
+	p.setCalled(QsSelect)
 
 	p.selectColumn = columns
 	return p
 }
 
 func (p *QuerySetImpl) SliceSelectToSQL(columns []string) QuerySet {
-	p.setCalled(qsSelect)
+	p.setCalled(QsSelect)
 
 	if len(columns) == 0 {
 		return p
@@ -637,7 +648,7 @@ func (p *QuerySetImpl) GetOrderBySQL() string {
 }
 
 func (p *QuerySetImpl) OrderByToSQL(orderBy any) QuerySet {
-	p.setCalled(qsOrderBy)
+	p.setCalled(QsOrderBy)
 
 	switch o := orderBy.(type) {
 	case string:
@@ -645,7 +656,7 @@ func (p *QuerySetImpl) OrderByToSQL(orderBy any) QuerySet {
 	case []string:
 		p.SliceOrderByToSQL(o)
 	default:
-		p.setError(paramTypeError)
+		p.SetError(paramTypeError)
 		return p
 	}
 
@@ -653,7 +664,7 @@ func (p *QuerySetImpl) OrderByToSQL(orderBy any) QuerySet {
 }
 
 func (p *QuerySetImpl) StrOrderByToSQL(orderBy string) QuerySet {
-	p.setCalled(qsOrderBy)
+	p.setCalled(QsOrderBy)
 
 	// If the orderBy string is empty, just return
 	if orderBy == "" {
@@ -666,7 +677,7 @@ func (p *QuerySetImpl) StrOrderByToSQL(orderBy string) QuerySet {
 }
 
 func (p *QuerySetImpl) SliceOrderByToSQL(orderBy []string) QuerySet {
-	p.setCalled(qsOrderBy)
+	p.setCalled(QsOrderBy)
 
 	orderByList := orderBy
 
@@ -695,7 +706,7 @@ func (p *QuerySetImpl) GetLimitSQL() string {
 }
 
 func (p *QuerySetImpl) LimitToSQL(pageSize, pageNum int64) QuerySet {
-	p.setCalled(qsLimit)
+	p.setCalled(QsLimit)
 
 	if pageSize > 0 && pageNum > 0 {
 		var offset, limit int64
@@ -703,7 +714,7 @@ func (p *QuerySetImpl) LimitToSQL(pageSize, pageNum int64) QuerySet {
 		limit = pageSize
 		p.limitSQL = " LIMIT " + strconv.FormatInt(limit, 10) + " OFFSET " + strconv.FormatInt(offset, 10)
 	} else if pageSize < 0 || pageNum < 0 {
-		p.setError(pageSizeORNumberError)
+		p.SetError(pageSizeORNumberError)
 		return p
 	}
 
@@ -725,13 +736,13 @@ func (p *QuerySetImpl) GroupByToSQL(groupBy any) QuerySet {
 	case []string:
 		p.SliceGroupByToSQL(v)
 	default:
-		p.setError(paramTypeError)
+		p.SetError(paramTypeError)
 	}
 	return p
 }
 
 func (p *QuerySetImpl) StrGroupByToSQL(groupBy string) QuerySet {
-	p.setCalled(qsGroupBy)
+	p.setCalled(QsGroupBy)
 
 	p.groupSQL = groupBy
 
@@ -739,7 +750,7 @@ func (p *QuerySetImpl) StrGroupByToSQL(groupBy string) QuerySet {
 }
 
 func (p *QuerySetImpl) SliceGroupByToSQL(groupBy []string) QuerySet {
-	p.setCalled(qsGroupBy)
+	p.setCalled(QsGroupBy)
 
 	if len(groupBy) == 0 {
 		return p
@@ -768,7 +779,7 @@ func (p *QuerySetImpl) GetHavingSQL() (string, []any) {
 }
 
 func (p *QuerySetImpl) HavingToSQL(having string, args ...any) QuerySet {
-	p.setCalled(qsHaving)
+	p.setCalled(QsHaving)
 
 	p.havingSQL.SetSQL(having, args)
 

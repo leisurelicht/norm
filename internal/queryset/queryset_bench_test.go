@@ -1,4 +1,4 @@
-package norm
+package queryset
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 )
 
 type MockOperator struct {
-	go_zero.Operator // Embed mysql.Operator to inherit its methods
+	go_zero.OperatorImpl // Embed mysql.Operator to inherit its methods
 }
 
 // IsSelectKey implements the Operator interface with the correct signature
@@ -17,7 +17,7 @@ func (m *MockOperator) IsSelectKey(column string) bool {
 }
 
 // BulkInsert implements the Operator interface with the correct signature
-func (m *MockOperator) BulkInsert(ctx context.Context, conn any, sql string, args []string, data []map[string]any) (int64, error) {
+func (m *MockOperator) BulkInsert(ctx context.Context, sql string, args []string, data []map[string]any) (int64, error) {
 	return 0, nil // Just a stub implementation for testing
 }
 
@@ -56,7 +56,7 @@ func BenchmarkQuerySet_SimpleFilter(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		qs.(*QuerySetImpl).Reset()
-		qs.FilterToSQL(notNot, filter)
+		qs.FilterToSQL(NotNot, filter)
 		qs.GetQuerySet()
 	}
 }
@@ -69,7 +69,7 @@ func BenchmarkQuerySet_ComplexFilter(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		qs.(*QuerySetImpl).Reset()
-		qs.FilterToSQL(notNot, filter)
+		qs.FilterToSQL(NotNot, filter)
 		qs.GetQuerySet()
 	}
 }
@@ -83,8 +83,8 @@ func BenchmarkQuerySet_MultipleFilters(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		qs.(*QuerySetImpl).Reset()
-		qs.FilterToSQL(notNot, filter1)
-		qs.FilterToSQL(notNot, "OR", filter2)
+		qs.FilterToSQL(NotNot, filter1)
+		qs.FilterToSQL(NotNot, "OR", filter2)
 		qs.GetQuerySet()
 	}
 }
@@ -110,7 +110,7 @@ func BenchmarkQuerySet_CompleteQuery(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		qs.(*QuerySetImpl).Reset()
 		qs.SelectToSQL("id, name, age, email")
-		qs.FilterToSQL(notNot, filter)
+		qs.FilterToSQL(NotNot, filter)
 		qs.OrderByToSQL([]string{"name", "-age"})
 		qs.LimitToSQL(10, 1)
 		qs.GetQuerySet()
@@ -135,11 +135,11 @@ func BenchmarkQuerySet_BuildLargeQuery(b *testing.B) {
 		qs.(*QuerySetImpl).Reset()
 
 		// Apply each filter with alternating AND/OR conjunctions
-		qs.FilterToSQL(notNot, filters[0])
-		qs.FilterToSQL(notNot, filters[1])
-		qs.FilterToSQL(notNot, filters[2])
-		qs.FilterToSQL(notNot, filters[3])
-		qs.FilterToSQL(notNot, filters[4])
+		qs.FilterToSQL(NotNot, filters[0])
+		qs.FilterToSQL(NotNot, filters[1])
+		qs.FilterToSQL(NotNot, filters[2])
+		qs.FilterToSQL(NotNot, filters[3])
+		qs.FilterToSQL(NotNot, filters[4])
 
 		qs.OrderByToSQL([]string{"id", "name", "-age"})
 		qs.LimitToSQL(20, 3)
@@ -159,8 +159,8 @@ func BenchmarkQuerySet_FilterExclude(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		qs.(*QuerySetImpl).Reset()
-		qs.FilterToSQL(notNot, filter)
-		qs.FilterToSQL(isNot, exclude) // Using 1 for exclude
+		qs.FilterToSQL(NotNot, filter)
+		qs.FilterToSQL(IsNot, exclude) // Using 1 for exclude
 		qs.GetQuerySet()
 	}
 }
@@ -170,7 +170,7 @@ func TestQuerySetFunctionality(t *testing.T) {
 	qs := setupQuerySet()
 	filter := Cond(createSimpleFilterMap())
 
-	qs.FilterToSQL(notNot, filter)
+	qs.FilterToSQL(NotNot, filter)
 	sql, args := qs.GetQuerySet()
 
 	if sql == "" || len(args) == 0 {
