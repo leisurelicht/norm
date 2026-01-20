@@ -94,68 +94,68 @@ func modelStruct2Map(obj any, tag string) map[string]any {
 	data := make(map[string]any, t.NumField())
 
 	for i := 0; i < t.NumField(); i++ {
-		if t.Field(i).Tag.Get(tag) == "" || t.Field(i).Tag.Get(tag) == "-" {
-			// skip empty tag
-			// skip "-" tag
+		tagVal := t.Field(i).Tag.Get(tag)
+		// skip fields without tag or explicitly ignored
+		if tagVal == "" || tagVal == "-" {
 			continue
 		}
 
-		if v.Field(i).Kind() != reflect.Struct {
-			data[t.Field(i).Tag.Get(tag)] = v.Field(i).Interface()
+		field := v.Field(i)
+		value := field.Interface()
+
+		// normalize common sql.Null* types without using reflect.TypeOf on each iteration
+		switch nv := value.(type) {
+		case sql.NullByte:
+			if nv.Valid {
+				value = nv.Byte
+			} else {
+				value = nil
+			}
+		case sql.NullBool:
+			if nv.Valid {
+				value = nv.Bool
+			} else {
+				value = nil
+			}
+		case sql.NullFloat64:
+			if nv.Valid {
+				value = nv.Float64
+			} else {
+				value = nil
+			}
+		case sql.NullInt16:
+			if nv.Valid {
+				value = nv.Int16
+			} else {
+				value = nil
+			}
+		case sql.NullInt32:
+			if nv.Valid {
+				value = nv.Int32
+			} else {
+				value = nil
+			}
+		case sql.NullInt64:
+			if nv.Valid {
+				value = nv.Int64
+			} else {
+				value = nil
+			}
+		case sql.NullString:
+			if nv.Valid {
+				value = nv.String
+			} else {
+				value = nil
+			}
+		case sql.NullTime:
+			if nv.Valid {
+				value = nv.Time
+			} else {
+				value = nil
+			}
 		}
 
-		value := v.Field(i).Interface()
-		switch reflect.TypeOf(value) {
-		case reflect.TypeOf(sql.NullByte{}):
-			if value.(sql.NullByte).Valid {
-				value = value.(sql.NullByte).Byte
-			} else {
-				value = nil
-			}
-		case reflect.TypeOf(sql.NullBool{}):
-			if value.(sql.NullBool).Valid {
-				value = value.(sql.NullBool).Bool
-			} else {
-				value = nil
-			}
-		case reflect.TypeOf(sql.NullFloat64{}):
-			if value.(sql.NullFloat64).Valid {
-				value = value.(sql.NullFloat64).Float64
-			} else {
-				value = nil
-			}
-		case reflect.TypeOf(sql.NullInt16{}):
-			if value.(sql.NullInt16).Valid {
-				value = value.(sql.NullInt16).Int16
-			} else {
-				value = nil
-			}
-		case reflect.TypeOf(sql.NullInt32{}):
-			if value.(sql.NullInt32).Valid {
-				value = value.(sql.NullInt32).Int32
-			} else {
-				value = nil
-			}
-		case reflect.TypeOf(sql.NullInt64{}):
-			if value.(sql.NullInt64).Valid {
-				value = value.(sql.NullInt64).Int64
-			} else {
-				value = nil
-			}
-		case reflect.TypeOf(sql.NullString{}):
-			if value.(sql.NullString).Valid {
-				value = value.(sql.NullString).String
-			} else {
-				value = nil
-			}
-		case reflect.TypeOf(sql.NullTime{}):
-			if value.(sql.NullTime).Valid {
-				value = value.(sql.NullTime).Time
-			} else {
-				value = nil
-			}
-		}
-		data[t.Field(i).Tag.Get(tag)] = value
+		data[tagVal] = value
 	}
 	return data
 }
