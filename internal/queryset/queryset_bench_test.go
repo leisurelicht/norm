@@ -2,6 +2,8 @@ package queryset
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"testing"
 
 	go_zero "github.com/leisurelicht/norm/operator/mysql/go-zero" // Import mysql package
@@ -48,8 +50,20 @@ func createComplexFilterMap() map[string]any {
 	}
 }
 
+// createSizedFilterMap generates a filter map with n simple equality conditions.
+// This is useful to see how performance scales with number of predicates.
+func createSizedFilterMap(n int) map[string]any {
+	m := make(map[string]any, n)
+	for i := 0; i < n; i++ {
+		key := "field_" + strconv.Itoa(i)
+		m[key] = i
+	}
+	return m
+}
+
 // BenchmarkQuerySet_SimpleFilter benchmarks filtering with basic conditions
 func BenchmarkQuerySet_SimpleFilter(b *testing.B) {
+	b.ReportAllocs()
 	qs := setupQuerySet()
 	filter := Cond(createSimpleFilterMap())
 
@@ -63,6 +77,7 @@ func BenchmarkQuerySet_SimpleFilter(b *testing.B) {
 
 // BenchmarkQuerySet_ComplexFilter benchmarks filtering with complex conditions
 func BenchmarkQuerySet_ComplexFilter(b *testing.B) {
+	b.ReportAllocs()
 	qs := setupQuerySet()
 	filter := Cond(createComplexFilterMap())
 
@@ -74,23 +89,30 @@ func BenchmarkQuerySet_ComplexFilter(b *testing.B) {
 	}
 }
 
-// BenchmarkQuerySet_MultipleFilters benchmarks applying multiple filter conditions
-func BenchmarkQuerySet_MultipleFilters(b *testing.B) {
-	qs := setupQuerySet()
-	filter1 := Cond(createSimpleFilterMap())
-	filter2 := Cond(createComplexFilterMap())
+// BenchmarkQuerySet_Filter_Size benchmarks FilterToSQL+GetQuerySet with varying number of predicates.
+func BenchmarkQuerySet_Filter_Size(b *testing.B) {
+	sizes := []int{1, 5, 10, 20, 50}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		qs.(*QuerySetImpl).Reset()
-		qs.FilterToSQL(NotNot, filter1)
-		qs.FilterToSQL(NotNot, "OR", filter2)
-		qs.GetQuerySet()
+	for _, size := range sizes {
+		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+			b.ReportAllocs()
+
+			qs := setupQuerySet()
+			filter := Cond(createSizedFilterMap(size))
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				qs.(*QuerySetImpl).Reset()
+				qs.FilterToSQL(NotNot, filter)
+				qs.GetQuerySet()
+			}
+		})
 	}
 }
 
 // BenchmarkQuerySet_Where benchmarks using direct WHERE conditions
 func BenchmarkQuerySet_Where(b *testing.B) {
+	b.ReportAllocs()
 	qs := setupQuerySet()
 
 	b.ResetTimer()
@@ -101,8 +123,38 @@ func BenchmarkQuerySet_Where(b *testing.B) {
 	}
 }
 
+// BenchmarkQuerySet_FilterVsWhere compares Filter-based and raw WHERE usage.
+func BenchmarkQuerySet_FilterVsWhere(b *testing.B) {
+	filter := Cond(createSimpleFilterMap())
+
+	b.Run("Filter", func(b *testing.B) {
+		b.ReportAllocs()
+		qs := setupQuerySet()
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			qs.(*QuerySetImpl).Reset()
+			qs.FilterToSQL(NotNot, filter)
+			qs.GetQuerySet()
+		}
+	})
+
+	b.Run("Where", func(b *testing.B) {
+		b.ReportAllocs()
+		qs := setupQuerySet()
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			qs.(*QuerySetImpl).Reset()
+			qs.WhereToSQL("`id` = ? AND `name` = ?", 1, "test")
+			qs.GetQuerySet()
+		}
+	})
+}
+
 // BenchmarkQuerySet_CompleteQuery benchmarks generating a complete query with multiple parts
 func BenchmarkQuerySet_CompleteQuery(b *testing.B) {
+	b.ReportAllocs()
 	qs := setupQuerySet()
 	filter := Cond(createComplexFilterMap())
 
@@ -119,6 +171,7 @@ func BenchmarkQuerySet_CompleteQuery(b *testing.B) {
 
 // BenchmarkQuerySet_BuildLargeQuery benchmarks building a large query with multiple filter groups
 func BenchmarkQuerySet_BuildLargeQuery(b *testing.B) {
+	b.ReportAllocs()
 	qs := setupQuerySet()
 
 	// Create 5 different filter conditions
@@ -152,6 +205,7 @@ func BenchmarkQuerySet_BuildLargeQuery(b *testing.B) {
 
 // BenchmarkQuerySet_FilterExclude benchmarks filter and exclude operations
 func BenchmarkQuerySet_FilterExclude(b *testing.B) {
+	b.ReportAllocs()
 	qs := setupQuerySet()
 	filter := Cond(createSimpleFilterMap())
 	exclude := Cond(map[string]any{"status": 0})
