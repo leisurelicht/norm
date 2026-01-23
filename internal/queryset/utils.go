@@ -94,6 +94,6 @@ func wrapWithBackticks(str string) string {
 	if len(str) > 1 && str[0] == '`' && str[len(str)-1] == '`' {
 		return str
 	}
-	// 包裹字段
+	// Wrap field with backticks
 	return "`" + str + "`"
 }
