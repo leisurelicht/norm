@@ -85,12 +85,12 @@ func joinSQL(filterSql *string, filterArgs *[]any, index int, condition *cond) {
 	*filterArgs = append(*filterArgs, condition.Args...)
 }
 
-// 用反引号包裹字段
+// wrapWithBackticks wraps field name with backticks
 func wrapWithBackticks(str string) string {
 	if str == "" {
 		return str
 	}
-	// 如果已经被包裹，不做修改
+	// If already wrapped, don't modify (optimized check)
 	if len(str) > 1 && str[0] == '`' && str[len(str)-1] == '`' {
 		return str
 	}
