@@ -28,8 +28,8 @@
 
 ### 4.1 Title Line (≤ 72 chars)
 
-* **Format:** `<emoji type>(<scope>): <imperative summary of WHY>`
-* **Types:** 🎸feat,🐛fix, ✏️docs, 💄style, 💡refactor, ⚡️perf, 💍test, 🎡ci, 🤖chore
+* **Format:** `<type>(<scope>): <imperative summary of WHY>`
+* **Types:** 🎸 feat,🐛 fix, ✏️ docs, 💄 style, 💡 refactor, ⚡️ perf, 💍 test, 🎡 ci, 🤖 chore, don't lose emoji.
 * **Breaking:** Add `!` after type (e.g., `feat!: ...`).
 
 ### 4.2 Body (Wrap ~72 chars)
