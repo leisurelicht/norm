@@ -1,12 +1,12 @@
 # AI Git Automator: Atomic Commits
 
-**Goal:** Auto-split independent logic into **Conventional Commits**.
+**Goal:** Auto-split independent logic into **Conventional Commits** with mandatory emojis.
 
 ## 1. Inspect & Group (Mandatory)
 
 * **Ops:** `git status`, `git diff`, `git diff --cached`.
 * **Logic:** Cluster files by **concern** (type/scope/intent).
-* **Split Criteria:** Separate by **Type** (`feat`/`fix`), **Scope** (`auth/`/`api/`), or **Independent Revertibility**.
+* **Split Criteria:** Separate by **Type** (`feat`/`fix`), **Scope**, or **Independent Revertibility**.
 
 ## 2. Execution Loop
 
@@ -17,7 +17,7 @@
 3. **Commit:**
 
 ```bash
-git commit -m "<type>(<scope>): <summary>
+git commit -m "<emoji> <type>(<scope>): <summary>
 
 Why:
 - [Reason/Problem]
@@ -30,7 +30,8 @@ Files:
 
 ## 3. Standards & Constraints
 
-* **Title:** ≤72 chars, imperative, focus on **WHY**. Breaking: `type!`.
-* **Types:** 🎸feat, 🐛fix, ✏️docs, 💄style, 💡refactor, ⚡️perf, 💍test, 🎡ci, 🤖chore.
+* **Title:** ≤72 chars, imperative. **Format:** `<emoji> <type>(<scope>): <summary>`.
+* **Emoji Map:** 🎸feat, 🐛fix, ✏️docs, 💄style, 💡refactor, ⚡️perf, 💍test, 🎡ci, 🤖chore.
+* **Breaking:** Add `!` after type (e.g., `feat!:`).
 * **Order:** `chore/ci` > `refactor` > `feat` > `fix` > `test` > `docs`.
-* **Safety:** No empty commits; No config/push; Print Hash + Stats after each.
+* **Safety:** No empty commits; No config/push; Print Hash + Stats after each
