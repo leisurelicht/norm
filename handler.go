@@ -172,10 +172,7 @@ func (m *Impl) setError(format string, a ...any) {
 }
 
 func (m *Impl) haveError() error {
-	if err := m.qs.Error(); err != nil {
-		return err
-	}
-	return nil
+	return m.qs.Error()
 }
 
 // preCheck checks if any unsupported methods have been called for the given operation.
@@ -347,7 +344,7 @@ func (m *Impl) OrderBy(orderBy any) Controller {
 		if len(orderByVal) == 0 {
 			return m
 		}
-		unknownColumns := []string{}
+		var unknownColumns []string
 		for _, by := range orderByVal {
 			if by == "" {
 				continue
@@ -653,13 +650,11 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 // It returns the number of records marked as deleted.
 // Note: This method is not a true delete operation; it only marks records as deleted.
 func (m *Impl) Delete() (num int64, err error) {
-	if err = m.preCheck("Delete", ctlGroupBy, ctlSelect, ctlOrderBy); err != nil {
+	if err = m.preCheck("Delete", ctlSelect, ctlGroupBy, ctlHaving); err != nil {
 		return 0, err
 	}
 
-	data := map[string]any{"is_deleted": true}
-
-	return m.Update(data)
+	return m.update(map[string]any{"is_deleted": true})
 }
 
 func (m *Impl) exist() (exist bool, err error) {
@@ -719,14 +714,16 @@ func (m *Impl) CreateOrUpdate(data map[string]any) (created bool, numOrID int64,
 		return false, 0, err
 	}
 
-	if exist, err := m.exist(); err != nil {
+	exist, err := m.exist()
+	if err != nil {
 		return false, 0, err
-	} else if exist {
-		if num, err := m.update(data); err != nil {
+	}
+	if exist {
+		num, err := m.update(data)
+		if err != nil {
 			return false, 0, err
-		} else {
-			return false, num, nil
 		}
+		return false, num, nil
 	}
 
 	m.reset()

@@ -706,7 +706,7 @@ func TestGoZeroMysqlHandlerError(t *testing.T) {
 
 	if num, err := ctl(ctx).GroupBy("").Select("").Delete(); num != 0 {
 		t.Errorf("expect 0 but got %d", num)
-	} else if err != nil && err.Error() != "[GroupBy, Select] not supported for Delete" {
+	} else if err != nil && err.Error() != "[Select, GroupBy] not supported for Delete" {
 		t.Error(err)
 	}
 
