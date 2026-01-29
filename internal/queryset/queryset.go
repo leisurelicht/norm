@@ -325,7 +325,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 		isOrder = true
 	}
 
-	for fieldLookup, filedValue := range filter {
+	for fieldLookup, fieldValue := range filter {
 		if strings.HasPrefix(fieldLookup, OrPrefix) {
 			fieldLookup = strings.TrimPrefix(fieldLookup, OrPrefix)
 			andOrFlag = orTag
@@ -368,11 +368,11 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 		fCond := newCond()
 		fCond.SetConj(conjunctions[andOrFlag])
 
-		valueOf := reflect.ValueOf(filedValue)
+		valueOf := reflect.ValueOf(fieldValue)
 		valueKind := valueOf.Kind()
 		switch operator {
 		case _exact:
-			if filedValue == nil {
+			if fieldValue == nil {
 				// should generate sql like "fieldName IS NULL"
 				filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(p.OperatorSQL(_isNull, ""), fieldName), []any{})
 				break
@@ -381,7 +381,7 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 			fallthrough
 		case _exclude, _iexact:
 			if isStringKind(valueKind) || isBoolKind(valueKind) || isNumericKind(valueKind) {
-				filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(op, fieldName), []any{filedValue})
+				filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(op, fieldName), []any{fieldValue})
 			} else if isListKind(valueKind) {
 				if valueOf.Len() == 0 {
 					p.SetError(operatorValueLenLessError, operator, 0)
@@ -406,10 +406,10 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 				p.SetError(unsupportedValueError, operator, valueKind.String())
 				return
 			}
-			filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(op, fieldName), []any{filedValue})
+			filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(op, fieldName), []any{fieldValue})
 		case _in:
 			if isStringKind(valueKind) {
-				sql := fmt.Sprintf(op, fieldName, not[notFlag]) + " (" + filedValue.(string) + ")"
+				sql := fmt.Sprintf(op, fieldName, not[notFlag]) + " (" + fieldValue.(string) + ")"
 				filterConds[fieldName] = fCond.SetSQL(sql, []any{})
 				continue
 			}
@@ -457,13 +457,13 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 					p.SetError(unsupportedValueError, operator, "blank string")
 					return
 				}
-				filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(op, fieldName, not[notFlag]), []any{fmt.Sprintf(valueFormat, filedValue)})
+				filterConds[fieldName] = fCond.SetSQL(fmt.Sprintf(op, fieldName, not[notFlag]), []any{fmt.Sprintf(valueFormat, fieldValue)})
 			} else if isListKind(valueKind) {
 				if valueOf.Len() == 0 {
 					p.SetError(operatorValueLenLessError, operator, 0)
 					return
 				}
-				if !isStrList(filedValue) {
+				if !isStrList(fieldValue) {
 					p.SetError(operatorValueTypeError, operator)
 					return
 				}
@@ -680,13 +680,11 @@ func (p *QuerySetImpl) StrOrderByToSQL(orderBy string) QuerySet {
 func (p *QuerySetImpl) SliceOrderByToSQL(orderBy []string) QuerySet {
 	p.setCalled(QsOrderBy)
 
-	orderByList := orderBy
-
-	if len(orderByList) == 0 {
+	if len(orderBy) == 0 {
 		return p
 	}
 
-	for _, by := range orderByList {
+	for _, by := range orderBy {
 		by = strings.TrimSpace(by)
 		switch strings.HasPrefix(by, descPrefix) {
 		case true:
