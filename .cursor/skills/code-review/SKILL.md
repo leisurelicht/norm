@@ -35,7 +35,7 @@ description: Review Go code for correctness, security, performance, and maintain
 ### Performance
 - Avoid allocations in hot paths
 - Pre-allocate slices when size known
-- Use `strings.Builder` for string concatenation
+- Consider real performance gain
 
 ## Project-Specific Checks
 
