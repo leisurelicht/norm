@@ -445,9 +445,10 @@ func (p *QuerySetImpl) filterHandler(filter map[string]any) (filterSql string, f
 			filterConds[fieldName] = fCond.SetSQL(sql, args)
 		case _contains, _icontains, _startswith, _istartswith, _endswith, _iendswith:
 			valueFormat := "%%%v%%"
-			if operator == _startswith || operator == _istartswith {
+			switch operator {
+			case _startswith, _istartswith:
 				valueFormat = "%v%%"
-			} else if operator == _endswith || operator == _iendswith {
+			case _endswith, _iendswith:
 				valueFormat = "%%%v"
 			}
 
