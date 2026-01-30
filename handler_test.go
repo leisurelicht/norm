@@ -82,7 +82,7 @@ func TestGoZeroMysqlTransaction(t *testing.T) {
 		_, _, err = propertyCli(ctx).WithSession(tx).CreateOrUpdate(map[string]any{"column_name": "test65432", "description": "Test65432"})
 		if err != nil {
 			t.Errorf("CreateOrUpdate error: %s", err)
-			return nil
+			return err
 		}
 
 		return errors.New("rollback transaction")
@@ -107,7 +107,7 @@ func TestGoZeroMysqlTransaction(t *testing.T) {
 		_, _, err = propertyCli(innerCtx).WithSession(tx).CreateOrUpdate(map[string]any{"column_name": "test65432", "description": "Test65432"})
 		if err != nil {
 			t.Errorf("CreateOrUpdate error: %s", err)
-			return nil
+			return err
 		}
 
 		return errors.New("rollback transaction")
@@ -363,7 +363,7 @@ func TestGoZeroMysqlMethods(t *testing.T) {
 		t.Errorf("Delete error: \nexpect 1 but got %d", num)
 	} else if res, err := sourceCli(ctx).Filter(Cond{"id": 666, "is_deleted": true}).FindOne(); err != nil {
 		t.Errorf("FindOne error: %s", err)
-	} else if res["id"].(int64) != 666 && res["is_deleted"].(bool) != true {
+	} else if res["id"].(int64) != 666 || res["is_deleted"].(bool) != true {
 		t.Errorf("Delete error: \nexpect 666 but got %d\nexpect true but got %t", res["id"], res["is_deleted"])
 	} else if res["name"].(string) != "test" {
 		t.Errorf("Delete error: \nexpect test but got %s", res["name"])
@@ -526,7 +526,7 @@ func TestGoZeroMysqlMethods(t *testing.T) {
 		t.Errorf("FindOne error: %s", err)
 	} else if len(res) != 7 {
 		t.Errorf("FindOne error: \nexpect 7 but got %d\ngot res: %+v", len(res), res)
-	} else if res["id"].(int64) != 11111 && res["description"].(string) != "Test11111" {
+	} else if res["id"].(int64) != 11111 || res["description"].(string) != "Test11111" {
 		t.Errorf("FindOne error: \nexpect 11111 but got %d\nexpect Test11111 but got %s", res["id"], res["description"])
 	} else if res["name"].(string) != "test11111" {
 		t.Errorf("FindOne error: \nexpect test11111 but got %s", res["name"])
