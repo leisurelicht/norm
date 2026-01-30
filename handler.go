@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/leisurelicht/norm/internal/operator"
 	"github.com/leisurelicht/norm/internal/queryset"
 )
 
@@ -636,11 +637,11 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 
 	err = m.operator.FindAll(m.ctx(), modelSlicePtr, query, args...)
 
-	switch {
-	case err == nil:
+	switch err {
+	case nil:
 		return nil
-	case reflect.ValueOf(modelSlicePtr).Elem().Len() == 0:
-		return ErrNotFound
+	case operator.ErrNotFound:
+		return nil
 	default:
 		return err
 	}
