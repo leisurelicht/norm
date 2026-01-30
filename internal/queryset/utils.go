@@ -68,6 +68,7 @@ func genStrListValueLikeSQL(p *QuerySetImpl, filterConditions map[string]*cond, 
 			return
 		}
 
+		// notFlag^1 toggles between 0(AND) and 1(OR): NOT uses OR, non-NOT uses AND
 		filterConditions[fieldName].SQL += fmt.Sprintf(" "+conjunctions[notFlag^1]+" "+op, fieldName, not[notFlag])
 		filterConditions[fieldName].Args = append(filterConditions[fieldName].Args, fmt.Sprintf(valueFormat, valueOf.Index(i).Interface()))
 	}
