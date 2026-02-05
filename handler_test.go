@@ -1694,6 +1694,8 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 			fn      func() error
 			wantErr string
 		}{
+			{"Select", func() error { _, err := ctl(ctx).Select("").FindOne(); return err }, "[Select] not supported for FindOne"},
+			{"Having", func() error { _, err := ctl(ctx).Having("").FindOne(); return err }, "[Having] not supported for FindOne"},
 			{"GroupBy+Select", func() error { _, err := ctl(ctx).GroupBy("").Select("").FindOne(); return err }, "[Select] not supported for FindOne"},
 		}
 		for _, tt := range tests {
@@ -1715,6 +1717,9 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 			fn      func() error
 			wantErr string
 		}{
+			{"Select", func() error { _, err := ctl(ctx).Select("").FindAll(); return err }, "[Select] not supported for FindAll"},
+			{"Having", func() error { _, err := ctl(ctx).Having("").FindAll(); return err }, "[Having] not supported for FindAll"},
+			{"GroupBy+Having", func() error { _, err := ctl(ctx).GroupBy("").Having("").FindAll(); return err }, "[Having] not supported for FindAll"},
 			{"GroupBy+Select", func() error { _, err := ctl(ctx).GroupBy("").Select("").FindAll(); return err }, "[Select] not supported for FindAll"},
 			{"Limit without OrderBy", func() error { _, err := ctl(ctx).Limit(0, 1).FindAll(); return err }, fmt.Errorf(MustBeCalledError, "Limit", "OrderBy").Error()},
 		}
