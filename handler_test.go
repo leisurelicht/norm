@@ -1515,4 +1515,71 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 			t.Errorf("got len %d, want 0", len(res))
 		}
 	})
+
+	t.Run("DB error branches", func(t *testing.T) {
+		mysqlAddr := getMysqlAddress()
+
+		type badSource struct {
+			ID  int64  `db:"id"`
+			Bad string `db:"not_exist"`
+		}
+
+		badTableCtl := NewController(
+			go_zero.NewOperator(go_zero.NewMysql(mysqlAddr), go_zero.WithTableName("not_exist_table")),
+			test.Source{},
+		)
+		badModelCtl := NewController(
+			go_zero.NewOperator(go_zero.NewMysql(mysqlAddr), go_zero.WithTableName("source")),
+			badSource{},
+		)
+
+		if _, err := badTableCtl(ctx).FindOne(); err == nil {
+			t.Fatal("expected FindOne error, got nil")
+		}
+
+		if _, err := badTableCtl(ctx).FindAll(); err == nil {
+			t.Fatal("expected FindAll error, got nil")
+		}
+		var badRows []badSource
+		if err := badTableCtl(ctx).FindAllModel(&badRows); err == nil {
+			t.Fatal("expected FindAllModel error, got nil")
+		}
+
+		if _, err := badModelCtl(ctx).Filter(Cond{"id": 11}).Update(map[string]any{"description": nil}); err == nil {
+			t.Fatal("expected Update error, got nil")
+		}
+		if impl := ctl(ctx).(*Impl); impl != nil {
+			if _, err := impl.update(map[string]any{}); err == nil {
+				t.Fatal("expected update empty map error, got nil")
+			}
+		}
+
+		if _, _, err := badTableCtl(ctx).List(); err == nil {
+			t.Fatal("expected List count error, got nil")
+		}
+		if _, _, err := badModelCtl(ctx).Filter(Cond{"id": 11}).List(); err == nil {
+			t.Fatal("expected List FindAll error, got nil")
+		}
+
+		if _, err := badModelCtl(ctx).GetOrCreate(map[string]any{"id": 98765}); err == nil {
+			t.Fatal("expected GetOrCreate error, got nil")
+		}
+
+		if _, _, err := badTableCtl(ctx).Filter(Cond{"id": 1}).CreateOrUpdate(map[string]any{"id": 1}); err == nil {
+			t.Fatal("expected CreateOrUpdate exist error, got nil")
+		}
+		if _, _, err := ctl(ctx).Filter(Cond{"id": 11}).CreateOrUpdate(map[string]any{"description": nil}); err == nil {
+			t.Fatal("expected CreateOrUpdate update error, got nil")
+		}
+		if _, _, err := ctl(ctx).Filter(Cond{"id": 98766}).CreateOrUpdate(map[string]any{"id": 98766}); err == nil {
+			t.Fatal("expected CreateOrUpdate create error, got nil")
+		}
+
+		if _, _, err := badTableCtl(ctx).CreateIfNotExist(map[string]any{"id": 1}); err == nil {
+			t.Fatal("expected CreateIfNotExist exist error, got nil")
+		}
+		if _, _, err := ctl(ctx).CreateIfNotExist(map[string]any{"id": 98767}); err == nil {
+			t.Fatal("expected CreateIfNotExist create error, got nil")
+		}
+	})
 }

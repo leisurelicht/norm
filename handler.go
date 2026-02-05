@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/leisurelicht/norm/internal/operator"
 	"github.com/leisurelicht/norm/internal/queryset"
 )
 
@@ -616,14 +615,10 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 
 	err = m.operator.FindAll(m.ctx(), res, query, args...)
 
-	switch {
-	case err == nil:
-		return modelStructSlice2MapSlice(res, m.operator.GetDBTag()), nil
-	case errors.Is(err, ErrNotFound):
-		return []map[string]any{}, nil
-	default:
+	if err != nil {
 		return []map[string]any{}, err
 	}
+	return modelStructSlice2MapSlice(res, m.operator.GetDBTag()), nil
 }
 
 // FindAllModel retrieves all records matching the current query set into a slice of models.
@@ -645,8 +640,6 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 
 	switch err {
 	case nil:
-		return nil
-	case operator.ErrNotFound:
 		return nil
 	default:
 		return err

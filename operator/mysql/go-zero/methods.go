@@ -232,13 +232,10 @@ func (d OperatorImpl) FindOne(ctx context.Context, model any, query string, args
 func (d OperatorImpl) FindAll(ctx context.Context, model any, query string, args ...any) (err error) {
 	err = d.conn.QueryRowsPartialCtx(ctx, model, query, args...)
 
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, sqlx.ErrNotFound):
-		return operator.ErrNotFound
-	default:
+	if err != nil {
 		logc.Errorf(ctx, "FindAll error: %s", err)
 		return err
 	}
+
+	return nil
 }
