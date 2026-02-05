@@ -783,6 +783,28 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 		}
 	})
 
+	t.Run("List unsupported", func(t *testing.T) {
+		tests := []struct {
+			name    string
+			fn      func() error
+			wantErr string
+		}{
+			{"Select", func() error { _, _, err := ctl(ctx).Select("").List(); return err }, fmt.Errorf(UnsupportedControllerError, ctlSelect.Name, "List").Error()},
+			{"Having", func() error { _, _, err := ctl(ctx).Having("").List(); return err }, fmt.Errorf(UnsupportedControllerError, ctlHaving.Name, "List").Error()},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				err := tt.fn()
+				if err == nil {
+					t.Fatalf("expected error %q, got nil", tt.wantErr)
+				}
+				if err.Error() != tt.wantErr {
+					t.Errorf("got %q, want %q", err.Error(), tt.wantErr)
+				}
+			})
+		}
+	})
+
 	t.Run("Create unsupported map", func(t *testing.T) {
 		tests := []struct {
 			name    string
@@ -1130,7 +1152,7 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 			wantErr string
 		}{
 			{"Select empty slice", func() error { return ctl(ctx).Select([]string{}).FindOneModel(&test.Source{}) }, ""},
-			{"Select with int slice", func() error { return ctl(ctx).Select([]int{1}).FindOneModel(&test.Source{}) }, "select type should be string or string slice"},
+			{"Select with int slice", func() error { return ctl(ctx).Select([]int{1}).FindOneModel(&test.Source{}) }, SelectColumnsTypeError},
 			{"OrderBy with array", func() error { _, err := ctl(ctx).OrderBy([1]string{"id"}).FindAll(); return err }, OrderByColumnsTypeError},
 			{"OrderBy contains empty", func() error { _, err := ctl(ctx).OrderBy([]string{""}).FindAll(); return err }, ""},
 			{"GroupBy with array", func() error {
@@ -1138,12 +1160,19 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 					Name string `db:"name"`
 				}{})
 			}, GroupByColumnsTypeError},
+			{"FindOneModel non-pointer", func() error { return ctl(ctx).FindOneModel(test.Source{}) }, ModelTypeNotStructError},
+			{"FindOneModel slice pointer", func() error { return ctl(ctx).FindOneModel(&[]test.Source{}) }, ModelTypeNotStructError},
+			{"FindAllModel non-pointer", func() error { return ctl(ctx).FindAllModel([]test.Source{}) }, ModelTypeNotSliceError},
+			{"FindAllModel struct pointer", func() error { return ctl(ctx).FindAllModel(&test.Source{}) }, ModelTypeNotSliceError},
 			{"Count with nil filter", func() error { _, err := ctl(ctx).Filter(nil).Count(); return err }, fmt.Errorf(queryset.UnsupportedFilterTypeError, "nil").Error()},
 			{"Exist with nil filter", func() error { _, err := ctl(ctx).Filter(nil).Exist(); return err }, fmt.Errorf(queryset.UnsupportedFilterTypeError, "nil").Error()},
 			{"Update with nonexistent column", func() error {
 				_, err := ctl(ctx).Filter(Cond{"id": 11}).Update(map[string]any{"name": "test", "age": 18})
 				return err
 			}, fmt.Errorf(UpdateColumnNotExistError, "age").Error()},
+			{"Update with empty map", func() error { _, err := ctl(ctx).Filter(Cond{"id": 11}).Update(map[string]any{}); return err }, "update data is empty"},
+			{"Create with empty slice map", func() error { _, err := ctl(ctx).Create([]map[string]any{}); return err }, "bulk create data is empty"},
+			{"Create with invalid type", func() error { _, err := ctl(ctx).Create(1); return err }, fmt.Sprintf(CreateDataTypeError, "int")},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {

@@ -20,6 +20,8 @@ const (
 )
 
 const (
+	ModelTypeNotStructError     = "model must be a pointer to struct"
+	ModelTypeNotSliceError      = "model must be a pointer to slice"
 	SelectColumsValidateError   = "select columns validate error: %s"
 	SelectColumnsTypeError      = "select type should be string or string slice"
 	OrderByColumnsValidateError = "orderBy columns validate error: [%s] not exist"
@@ -504,6 +506,10 @@ func (m *Impl) Remove() (num int64, err error) {
 }
 
 func (m *Impl) update(data map[string]any) (num int64, err error) {
+	if len(data) == 0 {
+		return 0, errors.New("update " + DataEmptyError)
+	}
+
 	var (
 		args       []any
 		updateRows []string
@@ -587,7 +593,7 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 
 	rv := reflect.ValueOf(modelPtr)
 	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Struct {
-		return fmt.Errorf("model must be a pointer to struct")
+		return fmt.Errorf(ModelTypeNotStructError)
 	}
 
 	query, args := m.buildQuery(m.qs.GetSelectSQL())
@@ -629,7 +635,7 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 
 	rv := reflect.ValueOf(modelSlicePtr)
 	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Slice {
-		return fmt.Errorf("model must be a pointer to slice")
+		return fmt.Errorf(ModelTypeNotSliceError)
 	}
 
 	query, args := m.buildQuery(m.qs.GetSelectSQL())
