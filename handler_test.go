@@ -153,6 +153,66 @@ func TestGoZeroMysqlTransaction_Refactored(t *testing.T) {
 			t.Error("got exist, want not exist")
 		}
 	})
+
+	t.Run("with session update rollback", func(t *testing.T) {
+		err := conn.Transact(func(tx sqlx.Session) error {
+			cli := sourceCli(ctx).WithSession(tx)
+			if _, err := cli.Create(map[string]any{"id": 2001, "name": "session_u", "description": "session tx"}); err != nil {
+				return err
+			}
+			if _, err := cli.Filter(Cond{"id": 2001}).Update(map[string]any{"name": "session_u2"}); err != nil {
+				return err
+			}
+			res, err := cli.Filter(Cond{"id": 2001}).FindOne()
+			if err != nil {
+				return err
+			}
+			if res["name"].(string) != "session_u2" {
+				return errors.New("expected updated name within tx")
+			}
+			return errors.New("force rollback")
+		})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+
+		exist, err := sourceCli(ctx).Filter(Cond{"id": 2001}).Exist()
+		if err != nil {
+			t.Fatalf("Exist error: %v", err)
+		}
+		if exist {
+			t.Error("got exist, want not exist")
+		}
+	})
+
+	t.Run("with session reset keeps session", func(t *testing.T) {
+		err := conn.Transact(func(tx sqlx.Session) error {
+			cli := sourceCli(ctx).WithSession(tx)
+			if _, err := cli.Create(map[string]any{"id": 2002, "name": "session_r", "description": "session tx"}); err != nil {
+				return err
+			}
+			cli = cli.Reset()
+			exist, err := cli.Filter(Cond{"id": 2002}).Exist()
+			if err != nil {
+				return err
+			}
+			if !exist {
+				return errors.New("expected exist after reset within tx")
+			}
+			return errors.New("force rollback")
+		})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+
+		exist, err := sourceCli(ctx).Filter(Cond{"id": 2002}).Exist()
+		if err != nil {
+			t.Fatalf("Exist error: %v", err)
+		}
+		if exist {
+			t.Error("got exist, want not exist")
+		}
+	})
 }
 
 // TestGoZeroMysqlMethods_Refactored 优化后的方法测试
