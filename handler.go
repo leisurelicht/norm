@@ -275,7 +275,7 @@ func (m *Impl) Exclude(exclude ...any) Controller {
 func (m *Impl) Where(cond string, args ...any) Controller {
 	m.setCalled(ctlWhere)
 
-	m.qs.WhereToSQL(cond, args)
+	m.qs.WhereToSQL(cond, args...)
 
 	return m
 }

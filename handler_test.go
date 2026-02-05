@@ -126,6 +126,33 @@ func TestGoZeroMysqlTransaction_Refactored(t *testing.T) {
 			t.Error("got exist, want not exist")
 		}
 	})
+
+	t.Run("with session rollback visibility", func(t *testing.T) {
+		err := conn.Transact(func(tx sqlx.Session) error {
+			if _, err := sourceCli(ctx).WithSession(tx).Create(map[string]any{"id": 2000, "name": "session", "description": "session tx"}); err != nil {
+				return err
+			}
+			exist, err := sourceCli(ctx).WithSession(tx).Filter(Cond{"id": 2000, "name": "session"}).Exist()
+			if err != nil {
+				return err
+			}
+			if !exist {
+				return errors.New("expected exist within tx")
+			}
+			return errors.New("force rollback")
+		})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+
+		exist, err := sourceCli(ctx).Filter(Cond{"id": 2000, "name": "session"}).Exist()
+		if err != nil {
+			t.Fatalf("Exist error: %v", err)
+		}
+		if exist {
+			t.Error("got exist, want not exist")
+		}
+	})
 }
 
 // TestGoZeroMysqlMethods_Refactored 优化后的方法测试
@@ -179,6 +206,16 @@ func TestGoZeroMysqlMethods_Refactored(t *testing.T) {
 		}
 		if res["name"].(string) != "Acfun" {
 			t.Errorf("got name %s, want Acfun", res["name"])
+		}
+	})
+
+	t.Run("Where", func(t *testing.T) {
+		res, err := sourceCli(ctx).Where("id = ?", 11).FindOne()
+		if err != nil {
+			t.Fatalf("FindOne error: %v", err)
+		}
+		if res["id"].(int64) != 11 {
+			t.Errorf("got id %d, want 11", res["id"])
 		}
 	})
 
@@ -1112,6 +1149,7 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 		}{
 			{"GroupBy+Having", func() error { _, err := ctl(ctx).GroupBy("").Having("").GetOrCreate(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, strings.Join([]string{ctlGroupBy.Name, ctlHaving.Name}, ", "), "GetOrCreate").Error()},
 			{"GroupBy", func() error { _, err := ctl(ctx).GroupBy("").GetOrCreate(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, ctlGroupBy.Name, "GetOrCreate").Error()},
+			{"Having", func() error { _, err := ctl(ctx).Having("").GetOrCreate(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, ctlHaving.Name, "GetOrCreate").Error()},
 			{"Select", func() error { _, err := ctl(ctx).Select("").GetOrCreate(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, ctlSelect.Name, "GetOrCreate").Error()},
 		}
 		for _, tt := range tests {
@@ -1138,6 +1176,7 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 				return err
 			}, fmt.Errorf(UnsupportedControllerError, strings.Join([]string{ctlGroupBy.Name, ctlHaving.Name}, ", "), "CreateOrUpdate").Error()},
 			{"GroupBy", func() error { _, _, err := ctl(ctx).GroupBy("").CreateOrUpdate(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, ctlGroupBy.Name, "CreateOrUpdate").Error()},
+			{"Having", func() error { _, _, err := ctl(ctx).Having("").CreateOrUpdate(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, ctlHaving.Name, "CreateOrUpdate").Error()},
 			{"Select", func() error { _, _, err := ctl(ctx).Select("").CreateOrUpdate(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, ctlSelect.Name, "CreateOrUpdate").Error()},
 		}
 		for _, tt := range tests {
@@ -1164,6 +1203,7 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 				return err
 			}, fmt.Errorf(UnsupportedControllerError, strings.Join([]string{ctlGroupBy.Name, ctlHaving.Name}, ", "), "CreateIfNotExist").Error()},
 			{"GroupBy", func() error { _, _, err := ctl(ctx).GroupBy("").CreateIfNotExist(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, ctlGroupBy.Name, "CreateIfNotExist").Error()},
+			{"Having", func() error { _, _, err := ctl(ctx).Having("").CreateIfNotExist(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, ctlHaving.Name, "CreateIfNotExist").Error()},
 			{"Select", func() error { _, _, err := ctl(ctx).Select("").CreateIfNotExist(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, ctlSelect.Name, "CreateIfNotExist").Error()},
 		}
 		for _, tt := range tests {
