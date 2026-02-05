@@ -338,6 +338,12 @@ func Test_modelStructSlice2MapSlice(t *testing.T) {
 			{"id": int64(1), "name": "test"},
 			{"id": int64(2), "name": "test2"},
 		}},
+		{"test pointer slice", args{&[]struct {
+			Id   int64  `db:"id"`
+			Name string `db:"name"`
+		}{{Id: 3, Name: "test3"}}, "db"}, []map[string]any{
+			{"id": int64(3), "name": "test3"},
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -375,6 +381,9 @@ func Test_createModelPointerAndSlice(t *testing.T) {
 		}{}, false, ""},
 		{"test_with_nil", args{nil}, nil, nil, true, "model is nil"},
 		{"test_with_int", args{1}, nil, nil, true, "model only can be a struct; got int"},
+		{"test_with_ptr", args{&struct {
+			Id int64 `db:"id"`
+		}{}}, nil, nil, true, "model only can be a struct; got ptr"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -436,6 +445,7 @@ func Test_deepCopyModelPtrStructure(t *testing.T) {
 	}{
 		// this test is not important
 		{"test nil", args{nil}, nil, 1},
+		{"test non pointer", args{struct{ A int }{A: 1}}, struct{ A int }{}, &struct{ B int }{}},
 		// the following two tests are the only ones about which we care
 		{"test pointer to struct", args{&struct{ A int }{}}, &struct{ A int }{}, &struct{ B int }{}},
 		{"test pointer to slice struct", args{&[]struct{ A int }{}}, &[]struct{ A int }{}, &[]struct{ B int }{}},
