@@ -1170,8 +1170,9 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 				_, err := ctl(ctx).Filter(Cond{"id": 11}).Update(map[string]any{"name": "test", "age": 18})
 				return err
 			}, fmt.Errorf(UpdateColumnNotExistError, "age").Error()},
-			{"Update with empty map", func() error { _, err := ctl(ctx).Filter(Cond{"id": 11}).Update(map[string]any{}); return err }, "update data is empty"},
-			{"Create with empty slice map", func() error { _, err := ctl(ctx).Create([]map[string]any{}); return err }, "bulk create data is empty"},
+			{"Update with empty map", func() error { _, err := ctl(ctx).Filter(Cond{"id": 11}).Update(map[string]any{}); return err }, "update " + DataEmptyError},
+			{"Create with empty map", func() error { _, err := ctl(ctx).Create(map[string]any{}); return err }, "create " + DataEmptyError},
+			{"Create with empty slice map", func() error { _, err := ctl(ctx).Create([]map[string]any{}); return err }, "bulk create " + DataEmptyError},
 			{"Create with invalid type", func() error { _, err := ctl(ctx).Create(1); return err }, fmt.Sprintf(CreateDataTypeError, "int")},
 		}
 		for _, tt := range tests {
