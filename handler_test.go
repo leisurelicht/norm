@@ -266,6 +266,26 @@ func TestGoZeroMysqlMethods_Refactored(t *testing.T) {
 		}
 	})
 
+	t.Run("FindOne empty result", func(t *testing.T) {
+		res, err := sourceCli(ctx).Filter(Cond{"id": 54321}).FindOne()
+		if err != nil {
+			t.Fatalf("FindOne error: %v", err)
+		}
+		if len(res) != 0 {
+			t.Errorf("got len %d, want 0", len(res))
+		}
+	})
+
+	t.Run("FindAllModel empty result", func(t *testing.T) {
+		var sources []test.Source
+		if err := sourceCli(ctx).Filter(Cond{"id": 54321}).FindAllModel(&sources); err != nil {
+			t.Fatalf("FindAllModel error: %v", err)
+		}
+		if len(sources) != 0 {
+			t.Errorf("got len %d, want 0", len(sources))
+		}
+	})
+
 	t.Run("Contains filter", func(t *testing.T) {
 		res, err := sourceCli(ctx).Filter(Cond{"name__contains": []string{"Ac", "Ap"}}).OrderBy("id").Limit(10, 1).FindAll()
 		if err != nil {
@@ -672,6 +692,25 @@ func TestGoZeroMysqlMethods_Refactored(t *testing.T) {
 		}
 	})
 
+	t.Run("CreateIfNotExist existing", func(t *testing.T) {
+		t.Cleanup(func() { sourceCli(ctx).Filter(Cond{"id": 11112}).Remove() })
+
+		if _, err := sourceCli(ctx).Create(map[string]any{"id": 11112, "name": "test11112", "description": "Test11112"}); err != nil {
+			t.Fatalf("Create error: %v", err)
+		}
+
+		id, created, err := sourceCli(ctx).CreateIfNotExist(map[string]any{"id": 11112, "name": "test11112", "description": "Test11112"})
+		if err != nil {
+			t.Fatalf("CreateIfNotExist error: %v", err)
+		}
+		if created {
+			t.Error("got created, want not created")
+		}
+		if id != 0 {
+			t.Errorf("got id %d, want 0", id)
+		}
+	})
+
 	t.Run("Batch Create", func(t *testing.T) {
 		t.Cleanup(func() { propertyCli(ctx).Filter(Cond{"source_id__between": []int64{11111, 11116}}).Remove() })
 
@@ -699,6 +738,70 @@ func TestGoZeroMysqlMethods_Refactored(t *testing.T) {
 		}
 		if res[0]["source_id"].(int64) != 11111 || res[1]["source_id"].(int64) != 11112 || res[5]["source_id"].(int64) != 11116 {
 			t.Errorf("got source_ids %d,%d,%d, want 11111,11112,11116", res[0]["source_id"], res[1]["source_id"], res[5]["source_id"])
+		}
+	})
+
+	t.Run("Batch Create with model slice", func(t *testing.T) {
+		ids := []int64{8881, 8882}
+		_, _ = sourceCli(ctx).Filter(Cond{"id__in": ids}).Remove()
+		t.Cleanup(func() { sourceCli(ctx).Filter(Cond{"id__in": ids}).Remove() })
+
+		type sourceLite struct {
+			Id          int64  `db:"id"`
+			Name        string `db:"name"`
+			Description string `db:"description"`
+		}
+		data := []sourceLite{
+			{Id: ids[0], Name: "batch1", Description: "batch1"},
+			{Id: ids[1], Name: "batch2", Description: "batch2"},
+		}
+		num, err := sourceCli(ctx).Create(data)
+		if err != nil {
+			t.Fatalf("Create error: %v", err)
+		}
+		if num != int64(len(data)) {
+			t.Errorf("got num %d, want %d", num, len(data))
+		}
+
+		res, err := sourceCli(ctx).Filter(Cond{"id__in": ids}).OrderBy("id").FindAll()
+		if err != nil {
+			t.Fatalf("FindAll error: %v", err)
+		}
+		if len(res) != len(data) {
+			t.Errorf("got len %d, want %d", len(res), len(data))
+		} else if res[0]["id"].(int64) != ids[0] || res[1]["id"].(int64) != ids[1] {
+			t.Errorf("got ids %d,%d, want %d,%d", res[0]["id"], res[1]["id"], ids[0], ids[1])
+		}
+	})
+
+	t.Run("Batch Create with model slice pointer", func(t *testing.T) {
+		ids := []int64{8891, 8892}
+		_, _ = sourceCli(ctx).Filter(Cond{"id__in": ids}).Remove()
+		t.Cleanup(func() { sourceCli(ctx).Filter(Cond{"id__in": ids}).Remove() })
+
+		type sourceLite struct {
+			Id          int64  `db:"id"`
+			Name        string `db:"name"`
+			Description string `db:"description"`
+		}
+		data := []sourceLite{
+			{Id: ids[0], Name: "batchp1", Description: "batchp1"},
+			{Id: ids[1], Name: "batchp2", Description: "batchp2"},
+		}
+		num, err := sourceCli(ctx).Create(&data)
+		if err != nil {
+			t.Fatalf("Create error: %v", err)
+		}
+		if num != int64(len(data)) {
+			t.Errorf("got num %d, want %d", num, len(data))
+		}
+
+		res, err := sourceCli(ctx).Filter(Cond{"id__in": ids}).OrderBy("id").FindAll()
+		if err != nil {
+			t.Fatalf("FindAll error: %v", err)
+		}
+		if len(res) != len(data) {
+			t.Errorf("got len %d, want %d", len(res), len(data))
 		}
 	})
 }
@@ -869,6 +972,35 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 		}
 	})
 
+	t.Run("Create unsupported other methods", func(t *testing.T) {
+		tests := []struct {
+			name    string
+			fn      func() (int64, error)
+			wantErr string
+		}{
+			{"Exclude", func() (int64, error) { return ctl(ctx).Exclude(Cond{}).Create(map[string]any{"id": 1}) }, "[Exclude] not supported for Create"},
+			{"Where", func() (int64, error) { return ctl(ctx).Where("id = ?", 1).Create(map[string]any{"id": 1}) }, "[Where] not supported for Create"},
+			{"OrderBy", func() (int64, error) { return ctl(ctx).OrderBy("id").Create(map[string]any{"id": 1}) }, "[OrderBy] not supported for Create"},
+			{"GroupBy", func() (int64, error) { return ctl(ctx).GroupBy("id").Create(map[string]any{"id": 1}) }, "[GroupBy] not supported for Create"},
+			{"Having", func() (int64, error) { return ctl(ctx).Having("id = ?", 1).Create(map[string]any{"id": 1}) }, "[Having] not supported for Create"},
+			{"Select", func() (int64, error) { return ctl(ctx).Select("id").Create(map[string]any{"id": 1}) }, "[Select] not supported for Create"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				id, err := tt.fn()
+				if id != 0 {
+					t.Errorf("got id %d, want 0", id)
+				}
+				if err == nil {
+					t.Fatalf("expected error %q, got nil", tt.wantErr)
+				}
+				if err.Error() != tt.wantErr {
+					t.Errorf("got %q, want %q", err.Error(), tt.wantErr)
+				}
+			})
+		}
+	})
+
 	t.Run("Update unsupported", func(t *testing.T) {
 		tests := []struct {
 			name    string
@@ -877,6 +1009,8 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 		}{
 			{"GroupBy", func() (int64, error) { return ctl(ctx).GroupBy("").Update(map[string]any{}) }, "[GroupBy] not supported for Update"},
 			{"GroupBy+Select", func() (int64, error) { return ctl(ctx).GroupBy("").Select("").Update(map[string]any{}) }, "[Select, GroupBy] not supported for Update"},
+			{"Select", func() (int64, error) { return ctl(ctx).Select("").Update(map[string]any{}) }, "[Select] not supported for Update"},
+			{"Having", func() (int64, error) { return ctl(ctx).Having("").Update(map[string]any{}) }, "[Having] not supported for Update"},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -902,6 +1036,8 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 		}{
 			{"GroupBy", func() (int64, error) { return ctl(ctx).GroupBy("").Remove() }, "[GroupBy] not supported for Remove"},
 			{"GroupBy+Select", func() (int64, error) { return ctl(ctx).GroupBy("").Select("").Remove() }, "[Select, GroupBy] not supported for Remove"},
+			{"Select", func() (int64, error) { return ctl(ctx).Select("").Remove() }, "[Select] not supported for Remove"},
+			{"Having", func() (int64, error) { return ctl(ctx).Having("").Remove() }, "[Having] not supported for Remove"},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -927,6 +1063,8 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 		}{
 			{"GroupBy", func() (int64, error) { return ctl(ctx).GroupBy("").Delete() }, "[GroupBy] not supported for Delete"},
 			{"GroupBy+Select", func() (int64, error) { return ctl(ctx).GroupBy("").Select("").Delete() }, "[Select, GroupBy] not supported for Delete"},
+			{"Select", func() (int64, error) { return ctl(ctx).Select("").Delete() }, "[Select] not supported for Delete"},
+			{"Having", func() (int64, error) { return ctl(ctx).Having("").Delete() }, "[Having] not supported for Delete"},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -973,6 +1111,7 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 			wantErr string
 		}{
 			{"GroupBy+Having", func() error { _, err := ctl(ctx).GroupBy("").Having("").GetOrCreate(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, strings.Join([]string{ctlGroupBy.Name, ctlHaving.Name}, ", "), "GetOrCreate").Error()},
+			{"GroupBy", func() error { _, err := ctl(ctx).GroupBy("").GetOrCreate(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, ctlGroupBy.Name, "GetOrCreate").Error()},
 			{"Select", func() error { _, err := ctl(ctx).Select("").GetOrCreate(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, ctlSelect.Name, "GetOrCreate").Error()},
 		}
 		for _, tt := range tests {
@@ -998,6 +1137,7 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 				_, _, err := ctl(ctx).GroupBy("").Having("").CreateOrUpdate(map[string]any{})
 				return err
 			}, fmt.Errorf(UnsupportedControllerError, strings.Join([]string{ctlGroupBy.Name, ctlHaving.Name}, ", "), "CreateOrUpdate").Error()},
+			{"GroupBy", func() error { _, _, err := ctl(ctx).GroupBy("").CreateOrUpdate(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, ctlGroupBy.Name, "CreateOrUpdate").Error()},
 			{"Select", func() error { _, _, err := ctl(ctx).Select("").CreateOrUpdate(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, ctlSelect.Name, "CreateOrUpdate").Error()},
 		}
 		for _, tt := range tests {
@@ -1023,6 +1163,7 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 				_, _, err := ctl(ctx).GroupBy("").Having("").CreateIfNotExist(map[string]any{})
 				return err
 			}, fmt.Errorf(UnsupportedControllerError, strings.Join([]string{ctlGroupBy.Name, ctlHaving.Name}, ", "), "CreateIfNotExist").Error()},
+			{"GroupBy", func() error { _, _, err := ctl(ctx).GroupBy("").CreateIfNotExist(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, ctlGroupBy.Name, "CreateIfNotExist").Error()},
 			{"Select", func() error { _, _, err := ctl(ctx).Select("").CreateIfNotExist(map[string]any{}); return err }, fmt.Errorf(UnsupportedControllerError, ctlSelect.Name, "CreateIfNotExist").Error()},
 		}
 		for _, tt := range tests {
@@ -1164,8 +1305,12 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 			{"FindOneModel slice pointer", func() error { return ctl(ctx).FindOneModel(&[]test.Source{}) }, ModelTypeNotStructError},
 			{"FindAllModel non-pointer", func() error { return ctl(ctx).FindAllModel([]test.Source{}) }, ModelTypeNotSliceError},
 			{"FindAllModel struct pointer", func() error { return ctl(ctx).FindAllModel(&test.Source{}) }, ModelTypeNotSliceError},
+			{"GetOrCreate empty data", func() error { _, err := ctl(ctx).GetOrCreate(map[string]any{}); return err }, strings.ToLower("GetOrCreate") + " " + DataEmptyError},
+			{"CreateOrUpdate empty data", func() error { _, _, err := ctl(ctx).CreateOrUpdate(map[string]any{}); return err }, strings.ToLower("CreateOrUpdate") + " " + DataEmptyError},
+			{"CreateIfNotExist empty data", func() error { _, _, err := ctl(ctx).CreateIfNotExist(map[string]any{}); return err }, strings.ToLower("CreateIfNotExist") + " " + DataEmptyError},
 			{"Count with nil filter", func() error { _, err := ctl(ctx).Filter(nil).Count(); return err }, fmt.Errorf(queryset.UnsupportedFilterTypeError, "nil").Error()},
 			{"Exist with nil filter", func() error { _, err := ctl(ctx).Filter(nil).Exist(); return err }, fmt.Errorf(queryset.UnsupportedFilterTypeError, "nil").Error()},
+			{"List with nil filter", func() error { _, _, err := ctl(ctx).Filter(nil).List(); return err }, fmt.Errorf(queryset.UnsupportedFilterTypeError, "nil").Error()},
 			{"Update with nonexistent column", func() error {
 				_, err := ctl(ctx).Filter(Cond{"id": 11}).Update(map[string]any{"name": "test", "age": 18})
 				return err
@@ -1205,6 +1350,8 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 				_, err := ctl(ctx).Filter(Cond{"id": 1}).OrderBy([1]string{"-id"}).Update(map[string]any{})
 				return err
 			}, OrderByColumnsTypeError},
+			{"Count with OrderBy error", func() error { _, err := ctl(ctx).OrderBy([1]string{"-id"}).Count(); return err }, OrderByColumnsTypeError},
+			{"List with OrderBy error", func() error { _, _, err := ctl(ctx).OrderBy([1]string{"-id"}).List(); return err }, OrderByColumnsTypeError},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
