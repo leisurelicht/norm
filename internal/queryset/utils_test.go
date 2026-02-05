@@ -38,6 +38,9 @@ func Test_isStrList(t *testing.T) {
 		{"test8", args{[3]any{1, 2, 3}}, false},
 		{"test9", args{[3]any{1.0, 2.0, 3.0}}, false},
 		{"test10", args{[3]any{true, false, true}}, false},
+		{"test_empty_array_string", args{[0]string{}}, false},
+		{"test_nil_string_slice", args{[]string(nil)}, false},
+		{"test_default_branch_non_collection", args{123}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

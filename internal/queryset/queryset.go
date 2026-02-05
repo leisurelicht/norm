@@ -585,7 +585,7 @@ func (p *QuerySetImpl) WhereToSQL(cond string, args ...any) QuerySet {
 	}
 
 	num := strings.Count(cond, "?")
-	if num > 0 && len(args) != num {
+	if (num == 0 && len(args) > 0) || (num > 0 && len(args) != num) {
 		p.SetError(argsLenError)
 		return p
 	}

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leisurelicht/norm/internal/operator"
+	ch_go "github.com/leisurelicht/norm/operator/clickhouse/clickhouse-go"
 	go_zero "github.com/leisurelicht/norm/operator/mysql/go-zero"
 )
 
@@ -164,10 +166,21 @@ func TestFilter(t *testing.T) {
 				[]any{10, "%search%", 20, 30},
 			},
 		},
+		{
+			"method_lookup_toDate",
+			args{isFilter, []any{Cond{"created_at__exact##toDate": "2024-01-01"}}},
+			want{" WHERE (`created_at` = toDate(?))", []any{"2024-01-01"}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			operator := go_zero.NewOperator(nil)
+			// use ClickHouse operator for method substitution when needed
+			var operator operator.Operator
+			if strings.Contains(tt.name, "method_lookup") {
+				operator = ch_go.NewOperator(nil)
+			} else {
+				operator = go_zero.NewOperator(nil)
+			}
 			p := NewQuerySet(operator)
 			p = p.FilterToSQL(tt.args.state, tt.args.filter...)
 			sql, sqlArgs := p.GetQuerySet()
@@ -216,6 +229,7 @@ func TestMultipleCallFilter(t *testing.T) {
 	}{
 		// multiple call
 		{"double_call", []args{{isFilter, []any{Cond{"test1": 1}}}, {0, []any{Cond{"test2": 1}}}}, want{" WHERE (`test1` = ?) AND (`test2` = ?)", []any{1, 1}}},
+		{"double_call_or", []args{{isFilter, []any{Cond{"test1": 1}}}, {isFilter, []any{OR{"test2": 2}}}}, want{" WHERE (`test1` = ?) OR (`test2` = ?)", []any{1, 2}}},
 
 		// meet by accident
 		{"meet1", []args{{isFilter, []any{Cond{SortKey: []string{"delete_flag", "devise_sn"}, "delete_flag": 0, "devise_sn__len": 22}}}, {0, []any{Cond{SortKey: []string{"device_name", "devise_sn", "belong_to_company"}, "device_name__icontains": "test", "devise_sn__icontains": "test", "belong_to_company__icontains": "test"}}}}, want{" WHERE (`delete_flag` = ? AND LENGTH(`devise_sn`) = ?) AND (`device_name` LIKE ? AND `devise_sn` LIKE ? AND `belong_to_company` LIKE ?)", []any{0, 22, "%test%", "%test%", "%test%"}}},
@@ -272,6 +286,7 @@ func TestFilterError(t *testing.T) {
 		want want
 	}{
 		{"empty", args{isFilter, []any{}}, want{nil}},
+		{"nil_first", args{isFilter, []any{nil}}, want{fmt.Errorf(UnsupportedFilterTypeError, "nil")}},
 		{"InvalidStat", args{2, []any{Cond{"test": 1}}}, want{errors.New(isNotValueError)}},
 		{"order key type", args{isFilter, []any{Cond{SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyTypeError)}},
 		{"order key len", args{isFilter, []any{Cond{SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyLenError)}},
@@ -284,6 +299,7 @@ func TestFilterError(t *testing.T) {
 		{"operator value len less3", args{isFilter, []any{Cond{"test__in": []int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "in", 0)}},
 		{"operator value len less4", args{isFilter, []any{Cond{"test__contains": []int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "contains", 0)}},
 		{"operator value len less5", args{isFilter, []any{Cond{"test__contains": [0]int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "contains", 0)}},
+		{"operator value empty list contains", args{isFilter, []any{Cond{"test__contains": []string{"x", ""}}}}, want{fmt.Errorf(operatorValueEmptyError, "contains")}},
 		{"operator value type", args{isFilter, []any{Cond{"test__contains": []int{1, 2}}}}, want{fmt.Errorf(operatorValueTypeError, "contains")}},
 		{"operator value type1", args{isFilter, []any{Cond{"test__contains": [2]int{1, 2}}}}, want{fmt.Errorf(operatorValueTypeError, "contains")}},
 		{"not implementd operator", args{isFilter, []any{Cond{"test__unimplemented": 1}}}, want{fmt.Errorf(notImplementedOperatorError, "UNIMPLEMENTED")}},
@@ -528,6 +544,7 @@ func TestWhere(t *testing.T) {
 		{"one", args{"`test` = ?", []any{1}}, want{" WHERE `test` = ?", []any{1}}},
 		{"two", args{"`test` = ? AND test2 = ?", []any{1, 2}}, want{" WHERE `test` = ? AND test2 = ?", []any{1, 2}}},
 		{"three", args{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}}, want{" WHERE test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}}},
+		{"no_placeholder_no_args", args{"`const` = 1", []any{}}, want{" WHERE `const` = 1", []any{}}},
 	}
 
 	for _, tt := range tests {
@@ -579,6 +596,7 @@ func TestWhereError(t *testing.T) {
 	}{
 		{"args_num_mismatch", args{"test = ? AND test2 = ? AND test3 = ?", []any{1, 2}}, want{"", []any{}, errors.New(argsLenError)}},
 		{"args_num_mismatch1", args{"test = ? AND test2 = ? AND test3 = ?", []any{1, 2, 3, 4}}, want{"", []any{}, errors.New(argsLenError)}},
+		{"no_placeholder_with_args", args{"test = 1", []any{1}}, want{"", []any{}, errors.New(argsLenError)}},
 	}
 
 	for _, tt := range tests {
@@ -647,6 +665,16 @@ func TestFilterAndWhereConflict(t *testing.T) {
 	} else if p.Error().Error() != fmt.Errorf(FilterOrWhereError, "Filter").Error() {
 		t.Errorf("TestFilterAndWhereConflict SQL Occur Error -> error:%+v", p.Error().Error())
 		t.Errorf("TestFilterAndWhereConflict SQL Occur Error -> want:%+v", fmt.Errorf(FilterOrWhereError, "Filter").Error())
+	}
+
+	p = NewQuerySet(operator)
+	p.FilterToSQL(IsNot, Cond{"test": 1})
+	p.WhereToSQL("test = ?", 1)
+	if p.Error() == nil {
+		t.Error("Test Exclude Where Conflict Not Occur Error")
+	} else if p.Error().Error() != fmt.Errorf(FilterOrWhereError, "Exclude").Error() {
+		t.Errorf("TestExcludeAndWhereConflict SQL Occur Error -> error:%+v", p.Error().Error())
+		t.Errorf("TestExcludeAndWhereConflict SQL Occur Error -> want:%+v", fmt.Errorf(FilterOrWhereError, "Exclude").Error())
 	}
 }
 
@@ -877,6 +905,7 @@ func TestOrderBy(t *testing.T) {
 		{"str_three", args{"test, test2, test3"}, want{" ORDER BY test, test2, test3"}},
 		{"str_one_desc", args{"test desc"}, want{" ORDER BY test desc"}},
 		{"str_three_mix", args{"test, test2 desc, test3 asc"}, want{" ORDER BY test, test2 desc, test3 asc"}},
+		{"str_empty", args{""}, want{""}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
