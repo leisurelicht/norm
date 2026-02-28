@@ -7,32 +7,14 @@ import (
 	"strings"
 
 	"github.com/zeromicro/go-zero/core/logc"
-	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 
-	"github.com/leisurelicht/norm/internal/config"
 	"github.com/leisurelicht/norm/internal/operator"
 	"github.com/leisurelicht/norm/internal/operator/mysql"
 )
 
 // NewMysql returns a mysql connection.
 func NewMysql(datasource string, opts ...sqlx.SqlOption) sqlx.SqlConn {
-	switch config.Get().Level {
-	case config.Debug:
-		logx.SetLevel(logx.DebugLevel)
-	case config.Info:
-		logx.SetLevel(logx.InfoLevel)
-		logx.DisableStat()
-	case config.Warn:
-		logx.SetLevel(logx.SevereLevel)
-		logx.DisableStat()
-	case config.Error:
-		logx.SetLevel(logx.ErrorLevel)
-		logx.DisableStat()
-	default:
-		logx.SetLevel(logx.InfoLevel)
-		logx.DisableStat()
-	}
 	return sqlx.NewMysql(datasource, opts...)
 }
 
