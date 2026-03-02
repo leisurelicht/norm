@@ -901,6 +901,65 @@ func TestGoZeroMysqlMethods_Refactored(t *testing.T) {
 			t.Errorf("got len %d, want %d", len(res), len(data))
 		}
 	})
+
+	t.Run("Batch Create with time.Now fields", func(t *testing.T) {
+		ids := []int64{8901, 8902}
+		_, _ = sourceCli(ctx).Filter(Cond{"id__in": ids}).Remove()
+		t.Cleanup(func() { sourceCli(ctx).Filter(Cond{"id__in": ids}).Remove() })
+
+		now := time.Now()
+		data := []test.Source{
+			{
+				Id:          ids[0],
+				Name:        "batch-time-1",
+				Type:        1,
+				Description: "bulk create time",
+				IsDeleted:   false,
+				CreateTime:  now,
+				UpdateTime:  now,
+			},
+			{
+				Id:          ids[1],
+				Name:        "batch-time-2",
+				Type:        2,
+				Description: "bulk create time",
+				IsDeleted:   false,
+				CreateTime:  now.Add(2 * time.Second),
+				UpdateTime:  now.Add(2 * time.Second),
+			},
+		}
+
+		num, err := sourceCli(ctx).Create(data)
+		if err != nil {
+			t.Fatalf("Create error: %v", err)
+		}
+		if num != int64(len(data)) {
+			t.Errorf("got num %d, want %d", num, len(data))
+		}
+
+		var got []test.Source
+		if err := sourceCli(ctx).Filter(Cond{"id__in": ids}).OrderBy("id").FindAllModel(&got); err != nil {
+			t.Fatalf("FindAllModel error: %v", err)
+		}
+		if len(got) != len(data) {
+			t.Fatalf("got len %d, want %d", len(got), len(data))
+		}
+
+		for i := range data {
+			if got[i].Id != data[i].Id {
+				t.Errorf("got id %d, want %d", got[i].Id, data[i].Id)
+			}
+			if got[i].CreateTime.IsZero() || got[i].UpdateTime.IsZero() {
+				t.Errorf("unexpected zero datetime values: create=%s update=%s", got[i].CreateTime, got[i].UpdateTime)
+			}
+			if diff := got[i].CreateTime.Sub(data[i].CreateTime); diff < -time.Second || diff > time.Second {
+				t.Errorf("create_time drift too large: got %s, want around %s", got[i].CreateTime, data[i].CreateTime)
+			}
+			if diff := got[i].UpdateTime.Sub(data[i].UpdateTime); diff < -time.Second || diff > time.Second {
+				t.Errorf("update_time drift too large: got %s, want around %s", got[i].UpdateTime, data[i].UpdateTime)
+			}
+		}
+	})
 }
 
 // TestGoZeroMysqlHandlerError_Refactored 优化后的错误处理测试
