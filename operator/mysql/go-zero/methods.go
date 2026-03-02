@@ -2,15 +2,16 @@ package go_zero
 
 import (
 	"context"
-	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 
+	mysqlDriver "github.com/go-sql-driver/mysql"
 	"github.com/zeromicro/go-zero/core/logc"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 
 	"github.com/leisurelicht/norm/internal/operator"
-	"github.com/leisurelicht/norm/internal/operator/mysql"
+	mysqlOp "github.com/leisurelicht/norm/internal/operator/mysql"
 )
 
 // NewMysql returns a mysql connection.
@@ -67,14 +68,14 @@ func (d OperatorImpl) WithSession(session any) operator.Operator {
 }
 
 func (d OperatorImpl) OperatorSQL(operator, method string) string {
-	op, ok := mysql.Operators[operator]
+	op, ok := mysqlOp.Operators[operator]
 	if !ok {
 		return ""
 	}
 	if method == "" {
 		return op
 	}
-	if methodSQL, ok := mysql.Methods[method]; ok {
+	if methodSQL, ok := mysqlOp.Methods[method]; ok {
 		op = strings.ReplaceAll(op, "?", methodSQL)
 	}
 	return op
@@ -83,7 +84,7 @@ func (d OperatorImpl) OperatorSQL(operator, method string) string {
 func (d OperatorImpl) Insert(ctx context.Context, query string, args ...any) (id int64, err error) {
 	res, err := d.conn.ExecCtx(ctx, query, args...)
 	if err != nil {
-		if strings.Contains(err.Error(), "1062") {
+		if isDuplicateKeyError(err) {
 			return 0, operator.ErrDuplicateKey
 		}
 		logc.Errorf(ctx, "Insert Error: %s", err)
@@ -99,39 +100,79 @@ func (d OperatorImpl) Insert(ctx context.Context, query string, args ...any) (id
 }
 
 func (d OperatorImpl) BulkInsert(ctx context.Context, query string, args []string, data []map[string]any) (num int64, err error) {
-	blk, err := sqlx.NewBulkInserter(d.conn, query)
+	query, err = buildBulkInsertQuery(query, len(data))
 	if err != nil {
-		panic(err)
+		logc.Errorf(ctx, "Build bulk insert query error: %s", err)
+		return 0, err
 	}
 
-	values := make([]any, len(args))
+	values := make([]any, 0, len(args)*len(data))
 	for _, row := range data {
-		for i, arg := range args {
+		for _, arg := range args {
 			if val, ok := row[arg]; ok {
-				values[i] = val
+				values = append(values, val)
+				continue
 			}
+			values = append(values, nil)
 		}
-		blk.Insert(values...)
 	}
 
-	blk.SetResultHandler(func(result sql.Result, err error) {
-		if err != nil {
-			logc.Errorf(ctx, "Bulk insert error: %s", err)
-			return
+	result, err := d.conn.ExecCtx(ctx, query, values...)
+	if err != nil {
+		if isDuplicateKeyError(err) {
+			return 0, operator.ErrDuplicateKey
 		}
+		logc.Errorf(ctx, "Bulk insert error: %s", err)
+		return 0, err
+	}
 
-		num, err = result.RowsAffected()
-		if err != nil {
-			logc.Errorf(ctx, "Bulk insert rows affected error: %s", err)
-			return
-		}
+	num, err = result.RowsAffected()
+	if err != nil {
+		logc.Errorf(ctx, "Bulk insert rows affected error: %s", err)
+		return 0, err
+	}
 
-		logc.Infof(ctx, "Inserted %d rows", num)
-	})
-
-	blk.Flush()
-
+	logc.Infof(ctx, "Inserted %d rows", num)
 	return num, err
+}
+
+func buildBulkInsertQuery(query string, rows int) (string, error) {
+	if rows <= 1 {
+		return query, nil
+	}
+
+	lower := strings.ToLower(query)
+	pos := strings.Index(lower, "values")
+	if pos < 0 {
+		return "", fmt.Errorf("invalid insert query, missing VALUES: %q", query)
+	}
+
+	head := strings.TrimSpace(query[:pos+len("values")])
+	tail := strings.TrimSpace(query[pos+len("values"):])
+	left := strings.IndexByte(tail, '(')
+	right := strings.IndexByte(tail, ')')
+	if left < 0 || right <= left {
+		return "", fmt.Errorf("invalid insert query, bad values placeholder: %q", query)
+	}
+
+	rowTemplate := tail[left : right+1]
+	suffix := strings.TrimSpace(tail[right+1:])
+
+	valueTemplates := make([]string, rows)
+	for i := range rows {
+		valueTemplates[i] = rowTemplate
+	}
+
+	bulkQuery := head + " " + strings.Join(valueTemplates, ",")
+	if suffix != "" {
+		bulkQuery += " " + suffix
+	}
+	return bulkQuery, nil
+}
+
+func isDuplicateKeyError(err error) bool {
+	var mysqlErr *mysqlDriver.MySQLError
+	return errors.As(err, &mysqlErr) && mysqlErr.Number == 1062
 }
 
 func (d OperatorImpl) Remove(ctx context.Context, query string, args ...any) (num int64, err error) {
