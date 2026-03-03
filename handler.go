@@ -476,7 +476,7 @@ func (m *Impl) Create(data any) (idOrNum int64, err error) {
 		return m.bulkCreate(d)
 	default:
 		v := reflect.ValueOf(data)
-		if v.Kind() == reflect.Ptr {
+		if v.Kind() == reflect.Pointer {
 			v = v.Elem()
 		}
 		if v.Kind() == reflect.Struct {
@@ -591,7 +591,7 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 	}
 
 	rv := reflect.ValueOf(modelPtr)
-	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Struct {
+	if rv.Kind() != reflect.Pointer || rv.Elem().Kind() != reflect.Struct {
 		return fmt.Errorf(ModelTypeNotStructError)
 	}
 
@@ -629,7 +629,7 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 	}
 
 	rv := reflect.ValueOf(modelSlicePtr)
-	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Slice {
+	if rv.Kind() != reflect.Pointer || rv.Elem().Kind() != reflect.Slice {
 		return fmt.Errorf(ModelTypeNotSliceError)
 	}
 
