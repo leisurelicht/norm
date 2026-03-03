@@ -269,6 +269,51 @@ func TestGoZeroMysqlMethods_Refactored(t *testing.T) {
 		}
 	})
 
+	t.Run("FindOne with Select", func(t *testing.T) {
+		res, err := sourceCli(ctx).Filter(Cond{"id": 11}).Select([]string{"id", "name"}).FindOne()
+		if err != nil {
+			t.Fatalf("FindOne error: %v", err)
+		}
+		if len(res) != 2 {
+			t.Errorf("got %d fields, want 2, fields: %v", len(res), res)
+		}
+		if res["id"].(int64) != 11 {
+			t.Errorf("got id %d, want 11", res["id"])
+		}
+		if _, ok := res["name"]; !ok {
+			t.Error("missing key 'name'")
+		}
+		if _, ok := res["description"]; ok {
+			t.Error("unexpected key 'description'")
+		}
+	})
+
+	t.Run("FindOne with Select string", func(t *testing.T) {
+		res, err := sourceCli(ctx).Filter(Cond{"id": 11}).Select("`id`, `name`").FindOne()
+		if err != nil {
+			t.Fatalf("FindOne error: %v", err)
+		}
+		if len(res) != 2 {
+			t.Errorf("got %d fields, want 2, fields: %v", len(res), res)
+		}
+		if _, ok := res["id"]; !ok {
+			t.Error("missing key 'id'")
+		}
+		if _, ok := res["name"]; !ok {
+			t.Error("missing key 'name'")
+		}
+	})
+
+	t.Run("FindOne with Select table wildcard", func(t *testing.T) {
+		_, err := sourceCli(ctx).Filter(Cond{"id": 11}).Select("source.*").FindOne()
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "qualified wildcard select is not supported") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
 	t.Run("Where", func(t *testing.T) {
 		res, err := sourceCli(ctx).Where("id = ?", 11).FindOne()
 		if err != nil {
@@ -350,6 +395,59 @@ func TestGoZeroMysqlMethods_Refactored(t *testing.T) {
 		}
 		if res[len(res)-1]["id"].(int64) != 53 {
 			t.Errorf("got last id %d, want 53", res[len(res)-1]["id"])
+		}
+	})
+
+	t.Run("FindAll with Select", func(t *testing.T) {
+		res, err := sourceCli(ctx).Filter(Cond{"id": 11}).Select([]string{"id", "name"}).FindAll()
+		if err != nil {
+			t.Fatalf("FindAll error: %v", err)
+		}
+		if len(res) != 1 {
+			t.Fatalf("got len %d, want 1", len(res))
+		}
+		row := res[0]
+		if len(row) != 2 {
+			t.Errorf("got %d fields, want 2, fields: %v", len(row), row)
+		}
+		if _, ok := row["id"]; !ok {
+			t.Error("missing key 'id'")
+		}
+		if _, ok := row["name"]; !ok {
+			t.Error("missing key 'name'")
+		}
+		if _, ok := row["description"]; ok {
+			t.Error("unexpected key 'description'")
+		}
+	})
+
+	t.Run("FindAll with Select string", func(t *testing.T) {
+		res, err := sourceCli(ctx).Filter(Cond{"id": 11}).Select("`id`, `name`").FindAll()
+		if err != nil {
+			t.Fatalf("FindAll error: %v", err)
+		}
+		if len(res) != 1 {
+			t.Fatalf("got len %d, want 1", len(res))
+		}
+		row := res[0]
+		if len(row) != 2 {
+			t.Errorf("got %d fields, want 2, fields: %v", len(row), row)
+		}
+		if _, ok := row["id"]; !ok {
+			t.Error("missing key 'id'")
+		}
+		if _, ok := row["name"]; !ok {
+			t.Error("missing key 'name'")
+		}
+	})
+
+	t.Run("FindAll with Select table wildcard", func(t *testing.T) {
+		_, err := sourceCli(ctx).Filter(Cond{"id": 11}).Select("source.*").FindAll()
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "qualified wildcard select is not supported") {
+			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 
@@ -634,6 +732,37 @@ func TestGoZeroMysqlMethods_Refactored(t *testing.T) {
 		}
 		if res[0]["id"].(int64) != 13 || res[1]["id"].(int64) != 12 || res[2]["id"].(int64) != 11 {
 			t.Errorf("got ids %d,%d,%d, want 13,12,11", res[0]["id"], res[1]["id"], res[2]["id"])
+		}
+	})
+
+	t.Run("List with Select", func(t *testing.T) {
+		num, res, err := sourceCli(ctx).
+			Filter(Cond{"id__in": []int64{11, 12, 13}}).
+			Select("`id`, `name`").
+			OrderBy("id DESC").
+			List()
+		if err != nil {
+			t.Fatalf("List error: %v", err)
+		}
+		if num != 3 {
+			t.Errorf("got num %d, want 3", num)
+		}
+		if len(res) != 3 {
+			t.Fatalf("got len %d, want 3", len(res))
+		}
+		for _, row := range res {
+			if len(row) != 2 {
+				t.Errorf("got %d fields, want 2, fields: %v", len(row), row)
+			}
+			if _, ok := row["id"]; !ok {
+				t.Errorf("missing key 'id' in row: %v", row)
+			}
+			if _, ok := row["name"]; !ok {
+				t.Errorf("missing key 'name' in row: %v", row)
+			}
+			if _, ok := row["description"]; ok {
+				t.Errorf("unexpected key 'description' in row: %v", row)
+			}
 		}
 	})
 
@@ -1000,9 +1129,10 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 			fn      func() error
 			wantErr string
 		}{
-			{"Select", func() error { _, err := ctl(ctx).Select("").FindOne(); return err }, "[Select] not supported for FindOne"},
 			{"Having", func() error { _, err := ctl(ctx).Having("").FindOne(); return err }, "[Having] not supported for FindOne"},
-			{"GroupBy+Select", func() error { _, err := ctl(ctx).GroupBy("").Select("").FindOne(); return err }, "[Select] not supported for FindOne"},
+			{"Select alias with as", func() error { _, err := ctl(ctx).Select("`id` AS `uid`").FindOne(); return err }, fmt.Errorf(SelectAliasNotSupportedError, "FindOne", "FindOneModel").Error()},
+			{"Select alias without as", func() error { _, err := ctl(ctx).Select("`id` uid").FindOne(); return err }, fmt.Errorf(SelectAliasNotSupportedError, "FindOne", "FindOneModel").Error()},
+			{"Select alias without as quoted", func() error { _, err := ctl(ctx).Select("`id` `user-id`").FindOne(); return err }, fmt.Errorf(SelectAliasNotSupportedError, "FindOne", "FindOneModel").Error()},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -1023,10 +1153,11 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 			fn      func() error
 			wantErr string
 		}{
-			{"Select", func() error { _, err := ctl(ctx).Select("").FindAll(); return err }, "[Select] not supported for FindAll"},
 			{"Having", func() error { _, err := ctl(ctx).Having("").FindAll(); return err }, "[Having] not supported for FindAll"},
 			{"GroupBy+Having", func() error { _, err := ctl(ctx).GroupBy("").Having("").FindAll(); return err }, "[Having] not supported for FindAll"},
-			{"GroupBy+Select", func() error { _, err := ctl(ctx).GroupBy("").Select("").FindAll(); return err }, "[Select] not supported for FindAll"},
+			{"Select alias with as", func() error { _, err := ctl(ctx).Select("`id` AS `uid`").FindAll(); return err }, fmt.Errorf(SelectAliasNotSupportedError, "FindAll", "FindAllModel").Error()},
+			{"Select alias without as", func() error { _, err := ctl(ctx).Select("`id` uid").FindAll(); return err }, fmt.Errorf(SelectAliasNotSupportedError, "FindAll", "FindAllModel").Error()},
+			{"Select alias without as quoted", func() error { _, err := ctl(ctx).Select("`id` `user-id`").FindAll(); return err }, fmt.Errorf(SelectAliasNotSupportedError, "FindAll", "FindAllModel").Error()},
 			{"Limit without OrderBy", func() error { _, err := ctl(ctx).Limit(0, 1).FindAll(); return err }, fmt.Errorf(MustBeCalledError, "Limit", "OrderBy").Error()},
 		}
 		for _, tt := range tests {
@@ -1048,8 +1179,9 @@ func TestGoZeroMysqlHandlerError_Refactored(t *testing.T) {
 			fn      func() error
 			wantErr string
 		}{
-			{"Select", func() error { _, _, err := ctl(ctx).Select("").List(); return err }, fmt.Errorf(UnsupportedControllerError, ctlSelect.Name, "List").Error()},
 			{"Having", func() error { _, _, err := ctl(ctx).Having("").List(); return err }, fmt.Errorf(UnsupportedControllerError, ctlHaving.Name, "List").Error()},
+			{"Select alias with as", func() error { _, _, err := ctl(ctx).Select("`id` AS `uid`").List(); return err }, fmt.Errorf(SelectAliasNotSupportedError, "FindAll", "FindAllModel").Error()},
+			{"Select alias without as", func() error { _, _, err := ctl(ctx).Select("`id` uid").List(); return err }, fmt.Errorf(SelectAliasNotSupportedError, "FindAll", "FindAllModel").Error()},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {

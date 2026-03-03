@@ -222,6 +222,74 @@ func BenchmarkHandler_FindAll_Map(b *testing.B) {
 	}
 }
 
+// BenchmarkHandler_FindOne_Map_SelectNoAlias measures FindOne map path with Select(string) without alias.
+func BenchmarkHandler_FindOne_Map_SelectNoAlias(b *testing.B) {
+	b.ReportAllocs()
+
+	ctrlFactory := NewController(newBenchOperator(), benchModel{})
+	ctrl := ctrlFactory(context.Background())
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = ctrl.Reset().
+			Select("`id`, `name`").
+			Where("`id` = ?", 1).
+			FindOne()
+	}
+}
+
+// BenchmarkHandler_FindOne_Map_SelectAliasError measures FindOne alias validation path (expected error).
+func BenchmarkHandler_FindOne_Map_SelectAliasError(b *testing.B) {
+	b.ReportAllocs()
+
+	ctrlFactory := NewController(newBenchOperator(), benchModel{})
+	ctrl := ctrlFactory(context.Background())
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = ctrl.Reset().
+			Select("`id` AS `uid`").
+			Where("`id` = ?", 1).
+			FindOne()
+	}
+}
+
+// BenchmarkHandler_FindAll_Map_SelectNoAlias measures FindAll map path with Select(string) without alias.
+func BenchmarkHandler_FindAll_Map_SelectNoAlias(b *testing.B) {
+	b.ReportAllocs()
+
+	ctrlFactory := NewController(newBenchOperator(), benchModel{})
+	ctrl := ctrlFactory(context.Background())
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = ctrl.Reset().
+			Select("`id`, `name`").
+			Where("`is_deleted` = ?", 0).
+			OrderBy([]string{"id"}).
+			Limit(10, 1).
+			FindAll()
+	}
+}
+
+// BenchmarkHandler_FindAll_Map_SelectAliasError measures FindAll alias validation path (expected error).
+func BenchmarkHandler_FindAll_Map_SelectAliasError(b *testing.B) {
+	b.ReportAllocs()
+
+	ctrlFactory := NewController(newBenchOperator(), benchModel{})
+	ctrl := ctrlFactory(context.Background())
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = ctrl.Reset().
+			Select("`id` uid").
+			Where("`is_deleted` = ?", 0).
+			OrderBy([]string{"id"}).
+			Limit(10, 1).
+			FindAll()
+	}
+}
+
 // BenchmarkHandler_FindAll_Model measures FindAllModel into a slice pointer.
 func BenchmarkHandler_FindAll_Model(b *testing.B) {
 	b.ReportAllocs()

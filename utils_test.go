@@ -510,3 +510,150 @@ func Test_getTableName(t *testing.T) {
 		})
 	}
 }
+
+func TestParseSelectColumns(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{"empty", "", nil},
+		{"asterisk", "*", nil},
+		{"single", "`id`", []string{"id"}},
+		{"multiple", "`id`, `name`", []string{"id", "name"}},
+		{"no backticks", "id, name", []string{"id", "name"}},
+		{"qualified columns", "`source`.`id`, source.`name`", []string{"id", "name"}},
+		{"schema qualified columns", "`test`.`source`.`id`, `name`", []string{"id", "name"}},
+		{"alias with as", "`id` AS `uid`, `name` as user_name", []string{"uid", "user_name"}},
+		{"alias without as", "`id` uid, `name` user_name", []string{"uid", "user_name"}},
+		{"function with comma", "CONCAT(`name`, '-', `id`) AS `display_name`, `id`", []string{"display_name", "id"}},
+		{"nested function with comma", "COALESCE(CONCAT(`name`, '-', `id`), '') AS `display_name`, `id`", []string{"display_name", "id"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseSelectColumns(tt.input)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFilterBySelectColumns(t *testing.T) {
+	row := map[string]any{
+		"id":   int64(11),
+		"name": "Acfun",
+		"type": int64(1),
+	}
+
+	t.Run("keep selected keys", func(t *testing.T) {
+		got := filterBySelectColumns(row, "`id`, `name`")
+		if len(got) != 2 {
+			t.Fatalf("got len %d, want 2", len(got))
+		}
+		if _, ok := got["id"]; !ok {
+			t.Fatal("missing key id")
+		}
+		if _, ok := got["name"]; !ok {
+			t.Fatal("missing key name")
+		}
+	})
+
+	t.Run("fallback when no matched key", func(t *testing.T) {
+		got := filterBySelectColumns(row, "`id` AS `uid`")
+		if len(got) != 0 {
+			t.Fatalf("got len %d, want 0", len(got))
+		}
+	})
+}
+
+func TestHasSelectAlias(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{"empty", "", false},
+		{"asterisk", "*", false},
+		{"simple columns", "`id`, `name`", false},
+		{"qualified columns", "`source`.`id`, source.`name`", false},
+		{"with as", "`id` AS `uid`", true},
+		{"without as", "`id` uid", true},
+		{"without as quoted alias", "`id` `user-id`", true},
+		{"function with as", "CONCAT(`name`, '-', `id`) AS `display_name`", true},
+		{"function without alias", "COUNT(*)", false},
+		{"function with implicit alias", "COUNT(*) total", true},
+		{"cast with as keyword", "CAST(`id` AS CHAR)", false},
+		{"cast with as and alias", "CAST(`id` AS CHAR) AS `id_str`", true},
+		{"distinct no alias", "DISTINCT `id`", false},
+		{"all no alias", "ALL `id`", false},
+		{"as in string literal", "JSON_EXTRACT(`doc`, '$.as')", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := hasSelectAlias(tt.input)
+			if got != tt.want {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHasQualifiedWildcardSelect(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{"empty", "", false},
+		{"asterisk", "*", false},
+		{"simple columns", "`id`, `name`", false},
+		{"table wildcard", "source.*", true},
+		{"quoted table wildcard", "`source`.*", true},
+		{"schema table wildcard", "test.source.*", true},
+		{"quoted schema table wildcard", "`test`.`source`.*", true},
+		{"wildcard with alias", "source.* AS s", true},
+		{"wildcard in multi select", "`id`, source.*", true},
+		{"invalid table wildcard", "1source.*", false},
+		{"asterisk alias only", "* AS s", false},
+		{"function wildcard-like string", "JSON_EXTRACT(doc, '$.*')", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := hasQualifiedWildcardSelect(tt.input)
+			if got != tt.want {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSplitSelectClause(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{
+			name:  "function with commas",
+			input: "CONCAT(`first_name`, ',', `last_name`), `id`, IF(`is_deleted`=1, 'y', 'n')",
+			want:  []string{"CONCAT(`first_name`, ',', `last_name`)", " `id`", " IF(`is_deleted`=1, 'y', 'n')"},
+		},
+		{
+			name:  "nested parentheses",
+			input: "COALESCE(CONCAT(`name`, '-', `id`), ''), `id`",
+			want:  []string{"COALESCE(CONCAT(`name`, '-', `id`), '')", " `id`"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := splitSelectClause(tt.input)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

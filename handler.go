@@ -19,20 +19,22 @@ const (
 )
 
 const (
-	ModelTypeNotStructError     = "model must be a pointer to struct"
-	ModelTypeNotSliceError      = "model must be a pointer to slice"
-	SelectColumsValidateError   = "select columns validate error: %s"
-	SelectColumnsTypeError      = "select type should be string or string slice"
-	OrderByColumnsValidateError = "orderBy columns validate error: [%s] not exist"
-	OrderByColumnsTypeError     = "orderBy type should be string or string slice"
-	GroupByColumnsValidateError = "groupBy columns validate error: %s"
-	GroupByColumnsTypeError     = "groupBy type should be string or string slice"
-	CreateDataTypeError         = "create data type is wrong, should not be [%s]"
-	DataEmptyError              = "data is empty"
-	UpdateColumnNotExistError   = "update column [%s] not exist"
-	ColumnNotExistError         = "column [%s] not exist"
-	MustBeCalledError           = "[%s] must be called after [%s]"
-	UnsupportedControllerError  = "[%s] not supported for %s"
+	ModelTypeNotStructError      = "model must be a pointer to struct"
+	ModelTypeNotSliceError       = "model must be a pointer to slice"
+	SelectColumsValidateError    = "select columns validate error: %s"
+	SelectColumnsTypeError       = "select type should be string or string slice"
+	SelectQualifiedAsteriskError = "qualified wildcard select is not supported: %s"
+	SelectAliasNotSupportedError = "select alias is not supported for %s, please use %s"
+	OrderByColumnsValidateError  = "orderBy columns validate error: [%s] not exist"
+	OrderByColumnsTypeError      = "orderBy type should be string or string slice"
+	GroupByColumnsValidateError  = "groupBy columns validate error: %s"
+	GroupByColumnsTypeError      = "groupBy type should be string or string slice"
+	CreateDataTypeError          = "create data type is wrong, should not be [%s]"
+	DataEmptyError               = "data is empty"
+	UpdateColumnNotExistError    = "update column [%s] not exist"
+	ColumnNotExistError          = "column [%s] not exist"
+	MustBeCalledError            = "[%s] must be called after [%s]"
+	UnsupportedControllerError   = "[%s] not supported for %s"
 )
 
 type controllerCall struct {
@@ -289,6 +291,10 @@ func (m *Impl) Select(selects any) Controller {
 	switch sel := selects.(type) {
 	case string:
 		if sel == "" {
+			return m
+		}
+		if hasQualifiedWildcardSelect(sel) {
+			m.setError(SelectQualifiedAsteriskError, sel)
 			return m
 		}
 		m.qs.StrSelectToSQL(sel)
@@ -556,7 +562,7 @@ func (m *Impl) Count() (num int64, err error) {
 }
 
 func (m *Impl) findOne() (result map[string]any, err error) {
-	query, args := m.buildQuery(m.fieldRows)
+	query, args := m.buildQuery(m.qs.GetSelectSQL())
 	query += " LIMIT 1"
 
 	res := deepCopyModelPtrStructure(m.modelPtr)
@@ -565,19 +571,28 @@ func (m *Impl) findOne() (result map[string]any, err error) {
 
 	switch {
 	case err == nil:
-		return modelStruct2Map(res, m.operator.GetDBTag()), nil
+		result = modelStruct2Map(res, m.operator.GetDBTag())
 	case errors.Is(err, ErrNotFound):
 		return map[string]any{}, nil
 	default:
 		return map[string]any{}, err
 	}
+
+	if m.hasCalled(ctlSelect) {
+		result = filterBySelectColumns(result, m.qs.GetSelectSQL())
+	}
+
+	return result, nil
 }
 
 // FindOne retrieves a single record matching the current query set into a map.
 // It returns the data as a map, or an error if the operation fails.
 func (m *Impl) FindOne() (result map[string]any, err error) {
-	if err = m.preCheck("FindOne", ctlSelect, ctlHaving); err != nil {
+	if err = m.preCheck("FindOne", ctlHaving); err != nil {
 		return result, err
+	}
+	if m.hasCalled(ctlSelect) && hasSelectAlias(m.qs.GetSelectSQL()) {
+		return result, fmt.Errorf(SelectAliasNotSupportedError, "FindOne", "FindOneModel")
 	}
 
 	return m.findOne()
@@ -604,11 +619,14 @@ func (m *Impl) FindOneModel(modelPtr any) (err error) {
 // FindAll retrieves all records matching the current query set into a slice of maps.
 // It returns the data as a slice of maps, or an error if the operation fails.
 func (m *Impl) FindAll() (result []map[string]any, err error) {
-	if err = m.preCheck("FindAll", ctlSelect, ctlHaving); err != nil {
+	if err = m.preCheck("FindAll", ctlHaving); err != nil {
 		return result, err
 	}
+	if m.hasCalled(ctlSelect) && hasSelectAlias(m.qs.GetSelectSQL()) {
+		return result, fmt.Errorf(SelectAliasNotSupportedError, "FindAll", "FindAllModel")
+	}
 
-	query, args := m.buildQuery(m.fieldRows)
+	query, args := m.buildQuery(m.qs.GetSelectSQL())
 	query += m.qs.GetLimitSQL()
 
 	res := deepCopyModelPtrStructure(m.modelSlicePtr)
@@ -618,7 +636,16 @@ func (m *Impl) FindAll() (result []map[string]any, err error) {
 	if err != nil {
 		return []map[string]any{}, err
 	}
-	return modelStructSlice2MapSlice(res, m.operator.GetDBTag()), nil
+
+	result = modelStructSlice2MapSlice(res, m.operator.GetDBTag())
+
+	if m.hasCalled(ctlSelect) {
+		for i, row := range result {
+			result[i] = filterBySelectColumns(row, m.qs.GetSelectSQL())
+		}
+	}
+
+	return result, nil
 }
 
 // FindAllModel retrieves all records matching the current query set into a slice of models.
@@ -675,7 +702,7 @@ func (m *Impl) Exist() (exist bool, err error) {
 // List retrieves the total count and all data matching the current query set.
 // It returns the total count, data as a slice of maps, and any error encountered.
 func (m *Impl) List() (total int64, data []map[string]any, err error) {
-	if err = m.preCheck("List", ctlSelect, ctlHaving); err != nil {
+	if err = m.preCheck("List", ctlHaving); err != nil {
 		return 0, data, err
 	}
 
