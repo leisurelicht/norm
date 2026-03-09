@@ -664,13 +664,7 @@ func (m *Impl) FindAllModel(modelSlicePtr any) (err error) {
 	query += m.qs.GetLimitSQL()
 
 	err = m.operator.FindAll(m.ctx(), modelSlicePtr, query, args...)
-
-	switch err {
-	case nil:
-		return nil
-	default:
-		return err
-	}
+	return err
 }
 
 // Delete marks the records as deleted by setting the 'is_deleted' field to true.
