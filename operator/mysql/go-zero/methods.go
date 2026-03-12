@@ -142,7 +142,19 @@ func buildBulkInsertQuery(query string, rows int) (string, error) {
 	}
 
 	lower := strings.ToLower(query)
-	pos := strings.Index(lower, "values")
+
+	// Limit VALUES keyword search to the main INSERT ... VALUES clause.
+	// If the query contains an "ON DUPLICATE KEY" section, ignore everything after it
+	// so we don't accidentally match the MySQL VALUES() function there.
+	searchEnd := strings.Index(lower, " on duplicate key")
+	searchLower := lower
+	if searchEnd > 0 {
+		searchLower = lower[:searchEnd]
+	}
+
+	// Use the last occurrence so identifiers like `values_log` or `default_values`
+	// in table/column names don't confuse us.
+	pos := strings.LastIndex(searchLower, "values")
 	if pos < 0 {
 		return "", fmt.Errorf("invalid insert query, missing VALUES: %q", query)
 	}
@@ -159,7 +171,7 @@ func buildBulkInsertQuery(query string, rows int) (string, error) {
 	suffix := strings.TrimSpace(tail[right+1:])
 
 	valueTemplates := make([]string, rows)
-	for i := range rows {
+	for i := range valueTemplates {
 		valueTemplates[i] = rowTemplate
 	}
 
