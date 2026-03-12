@@ -418,7 +418,7 @@ func (m *Impl) GroupBy(groupBy any) Controller {
 // Having adds a HAVING clause to the query.
 func (m *Impl) Having(having string, args ...any) Controller {
 	m.setCalled(ctlHaving)
-	m.qs.HavingToSQL(having, args)
+	m.qs.HavingToSQL(having, args...)
 	return m
 }
 
