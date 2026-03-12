@@ -94,68 +94,68 @@ func modelStruct2Map(obj any, tag string) map[string]any {
 	data := make(map[string]any, t.NumField())
 
 	for i := 0; i < t.NumField(); i++ {
-		if t.Field(i).Tag.Get(tag) == "" || t.Field(i).Tag.Get(tag) == "-" {
-			// skip empty tag
-			// skip "-" tag
+		tagVal := t.Field(i).Tag.Get(tag)
+		// skip fields without tag or explicitly ignored
+		if tagVal == "" || tagVal == "-" {
 			continue
 		}
 
-		if v.Field(i).Kind() != reflect.Struct {
-			data[t.Field(i).Tag.Get(tag)] = v.Field(i).Interface()
+		field := v.Field(i)
+		value := field.Interface()
+
+		// normalize common sql.Null* types without using reflect.TypeOf on each iteration
+		switch nv := value.(type) {
+		case sql.NullByte:
+			if nv.Valid {
+				value = nv.Byte
+			} else {
+				value = nil
+			}
+		case sql.NullBool:
+			if nv.Valid {
+				value = nv.Bool
+			} else {
+				value = nil
+			}
+		case sql.NullFloat64:
+			if nv.Valid {
+				value = nv.Float64
+			} else {
+				value = nil
+			}
+		case sql.NullInt16:
+			if nv.Valid {
+				value = nv.Int16
+			} else {
+				value = nil
+			}
+		case sql.NullInt32:
+			if nv.Valid {
+				value = nv.Int32
+			} else {
+				value = nil
+			}
+		case sql.NullInt64:
+			if nv.Valid {
+				value = nv.Int64
+			} else {
+				value = nil
+			}
+		case sql.NullString:
+			if nv.Valid {
+				value = nv.String
+			} else {
+				value = nil
+			}
+		case sql.NullTime:
+			if nv.Valid {
+				value = nv.Time
+			} else {
+				value = nil
+			}
 		}
 
-		value := v.Field(i).Interface()
-		switch reflect.TypeOf(value) {
-		case reflect.TypeOf(sql.NullByte{}):
-			if value.(sql.NullByte).Valid {
-				value = value.(sql.NullByte).Byte
-			} else {
-				value = nil
-			}
-		case reflect.TypeOf(sql.NullBool{}):
-			if value.(sql.NullBool).Valid {
-				value = value.(sql.NullBool).Bool
-			} else {
-				value = nil
-			}
-		case reflect.TypeOf(sql.NullFloat64{}):
-			if value.(sql.NullFloat64).Valid {
-				value = value.(sql.NullFloat64).Float64
-			} else {
-				value = nil
-			}
-		case reflect.TypeOf(sql.NullInt16{}):
-			if value.(sql.NullInt16).Valid {
-				value = value.(sql.NullInt16).Int16
-			} else {
-				value = nil
-			}
-		case reflect.TypeOf(sql.NullInt32{}):
-			if value.(sql.NullInt32).Valid {
-				value = value.(sql.NullInt32).Int32
-			} else {
-				value = nil
-			}
-		case reflect.TypeOf(sql.NullInt64{}):
-			if value.(sql.NullInt64).Valid {
-				value = value.(sql.NullInt64).Int64
-			} else {
-				value = nil
-			}
-		case reflect.TypeOf(sql.NullString{}):
-			if value.(sql.NullString).Valid {
-				value = value.(sql.NullString).String
-			} else {
-				value = nil
-			}
-		case reflect.TypeOf(sql.NullTime{}):
-			if value.(sql.NullTime).Valid {
-				value = value.(sql.NullTime).Time
-			} else {
-				value = nil
-			}
-		}
-		data[t.Field(i).Tag.Get(tag)] = value
+		data[tagVal] = value
 	}
 	return data
 }
@@ -216,4 +216,373 @@ func getTableName(m any) string {
 	}
 
 	return shiftName(reflect.TypeOf(m).Name())
+}
+
+func parseSelectColumns(selectSQL string) []string {
+	if selectSQL == "" || selectSQL == Asterisk {
+		return nil
+	}
+	parts := splitSelectClause(selectSQL)
+	cols := make([]string, 0, len(parts))
+	for _, p := range parts {
+		col := strings.TrimSpace(p)
+		if col == "" {
+			continue
+		}
+
+		// Handle aliases like:
+		// `id` AS user_id
+		// `id` user_id
+		lower := strings.ToLower(col)
+		if idx := strings.LastIndex(lower, " as "); idx >= 0 {
+			col = strings.TrimSpace(col[idx+4:])
+		} else {
+			items := strings.Fields(col)
+			if len(items) > 1 {
+				col = items[len(items)-1]
+			}
+		}
+
+		// Handle qualified columns like `table`.`id` or table.id.
+		if idx := strings.LastIndex(col, "."); idx >= 0 {
+			col = strings.TrimSpace(col[idx+1:])
+		}
+
+		col = strings.Trim(col, "`")
+		if col != "" {
+			cols = append(cols, col)
+		}
+	}
+	return cols
+}
+
+// splitSelectClause splits a select list by commas while ignoring commas inside parentheses.
+func splitSelectClause(selectSQL string) []string {
+	parts := make([]string, 0, 4)
+	depth := 0
+	start := 0
+
+	for i, r := range selectSQL {
+		switch r {
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				parts = append(parts, selectSQL[start:i])
+				start = i + 1
+			}
+		}
+	}
+
+	parts = append(parts, selectSQL[start:])
+	return parts
+}
+
+func hasSelectAlias(selectSQL string) bool {
+	if selectSQL == "" || selectSQL == Asterisk {
+		return false
+	}
+
+	for _, part := range splitSelectClause(selectSQL) {
+		col := strings.TrimSpace(part)
+		if col == "" {
+			continue
+		}
+
+		if hasTopLevelAS(col) {
+			return true
+		}
+
+		items := splitTopLevelFields(col)
+		if len(items) < 2 {
+			continue
+		}
+
+		prev := strings.ToLower(items[len(items)-2])
+		if prev == "distinct" || prev == "all" {
+			continue
+		}
+
+		if isLikelyAliasToken(items[len(items)-1]) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func hasQualifiedWildcardSelect(selectSQL string) bool {
+	if selectSQL == "" || selectSQL == Asterisk {
+		return false
+	}
+
+	for _, part := range splitSelectClause(selectSQL) {
+		col := strings.TrimSpace(part)
+		if col == "" {
+			continue
+		}
+		fields := splitTopLevelFields(col)
+		if len(fields) == 0 {
+			continue
+		}
+		if isQualifiedWildcardToken(fields[0]) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isQualifiedWildcardToken(token string) bool {
+	token = strings.TrimSpace(token)
+	token = strings.ReplaceAll(token, " ", "")
+	if token == "" || token == Asterisk {
+		return false
+	}
+	if !strings.HasSuffix(token, ".*") {
+		return false
+	}
+
+	prefix := token[:len(token)-2]
+	if prefix == "" {
+		return false
+	}
+
+	segments := strings.Split(prefix, ".")
+	for _, seg := range segments {
+		if seg == "" {
+			return false
+		}
+		if strings.HasPrefix(seg, "`") && strings.HasSuffix(seg, "`") && len(seg) >= 2 {
+			inner := seg[1 : len(seg)-1]
+			if inner == "" {
+				return false
+			}
+			continue
+		}
+		if !isSimpleIdentifier(seg) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func hasTopLevelAS(s string) bool {
+	depth := 0
+	inSingle := false
+	inDouble := false
+	inBacktick := false
+	token := strings.Builder{}
+
+	flushToken := func() bool {
+		if token.Len() == 0 {
+			return false
+		}
+		word := strings.ToLower(token.String())
+		token.Reset()
+		return word == "as"
+	}
+
+	for _, r := range s {
+		switch {
+		case inBacktick:
+			if r == '`' {
+				inBacktick = false
+			}
+			continue
+		case inSingle:
+			if r == '\'' {
+				inSingle = false
+			}
+			continue
+		case inDouble:
+			if r == '"' {
+				inDouble = false
+			}
+			continue
+		}
+
+		switch r {
+		case '`':
+			inBacktick = true
+			if depth == 0 && flushToken() {
+				return true
+			}
+		case '\'':
+			inSingle = true
+			if depth == 0 && flushToken() {
+				return true
+			}
+		case '"':
+			inDouble = true
+			if depth == 0 && flushToken() {
+				return true
+			}
+		case '(':
+			if depth == 0 && flushToken() {
+				return true
+			}
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+			if depth == 0 && flushToken() {
+				return true
+			}
+		default:
+			if depth > 0 {
+				continue
+			}
+			if isWordChar(r) {
+				token.WriteRune(r)
+			} else if flushToken() {
+				return true
+			}
+		}
+	}
+
+	return flushToken()
+}
+
+func splitTopLevelFields(s string) []string {
+	depth := 0
+	inSingle := false
+	inDouble := false
+	inBacktick := false
+	fields := make([]string, 0, 2)
+	start := -1
+
+	flush := func(end int) {
+		if start < 0 {
+			return
+		}
+		fields = append(fields, s[start:end])
+		start = -1
+	}
+
+	for i, r := range s {
+		switch {
+		case inBacktick:
+			if r == '`' {
+				inBacktick = false
+			}
+			continue
+		case inSingle:
+			if r == '\'' {
+				inSingle = false
+			}
+			continue
+		case inDouble:
+			if r == '"' {
+				inDouble = false
+			}
+			continue
+		}
+
+		switch r {
+		case '`':
+			inBacktick = true
+			if start < 0 {
+				start = i
+			}
+		case '\'':
+			inSingle = true
+			if start < 0 {
+				start = i
+			}
+		case '"':
+			inDouble = true
+			if start < 0 {
+				start = i
+			}
+		case '(':
+			depth++
+			if start < 0 {
+				start = i
+			}
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+			if start < 0 {
+				start = i
+			}
+		default:
+			if depth == 0 && isSpace(r) {
+				flush(i)
+				continue
+			}
+			if start < 0 {
+				start = i
+			}
+		}
+	}
+
+	flush(len(s))
+	return fields
+}
+
+func isLikelyAliasToken(token string) bool {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return false
+	}
+
+	if strings.HasPrefix(token, "`") && strings.HasSuffix(token, "`") && len(token) >= 2 {
+		return true
+	}
+
+	return isSimpleIdentifier(token)
+}
+
+func isWordChar(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_'
+}
+
+func isSpace(r rune) bool {
+	return r == ' ' || r == '\t' || r == '\n' || r == '\r'
+}
+
+func isSimpleIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, r := range s {
+		if i == 0 {
+			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_') {
+				return false
+			}
+			continue
+		}
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
+			return false
+		}
+	}
+	return true
+}
+
+func filterBySelectColumns(result map[string]any, selectSQL string) map[string]any {
+	fields := parseSelectColumns(selectSQL)
+	if len(fields) == 0 {
+		return result
+	}
+
+	allowed := make(map[string]struct{}, len(fields))
+	for _, f := range fields {
+		allowed[f] = struct{}{}
+	}
+
+	filtered := make(map[string]any, len(allowed))
+	for k, v := range result {
+		if _, ok := allowed[k]; ok {
+			filtered[k] = v
+		}
+	}
+	return filtered
 }

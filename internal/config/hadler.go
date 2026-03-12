@@ -20,17 +20,19 @@ var (
 	c          config
 )
 
-func Get() config {
+func ensureInit() {
 	initConfig.Do(func() {
-		c = config{
-			Level: Info,
-		}
+		c = config{Level: Info}
 	})
+}
 
+func Get() config {
+	ensureInit()
 	return c
 }
 
 func SetLevel(level Level) {
+	ensureInit()
 	c.Level = level
 }
 

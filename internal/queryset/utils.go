@@ -68,6 +68,7 @@ func genStrListValueLikeSQL(p *QuerySetImpl, filterConditions map[string]*cond, 
 			return
 		}
 
+		// notFlag^1 toggles between 0(AND) and 1(OR): NOT uses OR, non-NOT uses AND
 		filterConditions[fieldName].SQL += fmt.Sprintf(" "+conjunctions[notFlag^1]+" "+op, fieldName, not[notFlag])
 		filterConditions[fieldName].Args = append(filterConditions[fieldName].Args, fmt.Sprintf(valueFormat, valueOf.Index(i).Interface()))
 	}
@@ -85,15 +86,15 @@ func joinSQL(filterSql *string, filterArgs *[]any, index int, condition *cond) {
 	*filterArgs = append(*filterArgs, condition.Args...)
 }
 
-// 用反引号包裹字段
+// wrapWithBackticks wraps field name with backticks
 func wrapWithBackticks(str string) string {
 	if str == "" {
 		return str
 	}
-	// 如果已经被包裹，不做修改
+	// If already wrapped, don't modify (optimized check)
 	if len(str) > 1 && str[0] == '`' && str[len(str)-1] == '`' {
 		return str
 	}
-	// 包裹字段
+	// Wrap field with backticks
 	return "`" + str + "`"
 }

@@ -38,6 +38,9 @@ func Test_isStrList(t *testing.T) {
 		{"test8", args{[3]any{1, 2, 3}}, false},
 		{"test9", args{[3]any{1.0, 2.0, 3.0}}, false},
 		{"test10", args{[3]any{true, false, true}}, false},
+		{"test_empty_array_string", args{[0]string{}}, false},
+		{"test_nil_string_slice", args{[]string(nil)}, false},
+		{"test_default_branch_non_collection", args{123}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -790,23 +793,37 @@ func Test_joinSQL(t *testing.T) {
 	}
 }
 
+// shared test/benchmark cases for wrapWithBackticks
+var wrapWithBackticksCases = []struct {
+	name  string
+	input string
+	want  string
+}{
+	{"empty_string", "", ""},
+	{"simple", "id", "`id`"},
+	{"unwrapped_string", "test", "`test`"},
+	{"already_wrapped_string", "`test`", "`test`"},
+	{"long", "this_is_a_very_long_field_name_with_multiple_parts_and_segments",
+		"`this_is_a_very_long_field_name_with_multiple_parts_and_segments`"},
+}
+
 func Test_wrapWithBackticks(t *testing.T) {
-	type args struct {
-		str string
-	}
-	tests := []struct {
-		name string
-		args args
-		want string
-	}{
-		{"empty_string", args{""}, ""},
-		{"unwrapped_string", args{"test"}, "`test`"},
-		{"already_wrapped_string", args{"`test`"}, "`test`"},
-	}
-	for _, tt := range tests {
+	for _, tt := range wrapWithBackticksCases {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := wrapWithBackticks(tt.args.str); got != tt.want {
+			if got := wrapWithBackticks(tt.input); got != tt.want {
 				t.Errorf("wrapWithBackticks() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// BenchmarkWrapWithBackticks measures the cost of wrapping field names with backticks
+// under the same set of cases used in unit tests.
+func BenchmarkWrapWithBackticks(b *testing.B) {
+	for _, tc := range wrapWithBackticksCases {
+		b.Run(tc.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				_ = wrapWithBackticks(tc.input)
 			}
 		})
 	}

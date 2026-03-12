@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leisurelicht/norm/internal/operator"
+	ch_go "github.com/leisurelicht/norm/operator/clickhouse/clickhouse-go"
 	go_zero "github.com/leisurelicht/norm/operator/mysql/go-zero"
 )
 
@@ -25,12 +27,12 @@ func TestFilter(t *testing.T) {
 		want want
 	}{
 		{"empty", args{isFilter, []any{}}, want{"", []any{}}},
-		{"default_cond", args{isFilter, []any{Cond{}}}, want{"", []any{}}},
-		{"default_cond", args{isFilter, []any{AND{}}}, want{"", []any{}}},
-		{"default_cond", args{isFilter, []any{OR{}}}, want{"", []any{}}},
-		{"default_cond", args{isFilter, []any{Cond{}, AND{}}}, want{"", []any{}}},
-		{"default_cond", args{isFilter, []any{Cond{}, OR{}}}, want{"", []any{}}},
-		{"default_cond", args{isFilter, []any{Cond{}, AND{}, OR{}}}, want{"", []any{}}},
+		{"empty_cond", args{isFilter, []any{Cond{}}}, want{"", []any{}}},
+		{"empty_and", args{isFilter, []any{AND{}}}, want{"", []any{}}},
+		{"empty_or", args{isFilter, []any{OR{}}}, want{"", []any{}}},
+		{"empty_cond_and", args{isFilter, []any{Cond{}, AND{}}}, want{"", []any{}}},
+		{"empty_cond_or", args{isFilter, []any{Cond{}, OR{}}}, want{"", []any{}}},
+		{"empty_cond_and_or", args{isFilter, []any{Cond{}, AND{}, OR{}}}, want{"", []any{}}},
 
 		{"default_cond", args{isFilter, []any{Cond{"test": 1}}}, want{" WHERE (`test` = ?)", []any{1}}},
 		{"default_list_cond", args{isFilter, []any{Cond{"test": []any{1, 2}}}}, want{" WHERE (`test` = ? AND `test` = ?)", []any{1, 2}}},
@@ -88,7 +90,7 @@ func TestFilter(t *testing.T) {
 		{"not_not_istartswith_cond", args{isExclude, []any{Cond{"test__not_istartswith": "tE"}}}, want{" WHERE NOT (`test` NOT LIKE ?)", []any{"tE%"}}},
 		{"not_endswith_cond", args{isExclude, []any{Cond{"test__endswith": "st"}}}, want{" WHERE NOT (`test` LIKE BINARY ?)", []any{"%st"}}},
 		{"not_not_endswith_cond", args{isExclude, []any{Cond{"test__not_endswith": "st"}}}, want{" WHERE NOT (`test` NOT LIKE BINARY ?)", []any{"%st"}}},
-		{"not_not_iendswith_cond", args{isExclude, []any{Cond{"test__iendswith": "sT"}}}, want{" WHERE NOT (`test` LIKE ?)", []any{"%sT"}}},
+		{"not_iendswith_cond", args{isExclude, []any{Cond{"test__iendswith": "sT"}}}, want{" WHERE NOT (`test` LIKE ?)", []any{"%sT"}}},
 		{"not_not_iendswith_cond", args{isExclude, []any{Cond{"test__not_iendswith": "sT"}}}, want{" WHERE NOT (`test` NOT LIKE ?)", []any{"%sT"}}},
 
 		{"two_default_column", args{isFilter, []any{Cond{SortKey: []string{"test1", "test2"}, "test1": 1, "test2": 2}}}, want{" WHERE (`test1` = ? AND `test2` = ?)", []any{1, 2}}},
@@ -123,8 +125,8 @@ func TestFilter(t *testing.T) {
 		{"exact_one_and_list_and_cond", args{isFilter, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, "test2": []any{3, 4}}}}, want{" WHERE (`test` = ? AND (`test2` = ? AND `test2` = ?))", []any{1, 3, 4}}},
 		{"exact_list_and_list_cond", args{isFilter, []any{Cond{SortKey: []string{"test", "test2"}, "test": []any{1, 2}, "test2": []any{3, 4}}}}, want{" WHERE ((`test` = ? AND `test` = ?) AND (`test2` = ? AND `test2` = ?))", []any{1, 2, 3, 4}}},
 
-		{"test_value_is_null", args{isFilter, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, "test2": nil}}}, want{" WHERE (`test` = ? AND `test2` IS NULL)", []any{1}}},
-		{"test_value_is_null", args{isFilter, []any{Cond{SortKey: []string{"test", "test2"}, "test": nil, "test2": nil}}}, want{" WHERE (`test` IS NULL AND `test2` IS NULL)", []any{}}},
+		{"test_single_value_is_null", args{isFilter, []any{Cond{SortKey: []string{"test", "test2"}, "test": 1, "test2": nil}}}, want{" WHERE (`test` = ? AND `test2` IS NULL)", []any{1}}},
+		{"test_multiple_value_is_null", args{isFilter, []any{Cond{SortKey: []string{"test", "test2"}, "test": nil, "test2": nil}}}, want{" WHERE (`test` IS NULL AND `test2` IS NULL)", []any{}}},
 
 		{"test_empty_in_midst", args{isFilter, []any{Cond{"test1": 1}, Cond{}, Cond{"test3": 3}}}, want{" WHERE ((`test1` = ?) AND (`test3` = ?))", []any{1, 3}}},
 
@@ -164,10 +166,21 @@ func TestFilter(t *testing.T) {
 				[]any{10, "%search%", 20, 30},
 			},
 		},
+		{
+			"method_lookup_toDate",
+			args{isFilter, []any{Cond{"created_at__exact##toDate": "2024-01-01"}}},
+			want{" WHERE (`created_at` = toDate(?))", []any{"2024-01-01"}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			operator := go_zero.NewOperator(nil)
+			// use ClickHouse operator for method substitution when needed
+			var operator operator.Operator
+			if strings.Contains(tt.name, "method_lookup") {
+				operator = ch_go.NewOperator(nil)
+			} else {
+				operator = go_zero.NewOperator(nil)
+			}
 			p := NewQuerySet(operator)
 			p = p.FilterToSQL(tt.args.state, tt.args.filter...)
 			sql, sqlArgs := p.GetQuerySet()
@@ -216,6 +229,7 @@ func TestMultipleCallFilter(t *testing.T) {
 	}{
 		// multiple call
 		{"double_call", []args{{isFilter, []any{Cond{"test1": 1}}}, {0, []any{Cond{"test2": 1}}}}, want{" WHERE (`test1` = ?) AND (`test2` = ?)", []any{1, 1}}},
+		{"double_call_or", []args{{isFilter, []any{Cond{"test1": 1}}}, {isFilter, []any{OR{"test2": 2}}}}, want{" WHERE (`test1` = ?) OR (`test2` = ?)", []any{1, 2}}},
 
 		// meet by accident
 		{"meet1", []args{{isFilter, []any{Cond{SortKey: []string{"delete_flag", "devise_sn"}, "delete_flag": 0, "devise_sn__len": 22}}}, {0, []any{Cond{SortKey: []string{"device_name", "devise_sn", "belong_to_company"}, "device_name__icontains": "test", "devise_sn__icontains": "test", "belong_to_company__icontains": "test"}}}}, want{" WHERE (`delete_flag` = ? AND LENGTH(`devise_sn`) = ?) AND (`device_name` LIKE ? AND `devise_sn` LIKE ? AND `belong_to_company` LIKE ?)", []any{0, 22, "%test%", "%test%", "%test%"}}},
@@ -272,6 +286,7 @@ func TestFilterError(t *testing.T) {
 		want want
 	}{
 		{"empty", args{isFilter, []any{}}, want{nil}},
+		{"nil_first", args{isFilter, []any{nil}}, want{fmt.Errorf(UnsupportedFilterTypeError, "nil")}},
 		{"InvalidStat", args{2, []any{Cond{"test": 1}}}, want{errors.New(isNotValueError)}},
 		{"order key type", args{isFilter, []any{Cond{SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyTypeError)}},
 		{"order key len", args{isFilter, []any{Cond{SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyLenError)}},
@@ -284,6 +299,7 @@ func TestFilterError(t *testing.T) {
 		{"operator value len less3", args{isFilter, []any{Cond{"test__in": []int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "in", 0)}},
 		{"operator value len less4", args{isFilter, []any{Cond{"test__contains": []int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "contains", 0)}},
 		{"operator value len less5", args{isFilter, []any{Cond{"test__contains": [0]int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "contains", 0)}},
+		{"operator value empty list contains", args{isFilter, []any{Cond{"test__contains": []string{"x", ""}}}}, want{fmt.Errorf(operatorValueEmptyError, "contains")}},
 		{"operator value type", args{isFilter, []any{Cond{"test__contains": []int{1, 2}}}}, want{fmt.Errorf(operatorValueTypeError, "contains")}},
 		{"operator value type1", args{isFilter, []any{Cond{"test__contains": [2]int{1, 2}}}}, want{fmt.Errorf(operatorValueTypeError, "contains")}},
 		{"not implementd operator", args{isFilter, []any{Cond{"test__unimplemented": 1}}}, want{fmt.Errorf(notImplementedOperatorError, "UNIMPLEMENTED")}},
@@ -317,50 +333,6 @@ func TestFilterError(t *testing.T) {
 		{"unsupported value28", args{isFilter, []any{Cond{"test__contains": 0}}}, want{err: fmt.Errorf(unsupportedValueError, "contains", "int")}},
 		{"unsupported value29", args{isFilter, []any{Cond{"test__contains": 1}}}, want{err: fmt.Errorf(unsupportedValueError, "contains", "int")}},
 		{"unsupported value30", args{isFilter, []any{Cond{"test__contains": 1.0}}}, want{err: fmt.Errorf(unsupportedValueError, "contains", "float64")}},
-		{"order key type", args{isFilter, []any{Cond{SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{err: errors.New(orderKeyTypeError)}},
-		{"order key len", args{isFilter, []any{Cond{SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{err: errors.New(orderKeyLenError)}},
-		{"field lookup", args{isFilter, []any{Cond{"1__not__contains": "b"}}}, want{err: fmt.Errorf(fieldLookupError, "1__not__contains")}},
-		{"unknown operator", args{isFilter, []any{Cond{"1__contain": "b"}}}, want{fmt.Errorf(unknownOperatorError, "contain")}},
-		{"operator value len", args{isFilter, []any{Cond{"test__between": []int{}}}}, want{fmt.Errorf(operatorValueLenError, "between", 2)}},
-		{"operator value len less", args{isFilter, []any{Cond{"test": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "exact", 0)}},
-		{"operator value len less1", args{isFilter, []any{Cond{"test__exclude": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "exclude", 0)}},
-		{"operator value len less2", args{isFilter, []any{Cond{"test__iexact": []string{}}}}, want{fmt.Errorf(operatorValueLenLessError, "iexact", 0)}},
-		{"operator value len less3", args{isFilter, []any{Cond{"test__in": []int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "in", 0)}},
-		{"operator value len less4", args{isFilter, []any{Cond{"test__contains": []int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "contains", 0)}},
-		{"operator value len less5", args{isFilter, []any{Cond{"test__contains": [0]int{}}}}, want{fmt.Errorf(operatorValueLenLessError, "contains", 0)}},
-		{"operator value type", args{isFilter, []any{Cond{"test__contains": []int{1, 2}}}}, want{fmt.Errorf(operatorValueTypeError, "contains")}},
-		{"operator value type1", args{isFilter, []any{Cond{"test__contains": [2]int{1, 2}}}}, want{fmt.Errorf(operatorValueTypeError, "contains")}},
-		{"not implementd operator", args{isFilter, []any{Cond{"test__unimplemented": 1}}}, want{fmt.Errorf(notImplementedOperatorError, "UNIMPLEMENTED")}},
-		{"unsupported value", args{isFilter, []any{Cond{"test__exclude": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "exclude", "map")}},
-		{"unsupported value1", args{isFilter, []any{Cond{"test": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "exact", "map")}},
-		{"unsupported value2", args{isFilter, []any{Cond{"test__iexact": map[string]int{"1": 1}}}}, want{fmt.Errorf(unsupportedValueError, "iexact", "map")}},
-		{"unsupported value3", args{isFilter, []any{Cond{"test__gt": "10"}}}, want{fmt.Errorf(unsupportedValueError, "gt", "string")}},
-		{"unsupported value4", args{isFilter, []any{Cond{"test__gte": "10"}}}, want{fmt.Errorf(unsupportedValueError, "gte", "string")}},
-		{"unsupported value5", args{isFilter, []any{Cond{"test__lt": "10"}}}, want{fmt.Errorf(unsupportedValueError, "lt", "string")}},
-		{"unsupported value6", args{isFilter, []any{Cond{"test__lte": "10"}}}, want{fmt.Errorf(unsupportedValueError, "lte", "string")}},
-		{"unsupported value7", args{isFilter, []any{Cond{"test__len": "10"}}}, want{fmt.Errorf(unsupportedValueError, "len", "string")}},
-		{"unsupported value8", args{isFilter, []any{Cond{"test__gt": true}}}, want{fmt.Errorf(unsupportedValueError, "gt", "bool")}},
-		{"unsupported value9", args{isFilter, []any{Cond{"test__gte": true}}}, want{fmt.Errorf(unsupportedValueError, "gte", "bool")}},
-		{"unsupported value10", args{isFilter, []any{Cond{"test__lt": true}}}, want{fmt.Errorf(unsupportedValueError, "lt", "bool")}},
-		{"unsupported value11", args{isFilter, []any{Cond{"test__lte": true}}}, want{fmt.Errorf(unsupportedValueError, "lte", "bool")}},
-		{"unsupported value12", args{isFilter, []any{Cond{"test__len": true}}}, want{fmt.Errorf(unsupportedValueError, "len", "bool")}},
-		{"unsupported value13", args{isFilter, []any{Cond{"test__gt": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gt", "slice")}},
-		{"unsupported value14", args{isFilter, []any{Cond{"test__gte": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gte", "slice")}},
-		{"unsupported value15", args{isFilter, []any{Cond{"test__lt": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lt", "slice")}},
-		{"unsupported value16", args{isFilter, []any{Cond{"test__lte": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lte", "slice")}},
-		{"unsupported value17", args{isFilter, []any{Cond{"test__len": []int{1}}}}, want{fmt.Errorf(unsupportedValueError, "len", "slice")}},
-		{"unsupported value18", args{isFilter, []any{Cond{"test__gt": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gt", "array")}},
-		{"unsupported value19", args{isFilter, []any{Cond{"test__gte": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "gte", "array")}},
-		{"unsupported value20", args{isFilter, []any{Cond{"test__lt": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lt", "array")}},
-		{"unsupported value21", args{isFilter, []any{Cond{"test__lte": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "lte", "array")}},
-		{"unsupported value22", args{isFilter, []any{Cond{"test__len": [1]int{1}}}}, want{fmt.Errorf(unsupportedValueError, "len", "array")}},
-		{"unsupported value23", args{isFilter, []any{Cond{"test__in": 1}}}, want{fmt.Errorf(unsupportedValueError, "in", "int")}},
-		{"unsupported value25", args{isFilter, []any{Cond{"test__between": "test"}}}, want{fmt.Errorf(unsupportedValueError, "between", "string")}},
-		{"unsupported value26", args{isFilter, []any{Cond{"test__contains": ""}}}, want{fmt.Errorf(unsupportedValueError, "contains", "blank string")}},
-		{"unsupported value27", args{isFilter, []any{Cond{"test__contains": true}}}, want{fmt.Errorf(unsupportedValueError, "contains", "bool")}},
-		{"unsupported value28", args{isFilter, []any{Cond{"test__contains": 0}}}, want{fmt.Errorf(unsupportedValueError, "contains", "int")}},
-		{"unsupported value29", args{isFilter, []any{Cond{"test__contains": 1}}}, want{fmt.Errorf(unsupportedValueError, "contains", "int")}},
-		{"unsupported value30", args{isFilter, []any{Cond{"test__contains": 1.0}}}, want{fmt.Errorf(unsupportedValueError, "contains", "float64")}},
 		{"order key type", args{isFilter, []any{AND{SortKey: []int{1, 2}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyTypeError)}},
 		{"order key len", args{isFilter, []any{AND{SortKey: []string{"1"}, "1": "b", "2": "b"}}}, want{errors.New(orderKeyLenError)}},
 		{"field lookup", args{isFilter, []any{AND{"1__not__contains": "b"}}}, want{fmt.Errorf(fieldLookupError, "1__not__contains")}},
@@ -542,12 +514,11 @@ func TestFilterError(t *testing.T) {
 			p = p.FilterToSQL(tt.args.isNot, tt.args.filter...)
 			p.GetQuerySet()
 
-			if p.Error() == nil && !errors.Is(p.Error(), tt.want.err) {
-				t.Errorf("TestFilterError SQL Occur Error -> error: %s", p.Error())
-				t.Errorf("TestFilterError SQL Occur Error -> want: %s", tt.want.err)
+			if p.Error() == nil && tt.want.err != nil {
+				t.Errorf("TestFilterError SQL Occur Error is nil -> but expect error: %s", tt.want.err)
 			}
 
-			if p.Error() != nil && p.Error().Error() != tt.want.err.Error() {
+			if p.Error() != nil && tt.want.err != nil && p.Error().Error() != tt.want.err.Error() {
 				t.Errorf("TestFilterError SQL Occur Error -> error: %s", p.Error())
 				t.Errorf("TestFilterError SQL Occur Error -> want: %s", tt.want.err)
 			}
@@ -573,6 +544,7 @@ func TestWhere(t *testing.T) {
 		{"one", args{"`test` = ?", []any{1}}, want{" WHERE `test` = ?", []any{1}}},
 		{"two", args{"`test` = ? AND test2 = ?", []any{1, 2}}, want{" WHERE `test` = ? AND test2 = ?", []any{1, 2}}},
 		{"three", args{"test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}}, want{" WHERE test = ? AND `test2` = ? AND test3 = ?", []any{1, 2, 3}}},
+		{"no_placeholder_no_args", args{"`const` = 1", []any{}}, want{" WHERE `const` = 1", []any{}}},
 	}
 
 	for _, tt := range tests {
@@ -624,6 +596,7 @@ func TestWhereError(t *testing.T) {
 	}{
 		{"args_num_mismatch", args{"test = ? AND test2 = ? AND test3 = ?", []any{1, 2}}, want{"", []any{}, errors.New(argsLenError)}},
 		{"args_num_mismatch1", args{"test = ? AND test2 = ? AND test3 = ?", []any{1, 2, 3, 4}}, want{"", []any{}, errors.New(argsLenError)}},
+		{"no_placeholder_with_args", args{"test = 1", []any{1}}, want{"", []any{}, errors.New(argsLenError)}},
 	}
 
 	for _, tt := range tests {
@@ -634,7 +607,7 @@ func TestWhereError(t *testing.T) {
 
 			sql, sqlArgs := p.GetQuerySet()
 
-			if !errors.Is(p.Error(), tt.want.err) && p.Error().Error() != tt.want.err.Error() {
+			if p.Error() == nil || p.Error().Error() != tt.want.err.Error() {
 				t.Errorf("TestWhereError SQL Occur Error -> error:%+v", p.Error())
 				t.Errorf("TestWhereError SQL Occur Error -> want:%+v", tt.want.err)
 			}
@@ -692,6 +665,16 @@ func TestFilterAndWhereConflict(t *testing.T) {
 	} else if p.Error().Error() != fmt.Errorf(FilterOrWhereError, "Filter").Error() {
 		t.Errorf("TestFilterAndWhereConflict SQL Occur Error -> error:%+v", p.Error().Error())
 		t.Errorf("TestFilterAndWhereConflict SQL Occur Error -> want:%+v", fmt.Errorf(FilterOrWhereError, "Filter").Error())
+	}
+
+	p = NewQuerySet(operator)
+	p.FilterToSQL(IsNot, Cond{"test": 1})
+	p.WhereToSQL("test = ?", 1)
+	if p.Error() == nil {
+		t.Error("Test Exclude Where Conflict Not Occur Error")
+	} else if p.Error().Error() != fmt.Errorf(FilterOrWhereError, "Exclude").Error() {
+		t.Errorf("TestExcludeAndWhereConflict SQL Occur Error -> error:%+v", p.Error().Error())
+		t.Errorf("TestExcludeAndWhereConflict SQL Occur Error -> want:%+v", fmt.Errorf(FilterOrWhereError, "Exclude").Error())
 	}
 }
 
@@ -803,88 +786,75 @@ func TestLimit(t *testing.T) {
 		PageNum  int64
 	}
 	type want struct {
-		sql string
-		err error
+		sql    string
+		errMsg string
 	}
 	tests := []struct {
 		name string
 		args args
 		want want
 	}{
-		{"zero1", args{0, 0}, want{"", nil}},
-		{"zero2", args{10, 0}, want{"", nil}},
-		{"zero3", args{0, 10}, want{"", nil}},
-		{"negative1", args{-1, -1}, want{"", errors.New(pageSizeORNumberError)}},
-		{"negative2", args{10, -1}, want{"", errors.New(pageSizeORNumberError)}},
-		{"negative3", args{-1, 0}, want{"", nil}},
+		{"zero1", args{0, 0}, want{"", ""}},
+		{"zero2", args{10, 0}, want{"", ""}},
+		{"zero3", args{0, 10}, want{"", ""}},
+		{"negative1", args{-1, -1}, want{"", pageSizeORNumberError}},
+		{"negative2", args{10, -1}, want{"", pageSizeORNumberError}},
+		{"negative3", args{-1, 0}, want{"", pageSizeORNumberError}},
 
-		{"page_one_size_ten", args{10, 1}, want{" LIMIT 10 OFFSET 0", nil}},
-		{"page_two_size_ten", args{10, 2}, want{" LIMIT 10 OFFSET 10", nil}},
-		{"page_three_size_ten", args{10, 3}, want{" LIMIT 10 OFFSET 20", nil}},
-		{"page_four_size_ten", args{10, 4}, want{" LIMIT 10 OFFSET 30", nil}},
-		{"page_five_size_ten", args{10, 5}, want{" LIMIT 10 OFFSET 40", nil}},
-		{"page_six_size_ten", args{10, 6}, want{" LIMIT 10 OFFSET 50", nil}},
-		{"page_seven_size_ten", args{10, 7}, want{" LIMIT 10 OFFSET 60", nil}},
-		{"page_eight_size_ten", args{10, 8}, want{" LIMIT 10 OFFSET 70", nil}},
-		{"page_nine_size_ten", args{10, 9}, want{" LIMIT 10 OFFSET 80", nil}},
-		{"page_ten_size_ten", args{10, 10}, want{" LIMIT 10 OFFSET 90", nil}},
-		{"page_eleven_size_ten", args{10, 11}, want{" LIMIT 10 OFFSET 100", nil}},
-		{"page_twelve_size_ten", args{10, 12}, want{" LIMIT 10 OFFSET 110", nil}},
-		{"page_thirteen_size_ten", args{10, 13}, want{" LIMIT 10 OFFSET 120", nil}},
-		{"page_fourteen_size_eleven", args{11, 14}, want{" LIMIT 11 OFFSET 143", nil}},
-		{"page_fifteen_size_twelve", args{12, 15}, want{" LIMIT 12 OFFSET 168", nil}},
-		{"page_sixteen_size_thirteen", args{13, 16}, want{" LIMIT 13 OFFSET 195", nil}},
-		{"page_seventeen_size_fourteen", args{14, 17}, want{" LIMIT 14 OFFSET 224", nil}},
-		{"page_eighteen_size_fifteen", args{15, 18}, want{" LIMIT 15 OFFSET 255", nil}},
-		{"page_nineteen_size_sixteen", args{16, 19}, want{" LIMIT 16 OFFSET 288", nil}},
-		{"page_twenty_size_seventeen", args{17, 20}, want{" LIMIT 17 OFFSET 323", nil}},
-		{"page_twenty_one_size_ten", args{10, 21}, want{" LIMIT 10 OFFSET 200", nil}},
-		{"page_thirty_size_ten", args{10, 30}, want{" LIMIT 10 OFFSET 290", nil}},
-		{"page_forty_size_ten", args{10, 40}, want{" LIMIT 10 OFFSET 390", nil}},
-		{"page_fifty_size_ten", args{10, 50}, want{" LIMIT 10 OFFSET 490", nil}},
-		{"page_sixty_size_ten", args{10, 60}, want{" LIMIT 10 OFFSET 590", nil}},
-		{"page_seventy_size_ten", args{10, 70}, want{" LIMIT 10 OFFSET 690", nil}},
-		{"page_eighty_size_ten", args{10, 80}, want{" LIMIT 10 OFFSET 790", nil}},
-		{"page_ninety_size_ten", args{10, 90}, want{" LIMIT 10 OFFSET 890", nil}},
-		{"page_one_hundred_size_ten", args{10, 100}, want{" LIMIT 10 OFFSET 990", nil}},
-		{"page_one_hundred_one_size_ten", args{10, 101}, want{" LIMIT 10 OFFSET 1000", nil}},
+		{"page_one_size_ten", args{10, 1}, want{" LIMIT 10 OFFSET 0", ""}},
+		{"page_two_size_ten", args{10, 2}, want{" LIMIT 10 OFFSET 10", ""}},
+		{"page_three_size_ten", args{10, 3}, want{" LIMIT 10 OFFSET 20", ""}},
+		{"page_four_size_ten", args{10, 4}, want{" LIMIT 10 OFFSET 30", ""}},
+		{"page_five_size_ten", args{10, 5}, want{" LIMIT 10 OFFSET 40", ""}},
+		{"page_six_size_ten", args{10, 6}, want{" LIMIT 10 OFFSET 50", ""}},
+		{"page_seven_size_ten", args{10, 7}, want{" LIMIT 10 OFFSET 60", ""}},
+		{"page_eight_size_ten", args{10, 8}, want{" LIMIT 10 OFFSET 70", ""}},
+		{"page_nine_size_ten", args{10, 9}, want{" LIMIT 10 OFFSET 80", ""}},
+		{"page_ten_size_ten", args{10, 10}, want{" LIMIT 10 OFFSET 90", ""}},
+		{"page_eleven_size_ten", args{10, 11}, want{" LIMIT 10 OFFSET 100", ""}},
+		{"page_twelve_size_ten", args{10, 12}, want{" LIMIT 10 OFFSET 110", ""}},
+		{"page_thirteen_size_ten", args{10, 13}, want{" LIMIT 10 OFFSET 120", ""}},
+		{"page_fourteen_size_eleven", args{11, 14}, want{" LIMIT 11 OFFSET 143", ""}},
+		{"page_fifteen_size_twelve", args{12, 15}, want{" LIMIT 12 OFFSET 168", ""}},
+		{"page_sixteen_size_thirteen", args{13, 16}, want{" LIMIT 13 OFFSET 195", ""}},
+		{"page_seventeen_size_fourteen", args{14, 17}, want{" LIMIT 14 OFFSET 224", ""}},
+		{"page_eighteen_size_fifteen", args{15, 18}, want{" LIMIT 15 OFFSET 255", ""}},
+		{"page_nineteen_size_sixteen", args{16, 19}, want{" LIMIT 16 OFFSET 288", ""}},
+		{"page_twenty_size_seventeen", args{17, 20}, want{" LIMIT 17 OFFSET 323", ""}},
+		{"page_twenty_one_size_ten", args{10, 21}, want{" LIMIT 10 OFFSET 200", ""}},
+		{"page_thirty_size_ten", args{10, 30}, want{" LIMIT 10 OFFSET 290", ""}},
+		{"page_forty_size_ten", args{10, 40}, want{" LIMIT 10 OFFSET 390", ""}},
+		{"page_fifty_size_ten", args{10, 50}, want{" LIMIT 10 OFFSET 490", ""}},
+		{"page_sixty_size_ten", args{10, 60}, want{" LIMIT 10 OFFSET 590", ""}},
+		{"page_seventy_size_ten", args{10, 70}, want{" LIMIT 10 OFFSET 690", ""}},
+		{"page_eighty_size_ten", args{10, 80}, want{" LIMIT 10 OFFSET 790", ""}},
+		{"page_ninety_size_ten", args{10, 90}, want{" LIMIT 10 OFFSET 890", ""}},
+		{"page_one_hundred_size_ten", args{10, 100}, want{" LIMIT 10 OFFSET 990", ""}},
+		{"page_one_hundred_one_size_ten", args{10, 101}, want{" LIMIT 10 OFFSET 1000", ""}},
 
-		{"page_one_size_thirty", args{30, 1}, want{" LIMIT 30 OFFSET 0", nil}},
-		{"page_two_size_thirty", args{30, 2}, want{" LIMIT 30 OFFSET 30", nil}},
-		{"page_three_size_thirty", args{30, 3}, want{" LIMIT 30 OFFSET 60", nil}},
-		{"page_four_size_thirty", args{30, 4}, want{" LIMIT 30 OFFSET 90", nil}},
-		{"page_five_size_thirty", args{30, 5}, want{" LIMIT 30 OFFSET 120", nil}},
-		{"page_ten_size_thirty", args{30, 10}, want{" LIMIT 30 OFFSET 270", nil}},
-		{"page_twenty_size_thirty", args{30, 20}, want{" LIMIT 30 OFFSET 570", nil}},
-		{"page_thirty_size_thirty", args{30, 30}, want{" LIMIT 30 OFFSET 870", nil}},
-		{"page_forty_size_thirty", args{30, 40}, want{" LIMIT 30 OFFSET 1170", nil}},
-		{"page_fifty_size_thirty", args{30, 50}, want{" LIMIT 30 OFFSET 1470", nil}},
-		{"page_one_hundred_size_thirty", args{30, 100}, want{" LIMIT 30 OFFSET 2970", nil}},
-		{"page_one_hundred_one_size_thirty", args{30, 101}, want{" LIMIT 30 OFFSET 3000", nil}},
+		{"page_one_size_fifty", args{50, 1}, want{" LIMIT 50 OFFSET 0", ""}},
+		{"page_two_size_fifty", args{50, 2}, want{" LIMIT 50 OFFSET 50", ""}},
+		{"page_three_size_fifty", args{50, 3}, want{" LIMIT 50 OFFSET 100", ""}},
+		{"page_four_size_fifty", args{50, 4}, want{" LIMIT 50 OFFSET 150", ""}},
+		{"page_five_size_fifty", args{50, 5}, want{" LIMIT 50 OFFSET 200", ""}},
 
-		{"page_one_size_fifty", args{50, 1}, want{" LIMIT 50 OFFSET 0", nil}},
-		{"page_two_size_fifty", args{50, 2}, want{" LIMIT 50 OFFSET 50", nil}},
-		{"page_three_size_fifty", args{50, 3}, want{" LIMIT 50 OFFSET 100", nil}},
-		{"page_four_size_fifty", args{50, 4}, want{" LIMIT 50 OFFSET 150", nil}},
-		{"page_five_size_fifty", args{50, 5}, want{" LIMIT 50 OFFSET 200", nil}},
+		{"page_one_size_one_hundred", args{100, 1}, want{" LIMIT 100 OFFSET 0", ""}},
+		{"page_two_size_one_hundred", args{100, 2}, want{" LIMIT 100 OFFSET 100", ""}},
+		{"page_three_size_one_hundred", args{100, 3}, want{" LIMIT 100 OFFSET 200", ""}},
+		{"page_four_size_one_hundred", args{100, 4}, want{" LIMIT 100 OFFSET 300", ""}},
+		{"page_five_size_one_hundred", args{100, 5}, want{" LIMIT 100 OFFSET 400", ""}},
 
-		{"page_one_size_one_hundred", args{100, 1}, want{" LIMIT 100 OFFSET 0", nil}},
-		{"page_two_size_one_hundred", args{100, 2}, want{" LIMIT 100 OFFSET 100", nil}},
-		{"page_three_size_one_hundred", args{100, 3}, want{" LIMIT 100 OFFSET 200", nil}},
-		{"page_four_size_one_hundred", args{100, 4}, want{" LIMIT 100 OFFSET 300", nil}},
-		{"page_five_size_one_hundred", args{100, 5}, want{" LIMIT 100 OFFSET 400", nil}},
+		{"page_one_size_one_thousand", args{1000, 1}, want{" LIMIT 1000 OFFSET 0", ""}},
+		{"page_two_size_one_thousand", args{1000, 2}, want{" LIMIT 1000 OFFSET 1000", ""}},
+		{"page_three_size_one_thousand", args{1000, 3}, want{" LIMIT 1000 OFFSET 2000", ""}},
+		{"page_four_size_one_thousand", args{1000, 4}, want{" LIMIT 1000 OFFSET 3000", ""}},
+		{"page_five_size_one_thousand", args{1000, 5}, want{" LIMIT 1000 OFFSET 4000", ""}},
 
-		{"page_one_size_one_thousand", args{1000, 1}, want{" LIMIT 1000 OFFSET 0", nil}},
-		{"page_two_size_one_thousand", args{1000, 2}, want{" LIMIT 1000 OFFSET 1000", nil}},
-		{"page_three_size_one_thousand", args{1000, 3}, want{" LIMIT 1000 OFFSET 2000", nil}},
-		{"page_four_size_one_thousand", args{1000, 4}, want{" LIMIT 1000 OFFSET 3000", nil}},
-		{"page_five_size_one_thousand", args{1000, 5}, want{" LIMIT 1000 OFFSET 4000", nil}},
-
-		{"page_one_size_ten_thousand", args{10000, 1}, want{" LIMIT 10000 OFFSET 0", nil}},
-		{"page_two_size_ten_thousand", args{10000, 2}, want{" LIMIT 10000 OFFSET 10000", nil}},
-		{"page_three_size_ten_thousand", args{10000, 3}, want{" LIMIT 10000 OFFSET 20000", nil}},
-		{"page_four_size_ten_thousand", args{10000, 4}, want{" LIMIT 10000 OFFSET 30000", nil}},
-		{"page_five_size_ten_thousand", args{10000, 5}, want{" LIMIT 10000 OFFSET 40000", nil}},
+		{"page_one_size_ten_thousand", args{10000, 1}, want{" LIMIT 10000 OFFSET 0", ""}},
+		{"page_two_size_ten_thousand", args{10000, 2}, want{" LIMIT 10000 OFFSET 10000", ""}},
+		{"page_three_size_ten_thousand", args{10000, 3}, want{" LIMIT 10000 OFFSET 20000", ""}},
+		{"page_four_size_ten_thousand", args{10000, 4}, want{" LIMIT 10000 OFFSET 30000", ""}},
+		{"page_five_size_ten_thousand", args{10000, 5}, want{" LIMIT 10000 OFFSET 40000", ""}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -892,8 +862,12 @@ func TestLimit(t *testing.T) {
 			p.LimitToSQL(tt.args.PageSize, tt.args.PageNum)
 			sql := p.GetLimitSQL()
 
-			if p.Error() != nil && errors.Is(p.Error(), tt.want.err) {
+			if p.Error() != nil && p.Error().Error() != tt.want.errMsg {
 				t.Errorf("TestLimit SQL Occur Error -> error:%+v", p.Error())
+			}
+
+			if p.Error() == nil && tt.want.errMsg != "" {
+				t.Errorf("TestLimit SQL Error Is Empty -> But Expect Error: %+v", tt.want.errMsg)
 			}
 
 			if sql != tt.want.sql {
@@ -916,7 +890,7 @@ func TestOrderBy(t *testing.T) {
 		args args
 		want want
 	}{
-		{"one_asc", args{[]string{}}, want{""}},
+		{"empty_slice", args{[]string{}}, want{""}},
 		{"one_asc", args{[]string{"test"}}, want{" ORDER BY `test` ASC"}},
 		{"two_asc", args{[]string{"test", "test2"}}, want{" ORDER BY `test` ASC, `test2` ASC"}},
 		{"three_asc", args{[]string{"test", "test2", "test3"}}, want{" ORDER BY `test` ASC, `test2` ASC, `test3` ASC"}},
@@ -925,12 +899,13 @@ func TestOrderBy(t *testing.T) {
 		{"three_desc", args{[]string{"-test", "-test2", "-test3"}}, want{" ORDER BY `test` DESC, `test2` DESC, `test3` DESC"}},
 		{"two_mix", args{[]string{"test", "-test2"}}, want{" ORDER BY `test` ASC, `test2` DESC"}},
 		{"three_mix", args{[]string{"test", "-test2", "test3"}}, want{" ORDER BY `test` ASC, `test2` DESC, `test3` ASC"}},
-		{"three_mix", args{[]string{"-test", "test2", "-test3"}}, want{" ORDER BY `test` DESC, `test2` ASC, `test3` DESC"}},
+		{"three_mix_alt", args{[]string{"-test", "test2", "-test3"}}, want{" ORDER BY `test` DESC, `test2` ASC, `test3` DESC"}},
 		{"str_one", args{"test"}, want{" ORDER BY test"}},
 		{"str_two", args{"test, test2"}, want{" ORDER BY test, test2"}},
 		{"str_three", args{"test, test2, test3"}, want{" ORDER BY test, test2, test3"}},
 		{"str_one_desc", args{"test desc"}, want{" ORDER BY test desc"}},
 		{"str_three_mix", args{"test, test2 desc, test3 asc"}, want{" ORDER BY test, test2 desc, test3 asc"}},
+		{"str_empty", args{""}, want{""}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -981,8 +956,9 @@ func TestOrderByError(t *testing.T) {
 			p.OrderByToSQL(tt.args.selects)
 			sql := p.GetOrderBySQL()
 
-			if p.Error() != tt.want.err && p.Error().Error() != tt.want.err.Error() {
+			if p.Error() == nil || p.Error().Error() != tt.want.err.Error() {
 				t.Errorf("TestOrderByError SQL Occur Error -> error: %+v", p.Error())
+				t.Errorf("TestOrderByError SQL Occur Error -> want: %+v", tt.want.err)
 			}
 
 			if sql != tt.want.sql {
@@ -1064,8 +1040,9 @@ func TestGroupByError(t *testing.T) {
 			p.GroupByToSQL(tt.args.selects)
 			sql := p.GetGroupBySQL()
 
-			if p.Error() != tt.want.err && p.Error().Error() != tt.want.err.Error() {
+			if p.Error() == nil || p.Error().Error() != tt.want.err.Error() {
 				t.Errorf("TestGroupByError SQL Occur Error -> error: %+v", p.Error())
+				t.Errorf("TestGroupByError SQL Occur Error -> want: %+v", tt.want.err)
 			}
 
 			if sql != tt.want.sql {
@@ -1091,8 +1068,8 @@ func TestHaving(t *testing.T) {
 		want want
 	}{
 		{"blank_string", args{"", []any{}}, want{"", []any{}}},
-		{"string", args{"SUM(test) > ?", []any{1}}, want{" HAVING SUM(test) > ?", []any{1}}},
-		{"string", args{"SUM(test) > ? AND SUM(test2) < ?", []any{1, 2}}, want{" HAVING SUM(test) > ? AND SUM(test2) < ?", []any{1, 2}}},
+		{"single_condition", args{"SUM(test) > ?", []any{1}}, want{" HAVING SUM(test) > ?", []any{1}}},
+		{"multiple_conditions", args{"SUM(test) > ? AND SUM(test2) < ?", []any{1, 2}}, want{" HAVING SUM(test) > ? AND SUM(test2) < ?", []any{1, 2}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -29,7 +29,7 @@ var (
 	ToOR = queryset.ToOR
 )
 
-// 泛型包装：在本包重新导出 EachOR
+// EachOR re-exports the generic EachOR function from queryset package
 func EachOR[T Cond | AND | OR](conditions T) T {
 	return queryset.EachOR(conditions)
 }

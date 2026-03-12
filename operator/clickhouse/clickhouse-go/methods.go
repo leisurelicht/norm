@@ -198,9 +198,5 @@ func (d OperatorImpl) FindAll(ctx context.Context, model any, query string, args
 		sliceValue.Set(reflect.Append(sliceValue, reflect.ValueOf(newElement).Elem()))
 	}
 
-	if sliceValue.Len() == 0 {
-		return operator.ErrNotFound
-	}
-
 	return nil
 }
