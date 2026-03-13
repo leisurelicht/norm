@@ -1,0 +1,223 @@
+{"@timestamp":"2026-03-13T16:53:10.359+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SHOW VARIABLES WHERE Variable_name IN ('character_set_client', 'character_set_connection', 'character_set_results')","duration":"2.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.361+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO `source` (`id`,`name`,`description`) VALUES (1000,'transaction2','test transaction2')","duration":"1.8ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.366+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `source` WHERE (`id` = 1000 AND `name` = 'transaction2')","duration":"1.1ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.368+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM `source` WHERE (`id` = 1000 AND `name` = 'transaction2')","duration":"2.7ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.371+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO `source` (`id`,`name`,`description`) VALUES (1000,'transaction2','test transaction2')","duration":"1.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.374+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `property`","duration":"3.0ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.378+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: UPDATE `property` SET `column_name`='test65432',`description`='Test65432'","duration":"3.9ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.388+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `source` WHERE (`id` = 1000 AND `name` = 'transaction2')","duration":"1.7ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.390+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO `source` (`id`,`name`,`description`) VALUES (1000,'transaction2','test transaction2')","duration":"1.3ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.391+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `property`","duration":"1.1ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.392+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: UPDATE `property` SET `column_name`='test65432',`description`='Test65432'","duration":"1.3ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.396+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `source` WHERE (`id` = 1000 AND `name` = 'transaction2')","duration":"0.7ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.397+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO `source` (`id`,`name`,`description`) VALUES (2000,'session','session tx')","duration":"0.8ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.398+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `source` WHERE (`name` = 'session' AND `id` = 2000)","duration":"0.7ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.399+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `source` WHERE (`id` = 2000 AND `name` = 'session')","duration":"0.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.400+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO `source` (`id`,`name`,`description`) VALUES (2001,'session_u','session tx')","duration":"0.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.401+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: UPDATE `source` SET `name`='session_u2' WHERE (`id` = 2001)","duration":"0.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.401+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source` WHERE (`id` = 2001) AND (`id` = 2001) LIMIT 1","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.403+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `source` WHERE (`id` = 2001)","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.403+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO `source` (`id`,`name`,`description`) VALUES (2002,'session_r','session tx')","duration":"0.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.404+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `source` WHERE (`id` = 2002)","duration":"0.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.405+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `source` WHERE (`id` = 2002)","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.406+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM source","duration":"0.8ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.407+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM source WHERE (`id` = 11)","duration":"0.7ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.408+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM source WHERE (`id` = 12345)","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.408+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 11) LIMIT 1","duration":"0.7ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.409+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`is_deleted` = 0) LIMIT 1","duration":"0.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.410+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`, `name` FROM source WHERE (`id` = 11) LIMIT 1","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.410+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`, `name` FROM source WHERE (`id` = 11) LIMIT 1","duration":"0.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.411+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE id = 11 LIMIT 1","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.411+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 11) LIMIT 1","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.412+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE ((`id` = 11) OR (`id` = 12))","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.413+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE ((`id` = 11) AND (`id` = 12))","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.413+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`is_deleted` = 0) ORDER BY id LIMIT 10 OFFSET 0","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.414+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`, `name` FROM source WHERE (`id` = 11)","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.414+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`, `name` FROM source WHERE (`id` = 11)","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.415+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 12345)","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.415+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 54321) LIMIT 1","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.416+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 54321)","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.416+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`name` LIKE BINARY '%Ac%' OR `name` LIKE BINARY '%Ap%') ORDER BY id LIMIT 10 OFFSET 0","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.417+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`name` NOT LIKE BINARY '%Ac%' AND `name` NOT LIKE BINARY '%Ap%') ORDER BY id LIMIT 10 OFFSET 0","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.417+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE NOT (`name` LIKE BINARY '%Ac%' OR `name` LIKE BINARY '%Ap%') ORDER BY id LIMIT 10 OFFSET 0","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.418+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`, `name` FROM source WHERE (`is_deleted` = 0) ORDER BY id LIMIT 10 OFFSET 0","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.418+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`, `name` FROM source WHERE (`is_deleted` = 0) ORDER BY id LIMIT 10 OFFSET 0","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.419+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT id, name FROM source WHERE (`is_deleted` = 0) ORDER BY id LIMIT 10 OFFSET 0","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.419+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT id, name FROM source WHERE (`is_deleted` = 0) ORDER BY id LIMIT 1","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.420+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source","duration":"0.3ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.420+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source ORDER BY `id` DESC","duration":"0.3ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.420+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `name` FROM source GROUP BY name","duration":"0.3ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.421+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `name` FROM source GROUP BY `name`","duration":"0.3ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.421+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT name FROM source","duration":"0.3ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.423+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO source (`id`,`name`,`description`) VALUES (666,'666','2333')","duration":"1.7ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.423+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 666) LIMIT 1","duration":"0.7ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.425+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: UPDATE source SET `name`='test' WHERE (`id` = 666)","duration":"1.8ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.426+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 666) LIMIT 1","duration":"0.8ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.427+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM source WHERE (`id` = 666)","duration":"1.1ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.429+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO source (`id`,`name`,`description`) VALUES (666,'666','2333')","duration":"1.3ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.430+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: UPDATE source SET `name`='test' WHERE (`id` = 666)","duration":"1.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.431+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: UPDATE source SET `is_deleted`=1 WHERE (`id` = 666)","duration":"1.2ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.432+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 666 AND `is_deleted` = 1) LIMIT 1","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.433+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM source WHERE (`is_deleted` = 1 AND `id` = 666)","duration":"1.0ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.433+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 666) LIMIT 1","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.434+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM source WHERE (`id` = 666)","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.435+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO source (`id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time`) VALUES (777,'777',0,'2333',0,'2026-03-13 16:53:10.4346 +0800 CST m=+0.089334335','2026-03-13 16:53:10.434601 +0800 CST m=+0.089334418')","duration":"1.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.436+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 777 AND `is_deleted` = 0) LIMIT 1","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.437+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM source WHERE (`id` = 777)","duration":"1.1ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.438+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 777) LIMIT 1","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.438+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM source WHERE (`id` IN (11,12,13))","duration":"0.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.439+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` IN (11,12,13)) ORDER BY id DESC","duration":"0.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.440+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM source WHERE (`id` IN (11,12,13))","duration":"0.8ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.440+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`, `name` FROM source WHERE (`id` IN (11,12,13)) ORDER BY id DESC","duration":"0.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.441+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO source (`id`,`description`) VALUES (11,'A 站')","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.441+08:00","caller":"sqlx/utils.go:147","content":"stmt: INSERT INTO source (`id`,`description`) VALUES (11,'A 站'), error: Error 1062 (23000): Duplicate entry '11' for key 'source.PRIMARY'","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.441+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 11 AND `description` = 'A 站') LIMIT 1","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.443+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO source (`id`,`name`,`description`) VALUES (12345,'12345','12345')","duration":"1.2ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.443+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 12345 AND `name` = '12345' AND `description` = '12345') LIMIT 1","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.444+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 12345) LIMIT 1","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.445+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM source WHERE (`id` = 12345)","duration":"1.2ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.445+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM source WHERE (`id` = 23456)","duration":"0.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.447+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO source (`id`,`description`) VALUES (23456,'Test23456')","duration":"1.2ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.447+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 23456) LIMIT 1","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.448+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM source WHERE (`id` = 23456)","duration":"1.2ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.449+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM source WHERE (`id` = 23456)","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.450+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO source (`id`,`description`) VALUES (23456,'Test23456')","duration":"1.3ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.451+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM source WHERE (`id` = 23456)","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.452+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: UPDATE source SET `id`=23456,`name`='test65432',`description`='Test65432' WHERE (`id` = 23456)","duration":"1.2ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.452+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 23456) LIMIT 1","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.454+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM source WHERE (`id` = 23456)","duration":"1.0ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.454+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`source_id`,`column_name`,`show_name`,`description`,`is_deleted`,`create_time`,`update_time` FROM `property` WHERE (`source_id` = 11)","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.455+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `property` WHERE (`source_id` = 11)","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.456+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: UPDATE `property` SET `column_name`='test65432',`description`='Test65432' WHERE (`source_id` = 11)","duration":"1.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.457+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`source_id`,`column_name`,`show_name`,`description`,`is_deleted`,`create_time`,`update_time` FROM `property` WHERE (`source_id` = 11)","duration":"0.7ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.458+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: UPDATE `property` SET `id`=1,`source_id`=11,`column_name`='title',`show_name`='标题',`description`='标题',`is_deleted`=0,`create_time`='2024-03-19 15:16:23 +0800 CST',`update_time`='2024-03-19 15:16:23 +0800 CST' WHERE (`id` = 1)","duration":"1.3ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.459+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: UPDATE `property` SET `source_id`=11,`column_name`='description',`show_name`='描述',`description`='描述',`is_deleted`=0,`create_time`='2024-03-19 15:16:23 +0800 CST',`update_time`='2024-03-19 15:16:23 +0800 CST',`id`=2 WHERE (`id` = 2)","duration":"1.1ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.460+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: UPDATE `property` SET `is_deleted`=0,`create_time`='2024-03-19 15:16:23 +0800 CST',`update_time`='2024-03-19 15:16:23 +0800 CST',`id`=3,`source_id`=11,`column_name`='cover',`show_name`='封面',`description`='封面' WHERE (`id` = 3)","duration":"1.1ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.461+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 11111 AND `name` = 'test11111') LIMIT 1","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.461+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM source WHERE (`id` = 11111 AND `name` = 'test11111' AND `description` = 'Test11111')","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.463+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO source (`id`,`name`,`description`) VALUES (11111,'test11111','Test11111')","duration":"1.1ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.463+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` = 11111 AND `name` = 'test11111') LIMIT 1","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.464+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM source WHERE (`id` = 11111)","duration":"1.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.466+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO source (`id`,`name`,`description`) VALUES (11112,'test11112','Test11112')","duration":"1.0ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.466+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM source WHERE (`description` = 'Test11112' AND `id` = 11112 AND `name` = 'test11112')","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.467+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM source WHERE (`id` = 11112)","duration":"1.0ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.468+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO `property` (`source_id`,`column_name`,`description`) VALUES (11111,'test11111','Test11111'),(11112,'test11112','Test11112'),(11113,'test11113','Test11113'),(11114,'test11114','Test11114'),(11115,'test11115','Test11115'),(11116,'test11116','Test11116')","duration":"1.0ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.468+08:00","caller":"go-zero/methods.go:135","content":"Inserted 6 rows","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.469+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`source_id`,`column_name`,`show_name`,`description`,`is_deleted`,`create_time`,`update_time` FROM `property` WHERE (`source_id` BETWEEN 11111 AND 11116) ORDER BY source_id","duration":"0.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.470+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM `property` WHERE (`source_id` BETWEEN 11111 AND 11116)","duration":"1.2ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.470+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM source WHERE (`id` IN (8881,8882))","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.472+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO source (`id`,`name`,`description`) VALUES (8881,'batch1','batch1'),(8882,'batch2','batch2')","duration":"1.2ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.472+08:00","caller":"go-zero/methods.go:135","content":"Inserted 2 rows","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.472+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` IN (8881,8882)) ORDER BY id","duration":"0.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.474+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM source WHERE (`id` IN (8881,8882))","duration":"1.3ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.474+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM source WHERE (`id` IN (8891,8892))","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.475+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO source (`id`,`name`,`description`) VALUES (8891,'batchp1','batchp1'),(8892,'batchp2','batchp2')","duration":"1.1ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.475+08:00","caller":"go-zero/methods.go:135","content":"Inserted 2 rows","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.476+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` IN (8891,8892)) ORDER BY id","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.477+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM source WHERE (`id` IN (8891,8892))","duration":"1.0ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.477+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM source WHERE (`id` IN (8901,8902))","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.478+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO source (`id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time`) VALUES (8901,'batch-time-1',1,'bulk create time',0,'2026-03-13 16:53:10.477719 +0800 CST m=+0.132452668','2026-03-13 16:53:10.477719 +0800 CST m=+0.132452668'),(8902,'batch-time-2',2,'bulk create time',0,'2026-03-13 16:53:12.477719 +0800 CST m=+2.132452668','2026-03-13 16:53:12.477719 +0800 CST m=+2.132452668')","duration":"1.1ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.478+08:00","caller":"go-zero/methods.go:135","content":"Inserted 2 rows","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.479+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM source WHERE (`id` IN (8901,8902)) ORDER BY id","duration":"0.9ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.484+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM source WHERE (`id` IN (8901,8902))","duration":"4.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.485+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `source`","duration":"0.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.485+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `source`","duration":"0.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.486+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source` LIMIT 1","duration":"0.3ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.487+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source`","duration":"0.2ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.487+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source` LIMIT 1","duration":"0.3ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.489+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO `source` (`id`,`name`,`description`) VALUES (1000,'rest','test rest')","duration":"1.3ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.491+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: DELETE FROM `source` WHERE (`id` = 1000)","duration":"2.0ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.491+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM `source` WHERE (`id` = 1000) AND (`id` = 1000) LIMIT 1","duration":"0.6ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.492+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM not_exist_table LIMIT 1","duration":"0.7ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.492+08:00","caller":"sqlx/utils.go:147","content":"stmt: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM not_exist_table LIMIT 1, error: Error 1146 (42S02): Table 'test.not_exist_table' doesn't exist","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.492+08:00","caller":"go-zero/methods.go:262","content":"FindOne error: Error 1146 (42S02): Table 'test.not_exist_table' doesn't exist","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.492+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM not_exist_table","duration":"0.3ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.492+08:00","caller":"sqlx/utils.go:147","content":"stmt: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM not_exist_table, error: Error 1146 (42S02): Table 'test.not_exist_table' doesn't exist","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.492+08:00","caller":"go-zero/methods.go:271","content":"FindAll error: Error 1146 (42S02): Table 'test.not_exist_table' doesn't exist","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.493+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM not_exist_table","duration":"0.7ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.493+08:00","caller":"sqlx/utils.go:147","content":"stmt: SELECT `id`,`name`,`type`,`description`,`is_deleted`,`create_time`,`update_time` FROM not_exist_table, error: Error 1146 (42S02): Table 'test.not_exist_table' doesn't exist","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.493+08:00","caller":"go-zero/methods.go:271","content":"FindAll error: Error 1146 (42S02): Table 'test.not_exist_table' doesn't exist","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.493+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM not_exist_table","duration":"0.2ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.493+08:00","caller":"sqlx/utils.go:147","content":"stmt: SELECT count(1) FROM not_exist_table, error: Error 1146 (42S02): Table 'test.not_exist_table' doesn't exist","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.493+08:00","caller":"go-zero/methods.go:231","content":"Count error: Error 1146 (42S02): Table 'test.not_exist_table' doesn't exist. ","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.494+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM source WHERE (`id` = 11)","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.494+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT `id`,`not_exist` FROM source WHERE (`id` = 11)","duration":"0.2ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.494+08:00","caller":"sqlx/utils.go:147","content":"stmt: SELECT `id`,`not_exist` FROM source WHERE (`id` = 11), error: Error 1054 (42S22): Unknown column 'not_exist' in 'field list'","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.494+08:00","caller":"go-zero/methods.go:271","content":"FindAll error: Error 1054 (42S22): Unknown column 'not_exist' in 'field list'","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.494+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO source (`id`) VALUES (98765)","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.494+08:00","caller":"sqlx/utils.go:147","content":"stmt: INSERT INTO source (`id`) VALUES (98765), error: Error 1364 (HY000): Field 'description' doesn't have a default value","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.494+08:00","caller":"go-zero/methods.go:90","content":"Insert Error: Error 1364 (HY000): Field 'description' doesn't have a default value","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.495+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM not_exist_table WHERE (`id` = 1)","duration":"0.2ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.495+08:00","caller":"sqlx/utils.go:147","content":"stmt: SELECT count(1) FROM not_exist_table WHERE (`id` = 1), error: Error 1146 (42S02): Table 'test.not_exist_table' doesn't exist","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.495+08:00","caller":"go-zero/methods.go:248","content":"Exist error: Error 1146 (42S02): Table 'test.not_exist_table' doesn't exist","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.495+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `source` WHERE (`id` = 11)","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.495+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: UPDATE `source` SET `description`= WHERE (`id` = 11)","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.495+08:00","caller":"sqlx/utils.go:147","content":"stmt: UPDATE `source` SET `description`= WHERE (`id` = 11), error: Error 1048 (23000): Column 'description' cannot be null","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.495+08:00","caller":"go-zero/methods.go:208","content":"Update error: Error 1048 (23000): Column 'description' cannot be null","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.496+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `source` WHERE (`id` = 98766)","duration":"0.5ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.496+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO `source` (`id`) VALUES (98766)","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.496+08:00","caller":"sqlx/utils.go:147","content":"stmt: INSERT INTO `source` (`id`) VALUES (98766), error: Error 1364 (HY000): Field 'description' doesn't have a default value","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.496+08:00","caller":"go-zero/methods.go:90","content":"Insert Error: Error 1364 (HY000): Field 'description' doesn't have a default value","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.497+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM not_exist_table WHERE (`id` = 1)","duration":"0.3ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.497+08:00","caller":"sqlx/utils.go:147","content":"stmt: SELECT count(1) FROM not_exist_table WHERE (`id` = 1), error: Error 1146 (42S02): Table 'test.not_exist_table' doesn't exist","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.497+08:00","caller":"go-zero/methods.go:248","content":"Exist error: Error 1146 (42S02): Table 'test.not_exist_table' doesn't exist","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.497+08:00","caller":"sqlx/stmt.go:274","content":"sql query: SELECT count(1) FROM `source` WHERE (`id` = 98767)","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.498+08:00","caller":"sqlx/stmt.go:274","content":"sql exec: INSERT INTO `source` (`id`) VALUES (98767)","duration":"0.4ms","level":"info"}
+{"@timestamp":"2026-03-13T16:53:10.498+08:00","caller":"sqlx/utils.go:147","content":"stmt: INSERT INTO `source` (`id`) VALUES (98767), error: Error 1364 (HY000): Field 'description' doesn't have a default value","level":"error"}
+{"@timestamp":"2026-03-13T16:53:10.498+08:00","caller":"go-zero/methods.go:90","content":"Insert Error: Error 1364 (HY000): Field 'description' doesn't have a default value","level":"error"}
+goos: darwin
+goarch: arm64
+pkg: github.com/leisurelicht/norm
+cpu: Apple M1 Pro
+BenchmarkHandler_Create_Struct-10                   	  949929	      1135 ns/op	    1200 B/op	      24 allocs/op
+BenchmarkHandler_Create_Map-10                      	 1489780	       797.7 ns/op	     824 B/op	      22 allocs/op
+BenchmarkHandler_BulkCreate_Maps-10                 	 1586433	       761.7 ns/op	     840 B/op	      22 allocs/op
+BenchmarkHandler_FindOne_Map-10                     	 1586490	       755.6 ns/op	    1072 B/op	      17 allocs/op
+BenchmarkHandler_FindOne_Model-10                   	 3575048	       334.6 ns/op	     640 B/op	      10 allocs/op
+BenchmarkHandler_FindAll_Map-10                     	 1920169	       631.7 ns/op	     984 B/op	      20 allocs/op
+BenchmarkHandler_FindOne_Map_SelectNoAlias-10       	  837583	      1359 ns/op	    1536 B/op	      26 allocs/op
+BenchmarkHandler_FindOne_Map_SelectAliasError-10    	 2744011	       432.2 ns/op	     544 B/op	       9 allocs/op
+BenchmarkHandler_FindAll_Map_SelectNoAlias-10       	 1388328	       849.8 ns/op	    1016 B/op	      24 allocs/op
+BenchmarkHandler_FindAll_Map_SelectAliasError-10    	 1973829	       602.7 ns/op	     632 B/op	      15 allocs/op
+BenchmarkHandler_FindAll_Model-10                   	 2074998	       577.5 ns/op	     960 B/op	      19 allocs/op
+BenchmarkHandler_List-10                            	 1748342	       660.3 ns/op	    1008 B/op	      21 allocs/op
+BenchmarkHandler_CreateOrUpdate-10                  	 1609476	       738.7 ns/op	    1047 B/op	      20 allocs/op
+BenchmarkHandler_GetOrCreate-10                     	  418762	      2735 ns/op	    3311 B/op	      67 allocs/op
+BenchmarkHandler_CreateIfNotExist-10                	  823178	      1388 ns/op	    1918 B/op	      35 allocs/op
+PASS
+ok  	github.com/leisurelicht/norm	25.889s
+?   	github.com/leisurelicht/norm/internal/config	[no test files]
+?   	github.com/leisurelicht/norm/internal/logger	[no test files]
+?   	github.com/leisurelicht/norm/internal/operator	[no test files]
+?   	github.com/leisurelicht/norm/internal/operator/clickhouse	[no test files]
+?   	github.com/leisurelicht/norm/internal/operator/mysql	[no test files]
+goos: darwin
+goarch: arm64
+pkg: github.com/leisurelicht/norm/internal/queryset
+cpu: Apple M1 Pro
+BenchmarkQuerySet_SimpleFilter-10       	 1481420	       777.4 ns/op	    1280 B/op	      18 allocs/op
+BenchmarkQuerySet_ComplexFilter-10      	  372933	      3016 ns/op	    3918 B/op	      69 allocs/op
+BenchmarkQuerySet_Filter_Size/size=1-10 	 2171194	       548.6 ns/op	    1104 B/op	      11 allocs/op
+BenchmarkQuerySet_Filter_Size/size=5-10 	  705116	      1566 ns/op	    2289 B/op	      40 allocs/op
+BenchmarkQuerySet_Filter_Size/size=10-10         	  371781	      3079 ns/op	    4538 B/op	      74 allocs/op
+BenchmarkQuerySet_Filter_Size/size=20-10         	  191222	      6075 ns/op	   10145 B/op	     135 allocs/op
+BenchmarkQuerySet_Filter_Size/size=50-10         	   70824	     16742 ns/op	   38478 B/op	     316 allocs/op
+BenchmarkQuerySet_Where-10                       	 8767424	       134.4 ns/op	     384 B/op	       4 allocs/op
+BenchmarkQuerySet_FilterVsWhere/Filter-10        	 1535918	       786.8 ns/op	    1280 B/op	      18 allocs/op
+BenchmarkQuerySet_FilterVsWhere/Where-10         	 9012942	       134.0 ns/op	     384 B/op	       4 allocs/op
+BenchmarkQuerySet_CompleteQuery-10               	  359250	      3254 ns/op	    4054 B/op	      75 allocs/op
+BenchmarkQuerySet_BuildLargeQuery-10             	  289089	      3928 ns/op	    5619 B/op	      78 allocs/op
+BenchmarkQuerySet_FilterExclude-10               	  800103	      1273 ns/op	    2065 B/op	      25 allocs/op
+BenchmarkWrapWithBackticks/empty_string-10       	1000000000	         0.3153 ns/op	       0 B/op	       0 allocs/op
+BenchmarkWrapWithBackticks/simple-10             	68027530	        17.24 ns/op	       0 B/op	       0 allocs/op
+BenchmarkWrapWithBackticks/unwrapped_string-10   	69500752	        16.99 ns/op	       0 B/op	       0 allocs/op
+BenchmarkWrapWithBackticks/already_wrapped_string-10         	1000000000	         0.7821 ns/op	       0 B/op	       0 allocs/op
+BenchmarkWrapWithBackticks/long-10                           	36080368	        31.55 ns/op	      80 B/op	       1 allocs/op
+PASS
+ok  	github.com/leisurelicht/norm/internal/queryset	24.828s
+?   	github.com/leisurelicht/norm/operator/clickhouse/clickhouse-go	[no test files]
+?   	github.com/leisurelicht/norm/operator/clickhouse/clickhouse-go-2	[no test files]
+PASS
+ok  	github.com/leisurelicht/norm/operator/mysql/go-zero	0.441s
+?   	github.com/leisurelicht/norm/operator/mysql/sqlx	[no test files]
+?   	github.com/leisurelicht/norm/test	[no test files]
