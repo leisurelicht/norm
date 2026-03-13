@@ -31,13 +31,15 @@ func rawFieldNames(in any, tag string, pg bool) []string {
 		v = v.Elem()
 	}
 
-	out := make([]string, 0, v.NumField())
+	fieldCount := v.NumField()
+	out := make([]string, 0, fieldCount) // Pre-allocate with exact capacity
 
 	typ := v.Type()
-	for i := range v.NumField() {
+	for i := range fieldCount {
 		// gets us a StructField
 		fi := typ.Field(i)
 		tagv := fi.Tag.Get(tag)
+
 		switch tagv {
 		case "-":
 			continue
@@ -45,7 +47,7 @@ func rawFieldNames(in any, tag string, pg bool) []string {
 			if pg {
 				out = append(out, fi.Name)
 			} else {
-				out = append(out, fmt.Sprintf("`%s`", fi.Name))
+				out = append(out, "`"+fi.Name+"`") // Avoid fmt.Sprintf for simple concatenation
 			}
 		default:
 			// get tag name with the tag option, e.g.:
@@ -53,19 +55,21 @@ func rawFieldNames(in any, tag string, pg bool) []string {
 			// `db:"id,type=char,length=16"`
 			// `db:",type=char,length=16"`
 			// `db:"-,type=char,length=16"`
-			if strings.Contains(tagv, ",") {
-				tagv = strings.TrimSpace(strings.Split(tagv, ",")[0])
+			if commaPos := strings.Index(tagv, ","); commaPos != -1 {
+				tagv = strings.TrimSpace(tagv[:commaPos]) // More efficient than Split
 			}
+
 			if tagv == "-" {
 				continue
 			}
 			if len(tagv) == 0 {
 				tagv = fi.Name
 			}
+
 			if pg {
 				out = append(out, tagv)
 			} else {
-				out = append(out, fmt.Sprintf("`%s`", tagv))
+				out = append(out, "`"+tagv+"`") // Avoid fmt.Sprintf for simple concatenation
 			}
 		}
 	}
